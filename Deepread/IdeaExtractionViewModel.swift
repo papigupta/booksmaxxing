@@ -8,9 +8,14 @@ class IdeaExtractionViewModel: ObservableObject {
     @Published var errorMessage: String?
     
     private let openAIService: OpenAIService
+    private var currentTask: Task<Void, Never>?
     
     init(openAIService: OpenAIService) {
         self.openAIService = openAIService
+    }
+    
+    deinit {
+        currentTask?.cancel()
     }
     
     func extractIdeas(from title: String) {
@@ -18,6 +23,9 @@ class IdeaExtractionViewModel: ObservableObject {
             errorMessage = "Book title is empty"
             return
         }
+        
+        // Cancel any existing task
+        currentTask?.cancel()
         
         isLoading = true
         errorMessage = nil
@@ -31,14 +39,23 @@ class IdeaExtractionViewModel: ObservableObject {
         print("DEBUG: Normalized title: '\(normalizedTitle)'")
         #endif
         
-        Task {
+        currentTask = Task {
             do {
                 #if DEBUG
                 print("DEBUG: Calling OpenAI with title: \(normalizedTitle)")
                 #endif
                 let ideas = try await openAIService.extractIdeas(from: normalizedTitle)
+                
+                // Check if task was cancelled
+                try Task.checkCancellation()
+                
                 self.extractedIdeas = ideas
                 self.isLoading = false
+            } catch is CancellationError {
+                #if DEBUG
+                print("DEBUG: Task was cancelled")
+                #endif
+                // Don't update UI state if cancelled
             } catch {
                 #if DEBUG
                 print("DEBUG: Error occurred: \(error)")
@@ -47,5 +64,11 @@ class IdeaExtractionViewModel: ObservableObject {
                 self.isLoading = false
             }
         }
+    }
+    
+    func cancelExtraction() {
+        currentTask?.cancel()
+        currentTask = nil
+        isLoading = false
     }
 }

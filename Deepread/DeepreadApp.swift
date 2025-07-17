@@ -10,6 +10,9 @@ import SwiftData
 
 @main
 struct DeepreadApp: App {
+    // Shared OpenAIService instance
+    private let openAIService = OpenAIService(apiKey: Secrets.openAIAPIKey)
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Book.self,
@@ -25,7 +28,7 @@ struct DeepreadApp: App {
 
     var body: some Scene {
         WindowGroup {
-            OnboardingView()
+            OnboardingView(openAIService: openAIService)
         }
         .modelContainer(sharedModelContainer)
     }

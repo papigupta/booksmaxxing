@@ -3,9 +3,18 @@ import Foundation
 class OpenAIService {
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
+    private let session: URLSession
     
     init(apiKey: String) {
         self.apiKey = apiKey
+        
+        // Create a custom configuration with timeout settings
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 30.0  // 30 seconds for request timeout
+        configuration.timeoutIntervalForResource = 60.0 // 60 seconds for resource timeout
+        configuration.waitsForConnectivity = true       // Wait for connectivity if offline
+        
+        self.session = URLSession(configuration: configuration)
     }
     
     func extractIdeas(from text: String) async throws -> [String] {
@@ -19,7 +28,7 @@ class OpenAIService {
         let requestBody = ChatRequest(
             model: "gpt-3.5-turbo",
             messages: [
-                Message(role: "system", content: "You are a helpful assistant that breaks down books into all their key ideas. Respond with a JSON array of short, standalone idea strings."),
+                Message(role: "system", content: "You are a meticulous assistant that extracts the most important and teachable ideas from a non-fiction book. Each concept should be one distinct, self-contained idea—no overlaps, no vague summaries. Prioritize explanatory power over catchy phrasing, and focus on mental models, distinctions, frameworks, and cause-effect patterns that drive the book's argument. Give each concept a short, clear title (1 line max) and a brief explanation (1 to 2 lines). Do not include trivia, quotes, or unnecessary examples. Ignore the book's chapter structure and instead group similar ideas under unified, standalone concepts. Aim to extract 10 to 50 total concepts depending on the richness of the material. Respond with a JSON array of concept names only. No explanations, no extra text."),
                 Message(role: "user", content: prompt)
             ],
             max_tokens: 500,
@@ -34,10 +43,30 @@ class OpenAIService {
         
         request.httpBody = try JSONEncoder().encode(requestBody)
         
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let response = try JSONDecoder().decode(ChatResponse.self, from: data)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw OpenAIServiceError.networkError(error)
+        }
         
-        guard let content = response.choices.first?.message.content else {
+        // Check HTTP response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIServiceError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw OpenAIServiceError.invalidResponse
+        }
+        
+        let chatResponse: ChatResponse
+        do {
+            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        } catch {
+            throw OpenAIServiceError.decodingError(error)
+        }
+        
+        guard let content = chatResponse.choices.first?.message.content else {
             throw OpenAIServiceError.noResponse
         }
         
@@ -45,11 +74,15 @@ class OpenAIService {
         print("🧠 Raw OpenAI content:", content)
         #endif
         
-        guard let data = content.data(using: .utf8) else {
+        guard let contentData = content.data(using: .utf8) else {
             throw OpenAIServiceError.noResponse
         }
         
-        return try JSONDecoder().decode([String].self, from: data)
+        do {
+            return try JSONDecoder().decode([String].self, from: contentData)
+        } catch {
+            throw OpenAIServiceError.decodingError(error)
+        }
     }
 }
 
@@ -76,4 +109,7 @@ struct Choice: Codable {
 
 enum OpenAIServiceError: Error {
     case noResponse
+    case invalidResponse
+    case networkError(Error)
+    case decodingError(Error)
 }

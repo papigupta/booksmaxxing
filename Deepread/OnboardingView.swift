@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct OnboardingView: View {
+    let openAIService: OpenAIService
     @State private var bookTitle: String = ""
     @State private var isNavigatingToBookOverview = false
     @State private var selectedBookTitle: String = ""
@@ -28,7 +29,7 @@ struct OnboardingView: View {
                 .disabled(bookTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 
                 NavigationLink(
-                    destination: BookOverviewView(bookTitle: selectedBookTitle, openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)),
+                    destination: BookOverviewView(bookTitle: selectedBookTitle, openAIService: openAIService),
                     isActive: $isNavigatingToBookOverview
                 ) {
                     EmptyView()

@@ -35,8 +35,8 @@ struct BookOverviewView: View {
             }
         }
         .padding()
-        .onAppear {
-            print("DEBUG: BookOverviewView onAppear triggered")
+        .task {
+            print("DEBUG: BookOverviewView task triggered")
             viewModel.extractIdeas(from: bookTitle)
         }
     }
