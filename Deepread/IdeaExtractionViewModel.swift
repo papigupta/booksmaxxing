@@ -14,11 +14,6 @@ class IdeaExtractionViewModel: ObservableObject {
     }
     
     func extractIdeas(from title: String) {
-        print("DEBUG: extractIdeas called with title: \(title)")
-        guard !title.isEmpty else {
-            print("DEBUG: Received empty title — skipping")
-            return
-        }
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorMessage = "Book title is empty"
             return
@@ -27,24 +22,30 @@ class IdeaExtractionViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTitle = title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .lowercased()
         
+        #if DEBUG
         print("DEBUG: Normalized title: '\(normalizedTitle)'")
+        #endif
         
         Task {
             do {
+                #if DEBUG
                 print("DEBUG: Calling OpenAI with title: \(normalizedTitle)")
+                #endif
                 let ideas = try await openAIService.extractIdeas(from: normalizedTitle)
-                print("DEBUG: Raw response content: \(ideas)")
                 self.extractedIdeas = ideas
                 self.isLoading = false
             } catch {
+                #if DEBUG
                 print("DEBUG: Error occurred: \(error)")
+                #endif
                 self.errorMessage = error.localizedDescription
                 self.isLoading = false
             }
         }
     }
-} 
+}

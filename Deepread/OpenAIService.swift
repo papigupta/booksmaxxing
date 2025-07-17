@@ -12,7 +12,7 @@ class OpenAIService {
         let prompt = """
         Extract and list all the core ideas, frameworks, and insights from the non-fiction book titled "\(text)". 
         Return them as a JSON array of strings.
-        
+
         \(text)
         """
         
@@ -32,8 +32,7 @@ class OpenAIService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(requestBody)
+        request.httpBody = try JSONEncoder().encode(requestBody)
         
         let (data, _) = try await URLSession.shared.data(for: request)
         let response = try JSONDecoder().decode(ChatResponse.self, from: data)
@@ -42,14 +41,15 @@ class OpenAIService {
             throw OpenAIServiceError.noResponse
         }
         
+        #if DEBUG
         print("🧠 Raw OpenAI content:", content)
+        #endif
         
         guard let data = content.data(using: .utf8) else {
             throw OpenAIServiceError.noResponse
         }
         
-        let ideas = try JSONDecoder().decode([String].self, from: data)
-        return ideas
+        return try JSONDecoder().decode([String].self, from: data)
     }
 }
 
@@ -76,6 +76,4 @@ struct Choice: Codable {
 
 enum OpenAIServiceError: Error {
     case noResponse
-    case invalidAPIKey
-    case networkError
-} 
+}
