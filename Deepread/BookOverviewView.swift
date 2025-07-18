@@ -22,11 +22,11 @@ struct BookOverviewView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        ForEach(viewModel.extractedIdeas, id: \.self) { idea in
+                        ForEach(viewModel.extractedIdeas) { idea in
                             HStack(alignment: .top, spacing: 8) {
                                 Image(systemName: "lightbulb.fill")
                                     .foregroundColor(.blue)
-                                Text(idea)
+                                Text(idea.title)
                                     .font(.body)
                             }
                         }

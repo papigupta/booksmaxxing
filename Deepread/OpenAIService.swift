@@ -24,14 +24,42 @@ class OpenAIService {
 
         \(text)
         """
+
+
+        let systemPrompt = """
+            Your task is to extract and list the most important, teachable ideas from a non-fiction book.
+
+            Each concept = one distinct, self-contained idea. No overlaps. No vague summaries.
+
+            Prefer explanatory power over catchy phrasing. Extract the mental models, distinctions, frameworks, and cause-effect patterns that drive the book.
+
+            Give the concept a short, clear title (1 line max) and a brief explanation (1–2 lines).
+
+            Focus only on the most important + teachable ideas. Do not include trivia or examples unless essential.
+
+            Ignore chapter structure. Group similar ideas under unified concepts.
+
+            Aim for 10–50 concepts per book, depending on richness.
+
+            Don’t quote—explain.
+
+            Additional rules for this API call:
+            • Titles must be unique. Do not output synonyms or sub-variants as separate items.  
+            • Prepend each concept with an ID in the form **i1, i2, …** so the client can parse it.  
+            Example output element: `"i7 | Anchoring effect — Initial numbers bias estimates even when irrelevant."`
+            • If more than 25 unique concepts remain, keep only the 25 most important, then maintain narrative order.
+
+            Return a **JSON array of strings** (no objects, no extra text).
+        """
+
         
         let requestBody = ChatRequest(
             model: "gpt-3.5-turbo",
             messages: [
-                Message(role: "system", content: "You are a meticulous assistant that extracts the most important and teachable ideas from a non-fiction book. Each concept should be one distinct, self-contained idea—no overlaps, no vague summaries. Prioritize explanatory power over catchy phrasing, and focus on mental models, distinctions, frameworks, and cause-effect patterns that drive the book's argument. Give each concept a short, clear title (1 line max). Do not include trivia, quotes, or unnecessary examples. Ignore the book's chapter structure and instead group similar ideas under unified, standalone concepts. Aim to extract between 10 and 50 total concepts depending on the richness of the material. Respond with a JSON array of concept names only. No explanations, no extra text."),
+                Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: prompt)
             ],
-            max_tokens: 500,
+            max_tokens: 1000,
             temperature: 0.3
         )
         

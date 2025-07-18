@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 class IdeaExtractionViewModel: ObservableObject {
-    @Published var extractedIdeas: [String] = []
+    @Published var extractedIdeas: [Idea] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -49,7 +49,24 @@ class IdeaExtractionViewModel: ObservableObject {
                 // Check if task was cancelled
                 try Task.checkCancellation()
                 
-                self.extractedIdeas = ideas
+                let parsedIdeas = ideas.compactMap { line -> Idea? in
+                    // Format: "i7 | Anchoring effect — Explanation"
+                    let parts = line.split(separator: "|", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                    guard parts.count == 2 else { return nil }
+
+                    let id = parts[0]                          // "i7"
+                    let fullTitleWithExplanation = parts[1]    // "Anchoring effect — Explanation"
+
+                    return Idea(id: id, title: fullTitleWithExplanation)
+                }
+                
+                self.extractedIdeas = parsedIdeas
+                
+                print("🧠 Parsed ideas:")
+                for idea in self.extractedIdeas {
+                    print("ID: \(idea.id), Title: \(idea.title)")
+                }
+                
                 self.isLoading = false
             } catch is CancellationError {
                 #if DEBUG
