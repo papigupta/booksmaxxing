@@ -59,7 +59,7 @@ struct ActiveIdeaCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "apple.intelligence")
                     .font(.title2)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
                     .frame(width: 24)
                 
                 VStack(alignment: .leading, spacing: 8) {
@@ -67,12 +67,13 @@ struct ActiveIdeaCard: View {
                         .font(.body)
                         .fontWeight(.semibold)
                         .lineLimit(2)
+                        .foregroundColor(.white)
                     
                     if !idea.description.isEmpty {
                         Text(idea.description)
                             .font(.body)
                             .fontWeight(.regular)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                             .lineLimit(3)
                     }
                     
@@ -80,13 +81,13 @@ struct ActiveIdeaCard: View {
                     HStack(spacing: 4) {
                         Text("Understanding score:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                         
                         HStack(spacing: 2) {
                             ForEach(0..<3) { index in
                                 Image(systemName: index < 2 ? "star.fill" : "star")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.7))
                             }
                         }
                     }
@@ -95,32 +96,33 @@ struct ActiveIdeaCard: View {
                     HStack(spacing: 4) {
                         Text("Importance:")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.white.opacity(0.7))
                         
                         HStack(spacing: 2) {
                             ForEach(0..<3) { index in
                                 Image(systemName: index < 2 ? "staroflife.fill" : "staroflife")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.white.opacity(0.7))
                             }
                         }
                     }
                     
                     // CTA Button
-                    Button(action: {
-                        // TODO: Implement master idea action
-                    }) {
+                    NavigationLink(destination: LevelLoadingView(idea: idea)) {
                         HStack(spacing: 4) {
                             Image(systemName: "play.fill")
                                 .font(.caption)
+                                .foregroundColor(.white)
                             Text("Master this idea")
                                 .font(.caption)
                                 .fontWeight(.medium)
+                                .foregroundColor(.white)
                         }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .foregroundColor(.primary)
+                    .foregroundColor(.white)
+                    .background(Color.white.opacity(0.2))
                     .padding(.top, 4)
                 }
             }
@@ -128,11 +130,11 @@ struct ActiveIdeaCard: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(.ultraThinMaterial)
+                .fill(Color.black)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary, lineWidth: 0.5)
+                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
         )
     }
 }

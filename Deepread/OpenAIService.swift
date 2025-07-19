@@ -112,6 +112,87 @@ class OpenAIService {
             throw OpenAIServiceError.decodingError(error)
         }
     }
+    
+    func generatePrompt(for idea: String, level: Int) async throws -> String {
+        let levelContext = getLevelContext(level)
+        
+        let systemPrompt = """
+            You are an expert educational prompt generator. Your task is to create engaging, thought-provoking prompts that help users deeply engage with ideas from books.
+            
+            Guidelines:
+            - Make prompts personal and reflective
+            - Encourage free-form thinking
+            - Avoid yes/no questions
+            - Keep prompts concise but open-ended
+            - Adapt tone based on the level (0=free thinking, 1=connection, 2=application)
+            - Focus on the specific idea provided
+            
+            Return only the prompt text, nothing else.
+        """
+        
+        let userPrompt = """
+        Generate a prompt for the idea: "\(idea)"
+        
+        Level context: \(levelContext)
+        
+        Create a single, engaging prompt that will help the user think deeply about this idea.
+        """
+        
+        let requestBody = ChatRequest(
+            model: "gpt-3.5-turbo",
+            messages: [
+                Message(role: "system", content: systemPrompt),
+                Message(role: "user", content: userPrompt)
+            ],
+            max_tokens: 150,
+            temperature: 0.7
+        )
+        
+        let url = URL(string: "\(baseURL)/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw OpenAIServiceError.networkError(error)
+        }
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw OpenAIServiceError.invalidResponse
+        }
+        
+        let chatResponse: ChatResponse
+        do {
+            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        } catch {
+            throw OpenAIServiceError.decodingError(error)
+        }
+        
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw OpenAIServiceError.noResponse
+        }
+        
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    private func getLevelContext(_ level: Int) -> String {
+        switch level {
+        case 0:
+            return "Level 0 - Think Out Loud: Encourage free-form, unfiltered thinking. Ask users to dump all their thoughts about the idea, no matter how messy or half-formed."
+        case 1:
+            return "Level 1 - Connect & Reflect: Help users connect the idea to their personal experiences and reflect on its broader implications."
+        case 2:
+            return "Level 2 - Apply & Synthesize: Guide users to apply the idea to new situations and synthesize it with other concepts they know."
+        default:
+            return "Level \(level) - Deep Dive: Create prompts that encourage deep, structured thinking about the idea."
+        }
+    }
 }
 
 // MARK: - Models

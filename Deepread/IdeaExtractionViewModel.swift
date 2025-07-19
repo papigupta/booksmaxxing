@@ -9,6 +9,7 @@ class IdeaExtractionViewModel: ObservableObject {
     
     private let openAIService: OpenAIService
     private var currentTask: Task<Void, Never>?
+    private var currentBookTitle: String = ""
     
     init(openAIService: OpenAIService) {
         self.openAIService = openAIService
@@ -29,6 +30,9 @@ class IdeaExtractionViewModel: ObservableObject {
         
         isLoading = true
         errorMessage = nil
+        
+        // Store the original book title for use in Idea creation
+        currentBookTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         
         let normalizedTitle = title
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -62,7 +66,7 @@ class IdeaExtractionViewModel: ObservableObject {
                     let title = titleDescriptionParts[0]
                     let description = titleDescriptionParts.count > 1 ? titleDescriptionParts[1] : ""
 
-                    return Idea(id: id, title: title, description: description)
+                    return Idea(id: id, title: title, description: description, bookTitle: currentBookTitle)
                 }
                 
                 self.extractedIdeas = parsedIdeas

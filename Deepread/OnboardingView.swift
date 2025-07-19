@@ -25,7 +25,9 @@ struct OnboardingView: View {
                     bookTitle = ""
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .foregroundColor(.primary)
                 .disabled(bookTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 
                 NavigationLink(
