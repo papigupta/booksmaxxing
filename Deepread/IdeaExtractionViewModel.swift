@@ -56,8 +56,13 @@ class IdeaExtractionViewModel: ObservableObject {
 
                     let id = parts[0]                          // "i7"
                     let fullTitleWithExplanation = parts[1]    // "Anchoring effect — Explanation"
+                    
+                    // Split title and description by "—"
+                    let titleDescriptionParts = fullTitleWithExplanation.split(separator: "—", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                    let title = titleDescriptionParts[0]
+                    let description = titleDescriptionParts.count > 1 ? titleDescriptionParts[1] : ""
 
-                    return Idea(id: id, title: fullTitleWithExplanation)
+                    return Idea(id: id, title: title, description: description)
                 }
                 
                 self.extractedIdeas = parsedIdeas
