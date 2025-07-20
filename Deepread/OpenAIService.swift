@@ -114,26 +114,18 @@ class OpenAIService {
     }
     
     func generatePrompt(for idea: String, level: Int) async throws -> String {
-        let levelContext = getLevelContext(level)
+        // Check if we have a static template for this level
+        if let template = getPromptTemplate(for: level, idea: idea) {
+            return template
+        }
         
-        let systemPrompt = """
-            You are an expert educational prompt generator. Your task is to create engaging, thought-provoking prompts that help users deeply engage with ideas from books.
-            
-            Guidelines:
-            - Make prompts personal and reflective
-            - Encourage free-form thinking
-            - Avoid yes/no questions
-            - Keep prompts concise but open-ended
-            - Adapt tone based on the level (0=free thinking, 1=connection, 2=application)
-            - Focus on the specific idea provided
-            
-            Return only the prompt text, nothing else.
-        """
+        // For levels 1+, use AI generation with level-specific system prompts
+        let systemPrompt = getSystemPrompt(for: level)
         
         let userPrompt = """
         Generate a prompt for the idea: "\(idea)"
         
-        Level context: \(levelContext)
+        Level context: \(getLevelContext(level))
         
         Create a single, engaging prompt that will help the user think deeply about this idea.
         """
@@ -191,6 +183,95 @@ class OpenAIService {
             return "Level 2 - Apply & Synthesize: Guide users to apply the idea to new situations and synthesize it with other concepts they know."
         default:
             return "Level \(level) - Deep Dive: Create prompts that encourage deep, structured thinking about the idea."
+        }
+    }
+    
+    // Static templates (no AI needed)
+    private func getPromptTemplate(for level: Int, idea: String) -> String? {
+        switch level {
+        case 0:
+            return "Write down everything that comes to your mind when you hear ***\(idea)***"
+        default:
+            return nil // Use AI generation for other levels
+        }
+    }
+    
+    // Level-specific system prompts for AI generation
+    private func getSystemPrompt(for level: Int) -> String {
+        switch level {
+        case 1:
+            return """
+            You are an expert educational prompt generator for Level 1 (Connect & Reflect).
+            
+            Guidelines:
+            - Create prompts that help users connect the idea to their personal experiences
+            - Ask questions that encourage reflection on past situations
+            - Focus on "How does this relate to my life?" type questions
+            - Make prompts personal and introspective
+            - Avoid yes/no questions
+            - Keep prompts concise but open-ended
+            
+            Return only the prompt text, nothing else.
+            """
+            
+        case 2:
+            return """
+            You are an expert educational prompt generator for Level 2 (Apply & Synthesize).
+            
+            Guidelines:
+            - Create prompts that help users apply the idea to new situations
+            - Ask questions that encourage synthesis with other concepts
+            - Focus on "How could I use this?" and "What does this connect to?" type questions
+            - Encourage creative application and cross-disciplinary thinking
+            - Avoid yes/no questions
+            - Keep prompts concise but open-ended
+            
+            Return only the prompt text, nothing else.
+            """
+            
+        case 3:
+            return """
+            You are an expert educational prompt generator for Level 3 (Deep Analysis).
+            
+            Guidelines:
+            - Create prompts that encourage deep analytical thinking
+            - Ask questions that explore the underlying mechanisms and assumptions
+            - Focus on "Why does this work?" and "What are the limitations?" type questions
+            - Encourage critical examination and deeper understanding
+            - Avoid yes/no questions
+            - Keep prompts concise but open-ended
+            
+            Return only the prompt text, nothing else.
+            """
+            
+        case 4:
+            return """
+            You are an expert educational prompt generator for Level 4 (Mastery & Teaching).
+            
+            Guidelines:
+            - Create prompts that help users achieve mastery and prepare to teach
+            - Ask questions that encourage explaining the concept to others
+            - Focus on "How would I teach this?" and "What are the key insights?" type questions
+            - Encourage synthesis of all previous levels
+            - Avoid yes/no questions
+            - Keep prompts concise but open-ended
+            
+            Return only the prompt text, nothing else.
+            """
+            
+        default:
+            return """
+            You are an expert educational prompt generator. Your task is to create engaging, thought-provoking prompts that help users deeply engage with ideas from books.
+            
+            Guidelines:
+            - Make prompts personal and reflective
+            - Encourage free-form thinking
+            - Avoid yes/no questions
+            - Keep prompts concise but open-ended
+            - Focus on the specific idea provided
+            
+            Return only the prompt text, nothing else.
+            """
         }
     }
 }

@@ -10,6 +10,7 @@ struct IdeaPromptView: View {
     @State private var showSubmitButton: Bool = false
     @State private var promptError: String? = nil
     @State private var isSubmitting: Bool = false
+    @State private var navigateToEvaluation = false
     
     // Initialize OpenAI service
     private let openAIService = OpenAIService(apiKey: Secrets.openAIAPIKey)
@@ -90,7 +91,7 @@ struct IdeaPromptView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
-                                Text(generatedPrompt)
+                                Text(LocalizedStringKey(generatedPrompt))
                                     .font(.body)
                                     .foregroundStyle(.white)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -193,6 +194,11 @@ struct IdeaPromptView: View {
                 }
                 .background(.ultraThinMaterial)
             }
+            
+            NavigationLink(destination: EvaluationLoadingView(idea: idea, userResponse: userResponse, level: level), isActive: $navigateToEvaluation) {
+                EmptyView()
+            }
+            .hidden()
         }
         .navigationTitle(levelTitle)
         .navigationBarTitleDisplayMode(.inline) // Changed from .large to .inline
@@ -238,13 +244,10 @@ struct IdeaPromptView: View {
         
         isSubmitting = true
         
-        // TODO: Implement response submission
-        print("Submitting response: \(userResponse)")
-        
-        // Simulate submission delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        // Simulate submission delay, then navigate
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             isSubmitting = false
-            // In the future, this will save to backend and navigate to next level
+            navigateToEvaluation = true
         }
     }
 }
