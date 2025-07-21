@@ -6,4 +6,5 @@ struct Idea: Identifiable, Codable, Hashable {
     let title: String  // e.g. "Godel's Incompleteness Theorem"
     let description: String  // e.g. "Mathematical systems cannot prove their own consistency."
     let bookTitle: String  // e.g. "Godel, Escher, Bach"
+    let depthTarget: Int  // 1 = Do, 2 = Question, 3 = Reinvent
 } 

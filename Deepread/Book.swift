@@ -13,5 +13,3 @@ final class Book {
         self.createdAt = createdAt
     }
 }
-
-import Foundation

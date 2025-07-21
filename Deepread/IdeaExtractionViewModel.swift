@@ -54,26 +54,27 @@ class IdeaExtractionViewModel: ObservableObject {
                 try Task.checkCancellation()
                 
                 let parsedIdeas = ideas.compactMap { line -> Idea? in
-                    // Format: "i7 | Anchoring effect — Explanation"
-                    let parts = line.split(separator: "|", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-                    guard parts.count == 2 else { return nil }
+                    // Format: "i7 | Anchoring effect — Explanation | 2"
+                    let parts = line.split(separator: "|", maxSplits: 2).map { $0.trimmingCharacters(in: .whitespaces) }
+                    guard parts.count >= 2 else { return nil }
 
                     let id = parts[0]                          // "i7"
                     let fullTitleWithExplanation = parts[1]    // "Anchoring effect — Explanation"
+                    let depthTarget = parts.count > 2 ? Int(parts[2]) ?? 1 : 1  // Default to 1 if missing
                     
                     // Split title and description by "—"
                     let titleDescriptionParts = fullTitleWithExplanation.split(separator: "—", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
                     let title = titleDescriptionParts[0]
                     let description = titleDescriptionParts.count > 1 ? titleDescriptionParts[1] : ""
 
-                    return Idea(id: id, title: title, description: description, bookTitle: currentBookTitle)
+                    return Idea(id: id, title: title, description: description, bookTitle: currentBookTitle, depthTarget: depthTarget)
                 }
                 
                 self.extractedIdeas = parsedIdeas
                 
                 print("🧠 Parsed ideas:")
                 for idea in self.extractedIdeas {
-                    print("ID: \(idea.id), Title: \(idea.title)")
+                    print("ID: \(idea.id), Title: \(idea.title), Depth Target: \(idea.depthTarget)")
                 }
                 
                 self.isLoading = false

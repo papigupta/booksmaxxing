@@ -100,7 +100,7 @@ struct ActiveIdeaCard: View {
                         
                         HStack(spacing: 2) {
                             ForEach(0..<3) { index in
-                                Image(systemName: index < 2 ? "staroflife.fill" : "staroflife")
+                                Image(systemName: index < idea.depthTarget ? "staroflife.fill" : "staroflife")
                                     .font(.caption)
                                     .foregroundColor(.white.opacity(0.7))
                             }

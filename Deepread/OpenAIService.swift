@@ -46,7 +46,22 @@ class OpenAIService {
             Additional rules for this API call:
             • Titles must be unique. Do not output synonyms or sub-variants as separate items.  
             • Prepend each concept with an ID in the form **i1, i2, …** so the client can parse it.  
-            Example output element: `"i7 | Anchoring effect — Initial numbers bias estimates even when irrelevant."`
+            • Assign a depth_target (1, 2, or 3) to each idea using the rubric below. Focus on how much understanding is required before the idea becomes useful or safe to use.
+
+            Use this rubric:
+
+            1 (Use): The idea can be applied directly with shallow understanding. It is simple, isolated, and unlikely to be misused. Learner benefit is immediate after basic explanation. Use only for small, narrow-scope ideas.
+
+            2 (Think with): The idea requires reflection, context, or judgment to apply correctly. It is often misunderstood or used in oversimplified ways. Learners must analyze its limits or compare it to alternatives. Use for foundational ideas that are frequently misinterpreted when treated too simply.
+
+            3 (Build with): The idea is generative. Learners should be able to extend or remix it into tools, frameworks, or systems. It serves as a building block for broader innovation. Use only when the idea clearly supports creative transfer into new domains.
+
+            Assignment rules:
+            - Do not assign 1 to any idea that serves as a core mental model, explanatory lens, or conceptual foundation for the rest of the book.
+            - Use 3 only when the idea enables design, strategy, or cross-domain transfer.
+            - Avoid assigning the same value to every idea. Return a realistic mix.
+            
+            Example output element: `"i7 | Anchoring effect — Initial numbers bias estimates even when irrelevant. | 2"`
             • If more than 25 unique concepts remain, keep only the 25 most important, then maintain narrative order.
 
             Return a **JSON array of strings** (no objects, no extra text).
@@ -176,11 +191,13 @@ class OpenAIService {
     private func getLevelContext(_ level: Int) -> String {
         switch level {
         case 0:
-            return "Level 0 - Think Out Loud: Encourage free-form, unfiltered thinking. Ask users to dump all their thoughts about the idea, no matter how messy or half-formed."
+            return "Level 0 - Thought Dump: Encourage free-form, unfiltered thinking. Ask users to dump all their thoughts about the idea, no matter how messy or half-formed."
         case 1:
-            return "Level 1 - Connect & Reflect: Help users connect the idea to their personal experiences and reflect on its broader implications."
+            return "Level 1 - Use: Help users apply the idea directly in practical situations."
         case 2:
-            return "Level 2 - Apply & Synthesize: Guide users to apply the idea to new situations and synthesize it with other concepts they know."
+            return "Level 2 - Think with: Guide users to use the idea as a thinking tool to analyze and solve problems."
+        case 3:
+            return "Level 3 - Build with: Encourage users to use the idea as a foundation to create new concepts and systems."
         default:
             return "Level \(level) - Deep Dive: Create prompts that encourage deep, structured thinking about the idea."
         }
@@ -201,13 +218,13 @@ class OpenAIService {
         switch level {
         case 1:
             return """
-            You are an expert educational prompt generator for Level 1 (Connect & Reflect).
+            You are an expert educational prompt generator for Level 1 (Use).
             
             Guidelines:
-            - Create prompts that help users connect the idea to their personal experiences
-            - Ask questions that encourage reflection on past situations
-            - Focus on "How does this relate to my life?" type questions
-            - Make prompts personal and introspective
+            - Create prompts that help users apply the idea directly in practical situations
+            - Ask questions that encourage immediate, practical application
+            - Focus on "How can I use this right now?" type questions
+            - Make prompts actionable and concrete
             - Avoid yes/no questions
             - Keep prompts concise but open-ended
             
@@ -216,13 +233,13 @@ class OpenAIService {
             
         case 2:
             return """
-            You are an expert educational prompt generator for Level 2 (Apply & Synthesize).
+            You are an expert educational prompt generator for Level 2 (Think with).
             
             Guidelines:
-            - Create prompts that help users apply the idea to new situations
-            - Ask questions that encourage synthesis with other concepts
-            - Focus on "How could I use this?" and "What does this connect to?" type questions
-            - Encourage creative application and cross-disciplinary thinking
+            - Create prompts that help users use the idea as a thinking tool
+            - Ask questions that encourage analysis and problem-solving
+            - Focus on "How does this help me think about..." type questions
+            - Encourage using the idea as a mental model or framework
             - Avoid yes/no questions
             - Keep prompts concise but open-ended
             
@@ -231,28 +248,13 @@ class OpenAIService {
             
         case 3:
             return """
-            You are an expert educational prompt generator for Level 3 (Deep Analysis).
+            You are an expert educational prompt generator for Level 3 (Build with).
             
             Guidelines:
-            - Create prompts that encourage deep analytical thinking
-            - Ask questions that explore the underlying mechanisms and assumptions
-            - Focus on "Why does this work?" and "What are the limitations?" type questions
-            - Encourage critical examination and deeper understanding
-            - Avoid yes/no questions
-            - Keep prompts concise but open-ended
-            
-            Return only the prompt text, nothing else.
-            """
-            
-        case 4:
-            return """
-            You are an expert educational prompt generator for Level 4 (Mastery & Teaching).
-            
-            Guidelines:
-            - Create prompts that help users achieve mastery and prepare to teach
-            - Ask questions that encourage explaining the concept to others
-            - Focus on "How would I teach this?" and "What are the key insights?" type questions
-            - Encourage synthesis of all previous levels
+            - Create prompts that help users build new concepts using the idea
+            - Ask questions that encourage creation and innovation
+            - Focus on "What can I create using this?" and "How can I combine this with..." type questions
+            - Encourage synthesis and construction of new ideas
             - Avoid yes/no questions
             - Keep prompts concise but open-ended
             

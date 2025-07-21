@@ -11,7 +11,7 @@ struct LevelLoadingView: View {
             Spacer()
             
             // Level Title
-            Text("Level 0: Think Out Loud")
+            Text("Level 0: Thought Dump")
                 .font(.title)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
@@ -99,7 +99,8 @@ struct LevelLoadingView: View {
             id: "i1",
             title: "Norman Doors",
             description: "Design that communicates its function through visual cues.",
-            bookTitle: "The Design of Everyday Things"
+            bookTitle: "The Design of Everyday Things",
+            depthTarget: 2
         ))
     }
 } 

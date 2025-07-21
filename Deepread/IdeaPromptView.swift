@@ -20,11 +20,13 @@ struct IdeaPromptView: View {
     private var levelTitle: String {
         switch level {
         case 0:
-            return "Level 0: Think Out Loud"
+            return "Level 0: Thought Dump"
         case 1:
-            return "Level 1: Connect & Reflect"
+            return "Level 1: Use"
         case 2:
-            return "Level 2: Apply & Synthesize"
+            return "Level 2: Think with"
+        case 3:
+            return "Level 3: Build with"
         default:
             return "Level \(level): Deep Dive"
         }
@@ -35,9 +37,11 @@ struct IdeaPromptView: View {
         case 0:
             return "Think out loud and dump all your thoughts about this idea. Messy. Personal. Half-formed. Everything works."
         case 1:
-            return "Connect this idea to your own experiences and reflect on its implications."
+            return "Apply this idea directly in practical situations."
         case 2:
-            return "Apply this idea to new situations and synthesize it with other concepts."
+            return "Use this idea as a thinking tool to analyze and solve problems."
+        case 3:
+            return "Use this idea as a foundation to create new concepts and systems."
         default:
             return "Explore this idea deeply through structured thinking."
         }
@@ -195,7 +199,7 @@ struct IdeaPromptView: View {
                 .background(.ultraThinMaterial)
             }
             
-            NavigationLink(destination: EvaluationLoadingView(idea: idea, userResponse: userResponse, level: level), isActive: $navigateToEvaluation) {
+            NavigationLink(destination: EvaluationResultsView(idea: idea, userResponse: userResponse, level: level), isActive: $navigateToEvaluation) {
                 EmptyView()
             }
             .hidden()
@@ -261,7 +265,8 @@ struct IdeaPromptView: View {
                 id: "i1",
                 title: "Norman Doors",
                 description: "The mind fills in blanks. But what if the blanks are the most important part?",
-                bookTitle: "The Design of Everyday Things"
+                bookTitle: "The Design of Everyday Things",
+                depthTarget: 2
             ),
             level: 0
         )
@@ -275,7 +280,8 @@ struct IdeaPromptView: View {
                 id: "i1",
                 title: "Norman Doors",
                 description: "The mind fills in blanks. But what if the blanks are the most important part?",
-                bookTitle: "The Design of Everyday Things"
+                bookTitle: "The Design of Everyday Things",
+                depthTarget: 2
             ),
             level: 1
         )
