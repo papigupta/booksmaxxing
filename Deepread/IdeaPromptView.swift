@@ -28,7 +28,7 @@ struct IdeaPromptView: View {
         case 3:
             return "Level 3: Build with"
         default:
-            return "Level \(level): Deep Dive"
+            return "Level \(level): Advanced"
         }
     }
     
@@ -43,7 +43,7 @@ struct IdeaPromptView: View {
         case 3:
             return "Use this idea as a foundation to create new concepts and systems."
         default:
-            return "Explore this idea deeply through structured thinking."
+            return "Advanced level requiring sophisticated understanding and application."
         }
     }
     

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LevelLoadingView: View {
     let idea: Idea
+    let level: Int
     
     @State private var showContinueButton = false
     @State private var navigateToPrompt = false
@@ -11,46 +12,23 @@ struct LevelLoadingView: View {
             Spacer()
             
             // Level Title
-            Text("Level 0: Thought Dump")
+            Text(getLevelTitle())
                 .font(.title)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
             
             // Bullet Points
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 8) {
-                    Text("•")
-                        .font(.title2)
-                        .foregroundColor(.primary)
-                    
-                    Text("Think out loud and dump all your thoughts about ")
-                        .font(.body)
-                        .foregroundColor(.primary) +
-                    Text(idea.title)
-                        .font(.body)
-                        .fontWeight(.semibold)
-                        .italic()
-                        .foregroundColor(.primary)
-                }
-                
-                HStack(alignment: .top, spacing: 8) {
-                    Text("•")
-                        .font(.title2)
-                        .foregroundColor(.primary)
-                    
-                    Text("Messy. Personal. Half-formed. Everything works.")
-                        .font(.body)
-                        .foregroundColor(.primary)
-                }
-                
-                HStack(alignment: .top, spacing: 8) {
-                    Text("•")
-                        .font(.title2)
-                        .foregroundColor(.primary)
-                    
-                    Text("Only write. Do not edit.")
-                        .font(.body)
-                        .foregroundColor(.primary)
+                ForEach(getLevelBullets(), id: \.self) { bullet in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•")
+                            .font(.title2)
+                            .foregroundColor(.primary)
+                        
+                        Text(bullet)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                    }
                 }
             }
             .padding(.horizontal, 32)
@@ -81,7 +59,7 @@ struct LevelLoadingView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToPrompt) {
-            IdeaPromptView(idea: idea, level: 0)
+            IdeaPromptView(idea: idea, level: level)
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
@@ -91,16 +69,71 @@ struct LevelLoadingView: View {
             }
         }
     }
+    
+    // MARK: - Level-specific content
+    
+    private func getLevelTitle() -> String {
+        switch level {
+        case 0:
+            return "Level 0: Thought Dump"
+        case 1:
+            return "Level 1: Use"
+        case 2:
+            return "Level 2: Think With"
+        case 3:
+            return "Level 3: Build With"
+        default:
+            return "Level \(level): Advanced"
+        }
+    }
+    
+    private func getLevelBullets() -> [String] {
+        switch level {
+        case 0:
+            return [
+                "Think out loud and dump all your thoughts about \(idea.title)",
+                "Messy. Personal. Half-formed. Everything works.",
+                "Only write. Do not edit."
+            ]
+        case 1:
+            return [
+                "Apply \(idea.title) directly in practical situations.",
+                "Find real-world examples and use cases.",
+                "Focus on concrete applications and implementation."
+            ]
+        case 2:
+            return [
+                "Use \(idea.title) as a thinking tool to analyze problems.",
+                "Apply this concept to understand other ideas.",
+                "Explore how this idea connects to broader concepts."
+            ]
+        case 3:
+            return [
+                "Use \(idea.title) as a foundation to create new concepts.",
+                "Build new systems or ideas based on this principle.",
+                "Synthesize this idea with other knowledge to create something new."
+            ]
+        default:
+            return [
+                "Explore this idea deeply through structured thinking.",
+                "Apply advanced analytical techniques.",
+                "Create new insights and connections."
+            ]
+        }
+    }
 }
 
 #Preview {
     NavigationStack {
-        LevelLoadingView(idea: Idea(
-            id: "i1",
-            title: "Norman Doors",
-            description: "Design that communicates its function through visual cues.",
-            bookTitle: "The Design of Everyday Things",
-            depthTarget: 2
-        ))
+        LevelLoadingView(
+            idea: Idea(
+                id: "i1",
+                title: "Norman Doors",
+                description: "Design that communicates its function through visual cues.",
+                bookTitle: "The Design of Everyday Things",
+                depthTarget: 2
+            ),
+            level: 0
+        )
     }
 } 

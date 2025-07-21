@@ -8,6 +8,7 @@ struct EvaluationResultsView: View {
     @State private var evaluationResult: EvaluationResult? = nil
     @State private var isLoadingEvaluation = true
     @State private var evaluationError: String? = nil
+    @State private var navigateToWhatThisMeans = false
     
     private let evaluationService = EvaluationService(openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey))
     
@@ -88,11 +89,13 @@ struct EvaluationResultsView: View {
                             .foregroundStyle(.secondary)
                             .textCase(.uppercase)
                             .tracking(0.5)
+                        
                         // Idea title
                         Text(idea.title)
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundStyle(.primary)
+                        
                         // Score and Level Section
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
@@ -133,6 +136,9 @@ struct EvaluationResultsView: View {
                                     )
                             )
                         }
+                        
+
+                        
                         // Your response section (read-only)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Your Response")
@@ -153,6 +159,7 @@ struct EvaluationResultsView: View {
                                         )
                                 )
                         }
+                        
                         // Strengths section
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Strengths")
@@ -182,6 +189,7 @@ struct EvaluationResultsView: View {
                                     )
                             )
                         }
+                        
                         // Improvements section
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Areas for Improvement")
@@ -211,6 +219,27 @@ struct EvaluationResultsView: View {
                                     )
                             )
                         }
+                        
+                        // Continue Button
+                        Button(action: {
+                            navigateToWhatThisMeans = true
+                        }) {
+                            HStack {
+                                Text("Continue")
+                                Image(systemName: "arrow.right")
+                            }
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(.blue)
+                            )
+                        }
+                        .padding(.top, 16)
+                        
                         Spacer(minLength: 32)
                     }
                     .padding(.horizontal, 20)
@@ -220,6 +249,16 @@ struct EvaluationResultsView: View {
         }
         .navigationTitle("Evaluation Complete")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $navigateToWhatThisMeans) {
+            if let result = evaluationResult {
+                WhatThisMeansView(
+                    idea: idea,
+                    evaluationResult: result,
+                    userResponse: userResponse,
+                    level: level
+                )
+            }
+        }
         .onAppear {
             loadEvaluation()
         }

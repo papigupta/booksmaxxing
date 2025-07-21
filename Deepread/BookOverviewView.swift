@@ -108,7 +108,7 @@ struct ActiveIdeaCard: View {
                     }
                     
                     // CTA Button
-                    NavigationLink(destination: LevelLoadingView(idea: idea)) {
+                    NavigationLink(destination: LevelLoadingView(idea: idea, level: 0)) {
                         HStack(spacing: 4) {
                             Image(systemName: "play.fill")
                                 .font(.caption)
