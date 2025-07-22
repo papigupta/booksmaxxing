@@ -5,6 +5,7 @@ struct WhatThisMeansView: View {
     let evaluationResult: EvaluationResult
     let userResponse: String
     let level: Int
+    let openAIService: OpenAIService
     
     @State private var showingNextLevel = false
     @State private var showingCelebration = false
@@ -100,7 +101,7 @@ struct WhatThisMeansView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showingNextLevel) {
             // Start new learning loop
-            LevelLoadingView(idea: idea, level: nextLevel)
+            LevelLoadingView(idea: idea, level: nextLevel, openAIService: openAIService)
         }
         .navigationDestination(isPresented: $showingCelebration) {
             // Show celebration screen
@@ -108,7 +109,8 @@ struct WhatThisMeansView: View {
                 idea: idea,
                 userResponse: userResponse,
                 level: level,
-                score: evaluationResult.score10
+                score: evaluationResult.score10,
+                openAIService: openAIService
             )
         }
     }
@@ -288,7 +290,9 @@ struct WhatThisMeansView: View {
                 title: "Norman Doors",
                 description: "The mind fills in blanks. But what if the blanks are the most important part?",
                 bookTitle: "The Design of Everyday Things",
-                depthTarget: 2
+                depthTarget: 2,
+                masteryLevel: 0,
+                lastPracticed: nil
             ),
             evaluationResult: EvaluationResult(
                 level: "L0",
@@ -297,7 +301,8 @@ struct WhatThisMeansView: View {
                 improvements: ["Could explore practical applications more", "Consider deeper analysis"]
             ),
             userResponse: "This is my response about Norman Doors...",
-            level: 0
+            level: 0,
+            openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }
 } 

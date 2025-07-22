@@ -3,6 +3,7 @@ import SwiftUI
 struct LevelLoadingView: View {
     let idea: Idea
     let level: Int
+    let openAIService: OpenAIService
     
     @State private var showContinueButton = false
     @State private var navigateToPrompt = false
@@ -59,7 +60,7 @@ struct LevelLoadingView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToPrompt) {
-            IdeaPromptView(idea: idea, level: level)
+            IdeaPromptView(idea: idea, level: level, openAIService: openAIService)
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
@@ -131,9 +132,12 @@ struct LevelLoadingView: View {
                 title: "Norman Doors",
                 description: "Design that communicates its function through visual cues.",
                 bookTitle: "The Design of Everyday Things",
-                depthTarget: 2
+                depthTarget: 2,
+                masteryLevel: 0,
+                lastPracticed: nil
             ),
-            level: 0
+            level: 0,
+            openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }
 } 

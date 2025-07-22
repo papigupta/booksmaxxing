@@ -1,11 +1,14 @@
 import SwiftUI
+import SwiftData
 
 struct CelebrationView: View {
     let idea: Idea
     let userResponse: String
     let level: Int
     let score: Int
+    let openAIService: OpenAIService
     
+    @Environment(\.modelContext) private var modelContext
     @State private var showConfetti = false
     @State private var navigateToBookOverview = false
     
@@ -135,9 +138,22 @@ struct CelebrationView: View {
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $navigateToBookOverview) {
             // Navigate back to book overview
-            BookOverviewView(bookTitle: idea.bookTitle, openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey))
+            BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
         }
         .onAppear {
+            // CRITICAL: Update mastery level to 3 when celebration appears
+            print("DEBUG: Updating mastery level to 3 for idea: \(idea.title)")
+            idea.masteryLevel = 3
+            idea.lastPracticed = Date()
+            
+            // Save to database immediately
+            do {
+                try modelContext.save()
+                print("DEBUG: Successfully saved mastery level update")
+            } catch {
+                print("DEBUG: Failed to save mastery level update: \(error)")
+            }
+            
             // Start confetti animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showConfetti = true
@@ -158,11 +174,14 @@ struct CelebrationView: View {
                 title: "Norman Doors",
                 description: "The mind fills in blanks. But what if the blanks are the most important part?",
                 bookTitle: "The Design of Everyday Things",
-                depthTarget: 2
+                depthTarget: 2,
+                masteryLevel: 0,
+                lastPracticed: nil
             ),
             userResponse: "This is my response about Norman Doors...",
             level: 3,
-            score: 9
+            score: 9,
+            openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }
 } 

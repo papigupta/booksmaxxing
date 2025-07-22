@@ -2,19 +2,35 @@ import SwiftUI
 
 struct BookOverviewView: View {
     let bookTitle: String
+    let openAIService: OpenAIService
     @StateObject private var viewModel: IdeaExtractionViewModel
+    @State private var activeIdeaIndex: Int = 0 // Track which idea is active
+    @State private var showingDebugInfo = false
 
-    init(bookTitle: String, openAIService: OpenAIService) {
+    init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
-        self._viewModel = StateObject(wrappedValue: IdeaExtractionViewModel(openAIService: openAIService))
+        self.openAIService = openAIService
+        self._viewModel = StateObject(wrappedValue: IdeaExtractionViewModel(openAIService: openAIService, bookService: bookService))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(bookTitle)
-                .font(.largeTitle)
-                .bold()
-                .tracking(-0.03)
+            HStack {
+                Text(bookTitle)
+                    .font(.largeTitle)
+                    .bold()
+                    .tracking(-0.03)
+                
+                Spacer()
+                
+                #if DEBUG
+                Button("Debug") {
+                    showingDebugInfo = true
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+                #endif
+            }
             
             Text("Author name")
                 .font(.body)
@@ -26,16 +42,54 @@ struct BookOverviewView: View {
                 ProgressView("Breaking book into core ideas…")
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
+            } else if let errorMessage = viewModel.errorMessage {
+                VStack(spacing: 16) {
+                    Text("⚠️ Network Error")
+                        .font(.headline)
+                        .foregroundColor(.red)
+                    
+                    Text(errorMessage)
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    
+                    Button("Retry") {
+                        Task {
+                            await viewModel.loadOrExtractIdeas(from: bookTitle)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 40)
+            } else if viewModel.extractedIdeas.isEmpty {
+                VStack(spacing: 16) {
+                    Text("No ideas found")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Button("Extract Ideas") {
+                        Task {
+                            await viewModel.loadOrExtractIdeas(from: bookTitle)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 40)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(Array(viewModel.extractedIdeas.enumerated()), id: \.element.id) { index, idea in
-                            if index == 0 {
-                                // First idea is active (temporary - will be replaced with selection logic)
-                                ActiveIdeaCard(idea: idea)
+                            if index == activeIdeaIndex {
+                                ActiveIdeaCard(idea: idea, openAIService: openAIService)
                             } else {
-                                // Other ideas are inactive
                                 InactiveIdeaCard(idea: idea)
+                                    .onTapGesture {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            activeIdeaIndex = index
+                                        }
+                                    }
                             }
                         }
                     }
@@ -45,7 +99,120 @@ struct BookOverviewView: View {
         .padding()
         .task {
             print("DEBUG: BookOverviewView task triggered")
-            viewModel.extractIdeas(from: bookTitle)
+            await viewModel.loadOrExtractIdeas(from: bookTitle)
+            // Set activeIdeaIndex to first unmastered idea after initial load
+            await MainActor.run {
+                if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
+                    activeIdeaIndex = firstUnmasteredIndex
+                    print("DEBUG: Set activeIdeaIndex to first unmastered idea at index \(firstUnmasteredIndex)")
+                }
+            }
+        }
+        .onAppear {
+            print("DEBUG: BookOverviewView appeared")
+            // Refresh ideas when view appears (e.g., returning from other views)
+            Task {
+                await viewModel.refreshIdeas()
+                // Set activeIdeaIndex to first unmastered idea
+                await MainActor.run {
+                    if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
+                        activeIdeaIndex = firstUnmasteredIndex
+                        print("DEBUG: Set activeIdeaIndex to first unmastered idea at index \(firstUnmasteredIndex)")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingDebugInfo) {
+            DebugInfoView(bookTitle: bookTitle, viewModel: viewModel)
+        }
+    }
+}
+
+// MARK: - Debug Info View
+struct DebugInfoView: View {
+    let bookTitle: String
+    let viewModel: IdeaExtractionViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Debug Information")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Current Book Title: '\(bookTitle)'")
+                            .font(.body)
+                        
+                        Text("Loading State: \(viewModel.isLoading ? "Yes" : "No")")
+                            .font(.body)
+                        
+                        Text("Error Message: \(viewModel.errorMessage ?? "None")")
+                            .font(.body)
+                        
+                        Text("Extracted Ideas Count: \(viewModel.extractedIdeas.count)")
+                            .font(.body)
+                        
+                        if !viewModel.extractedIdeas.isEmpty {
+                            Text("Idea IDs:")
+                                .font(.body)
+                                .fontWeight(.semibold)
+                            
+                            ForEach(viewModel.extractedIdeas, id: \.id) { idea in
+                                Text("• \(idea.id): \(idea.title)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    VStack(spacing: 12) {
+                        Text("Debug Actions")
+                            .font(.headline)
+                        
+                        Button("Refresh Ideas") {
+                            Task {
+                                await viewModel.refreshIdeas()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        Button("Reload from Database") {
+                            Task {
+                                await viewModel.loadOrExtractIdeas(from: bookTitle)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        #if DEBUG
+                        Button("Clear All Data") {
+                            do {
+                                let bookService = BookService(modelContext: modelContext)
+                                try bookService.clearAllData()
+                            } catch {
+                                print("DEBUG: Failed to clear data: \(error)")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .foregroundColor(.red)
+                        #endif
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Debug Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
@@ -53,6 +220,7 @@ struct BookOverviewView: View {
 // MARK: - Active Idea Card
 struct ActiveIdeaCard: View {
     let idea: Idea
+    let openAIService: OpenAIService
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -69,8 +237,8 @@ struct ActiveIdeaCard: View {
                         .lineLimit(2)
                         .foregroundColor(.white)
                     
-                    if !idea.description.isEmpty {
-                        Text(idea.description)
+                    if !idea.ideaDescription.isEmpty {
+                        Text(idea.ideaDescription)
                             .font(.body)
                             .fontWeight(.regular)
                             .foregroundColor(.white.opacity(0.7))
@@ -108,7 +276,7 @@ struct ActiveIdeaCard: View {
                     }
                     
                     // CTA Button
-                    NavigationLink(destination: LevelLoadingView(idea: idea, level: 0)) {
+                    NavigationLink(destination: LevelLoadingView(idea: idea, level: 0, openAIService: openAIService)) {
                         HStack(spacing: 4) {
                             Image(systemName: "play.fill")
                                 .font(.caption)
@@ -152,14 +320,30 @@ struct InactiveIdeaCard: View {
                 .opacity(0.6)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(idea.title)
-                    .font(.body)
-                    .fontWeight(.semibold)
-                    .lineLimit(2)
-                    .foregroundColor(.gray)
+                HStack {
+                    Text(idea.title)
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .lineLimit(2)
+                        .foregroundColor(.gray)
+                    
+                    Spacer()
+                    
+                    // CRITICAL: Show mastered badge when masteryLevel >= 3
+                    if idea.masteryLevel >= 3 {
+                        Text("MASTERED")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.yellow)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.yellow.opacity(0.2))
+                            .cornerRadius(4)
+                    }
+                }
                 
-                if !idea.description.isEmpty {
-                    Text(idea.description)
+                if !idea.ideaDescription.isEmpty {
+                    Text(idea.ideaDescription)
                         .font(.body)
                         .fontWeight(.regular)
                         .foregroundColor(.secondary)

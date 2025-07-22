@@ -4,13 +4,16 @@ struct EvaluationResultsView: View {
     let idea: Idea
     let userResponse: String
     let level: Int
+    let openAIService: OpenAIService
     
     @State private var evaluationResult: EvaluationResult? = nil
     @State private var isLoadingEvaluation = true
     @State private var evaluationError: String? = nil
     @State private var navigateToWhatThisMeans = false
     
-    private let evaluationService = EvaluationService(openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey))
+    private var evaluationService: EvaluationService {
+        EvaluationService(openAIService: openAIService)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -255,7 +258,8 @@ struct EvaluationResultsView: View {
                     idea: idea,
                     evaluationResult: result,
                     userResponse: userResponse,
-                    level: level
+                    level: level,
+                    openAIService: openAIService
                 )
             }
         }
@@ -296,10 +300,13 @@ struct EvaluationResultsView: View {
                 title: "Norman Doors",
                 description: "The mind fills in blanks. But what if the blanks are the most important part?",
                 bookTitle: "The Design of Everyday Things",
-                depthTarget: 2
+                depthTarget: 2,
+                masteryLevel: 0,
+                lastPracticed: nil
             ),
             userResponse: "This is my response about Norman Doors...",
-            level: 0
+            level: 0,
+            openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }
 } 

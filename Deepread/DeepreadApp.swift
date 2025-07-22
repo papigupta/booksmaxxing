@@ -16,13 +16,25 @@ struct DeepreadApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Book.self,
+            Idea.self,
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            isStoredInMemoryOnly: false
+        )
 
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: schema, configurations: modelConfiguration)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            print("Failed to create ModelContainer: \(error)")
+            // Fallback to in-memory only if persistent storage fails
+            let fallbackConfiguration = ModelConfiguration(
+                isStoredInMemoryOnly: true
+            )
+            do {
+                return try ModelContainer(for: schema, configurations: fallbackConfiguration)
+            } catch {
+                fatalError("Could not create ModelContainer even with fallback: \(error)")
+            }
         }
     }()
 

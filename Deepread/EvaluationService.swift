@@ -40,7 +40,7 @@ class EvaluationService {
         EVALUATION CONTEXT:
         - Book: \(idea.bookTitle)
         - Idea: \(idea.title)
-        - Idea Description: \(idea.description)
+        - Idea Description: \(idea.ideaDescription)
         - Level: \(levelConfig.name)
         - Level Description: \(levelConfig.description)
         
@@ -253,12 +253,4 @@ class EvaluationService {
     }
 }
 
-// MARK: - Errors
-
-enum EvaluationError: Error {
-    case noResponse
-    case invalidResponse
-    case decodingError(Error)
-    case invalidEvaluationFormat(Error)
-    case networkError(Error)
-} 
+ 

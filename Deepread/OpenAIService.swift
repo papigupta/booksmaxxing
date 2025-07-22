@@ -18,6 +18,12 @@ class OpenAIService {
     }
     
     func extractIdeas(from text: String) async throws -> [String] {
+        return try await withRetry(maxAttempts: 3) {
+            try await self.performExtractIdeas(from: text)
+        }
+    }
+    
+    private func performExtractIdeas(from text: String) async throws -> [String] {
         let prompt = """
         Extract and list all the core ideas, frameworks, and insights from the non-fiction book titled "\(text)". 
         Return them as a JSON array of strings.
@@ -41,7 +47,7 @@ class OpenAIService {
 
             Aim for 10–50 concepts per book, depending on richness.
 
-            Don’t quote—explain.
+            Don't quote—explain.
 
             Additional rules for this API call:
             • Titles must be unique. Do not output synonyms or sub-variants as separate items.  
@@ -86,19 +92,26 @@ class OpenAIService {
         
         request.httpBody = try JSONEncoder().encode(requestBody)
         
+        print("DEBUG: Making OpenAI API request for book: '\(text)'")
+        
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            print("DEBUG: Network error during API request: \(error)")
             throw OpenAIServiceError.networkError(error)
         }
         
         // Check HTTP response
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("DEBUG: Invalid HTTP response")
             throw OpenAIServiceError.invalidResponse
         }
         
+        print("DEBUG: HTTP response status: \(httpResponse.statusCode)")
+        
         guard httpResponse.statusCode == 200 else {
+            print("DEBUG: HTTP error status: \(httpResponse.statusCode)")
             throw OpenAIServiceError.invalidResponse
         }
         
@@ -106,10 +119,12 @@ class OpenAIService {
         do {
             chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
         } catch {
+            print("DEBUG: Failed to decode chat response: \(error)")
             throw OpenAIServiceError.decodingError(error)
         }
         
         guard let content = chatResponse.choices.first?.message.content else {
+            print("DEBUG: No content in chat response")
             throw OpenAIServiceError.noResponse
         }
         
@@ -118,14 +133,40 @@ class OpenAIService {
         #endif
         
         guard let contentData = content.data(using: .utf8) else {
+            print("DEBUG: Failed to convert content to data")
             throw OpenAIServiceError.noResponse
         }
         
         do {
-            return try JSONDecoder().decode([String].self, from: contentData)
+            let ideas = try JSONDecoder().decode([String].self, from: contentData)
+            print("DEBUG: Successfully decoded \(ideas.count) ideas from OpenAI")
+            return ideas
         } catch {
+            print("DEBUG: Failed to decode ideas array: \(error)")
             throw OpenAIServiceError.decodingError(error)
         }
+    }
+    
+    // Retry logic with exponential backoff
+    private func withRetry<T>(maxAttempts: Int, operation: @escaping () async throws -> T) async throws -> T {
+        var lastError: Error?
+        
+        for attempt in 1...maxAttempts {
+            do {
+                return try await operation()
+            } catch {
+                lastError = error
+                print("DEBUG: Attempt \(attempt) failed: \(error)")
+                
+                if attempt < maxAttempts {
+                    let delay = Double(attempt) * 2.0 // Exponential backoff: 2s, 4s, 6s
+                    print("DEBUG: Retrying in \(delay) seconds...")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                }
+            }
+        }
+        
+        throw lastError ?? OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Max retry attempts exceeded"]))
     }
     
     func generatePrompt(for idea: String, level: Int) async throws -> String {
@@ -278,30 +319,4 @@ class OpenAIService {
     }
 }
 
-// MARK: - Models
-struct ChatRequest: Codable {
-    let model: String
-    let messages: [Message]
-    let max_tokens: Int
-    let temperature: Double
-}
 
-struct Message: Codable {
-    let role: String
-    let content: String
-}
-
-struct ChatResponse: Codable {
-    let choices: [Choice]
-}
-
-struct Choice: Codable {
-    let message: Message
-}
-
-enum OpenAIServiceError: Error {
-    case noResponse
-    case invalidResponse
-    case networkError(Error)
-    case decodingError(Error)
-}

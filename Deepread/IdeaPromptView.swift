@@ -3,6 +3,7 @@ import SwiftUI
 struct IdeaPromptView: View {
     let idea: Idea
     let level: Int
+    let openAIService: OpenAIService
     
     @State private var userResponse: String = ""
     @State private var generatedPrompt: String = ""
@@ -11,9 +12,6 @@ struct IdeaPromptView: View {
     @State private var promptError: String? = nil
     @State private var isSubmitting: Bool = false
     @State private var navigateToEvaluation = false
-    
-    // Initialize OpenAI service
-    private let openAIService = OpenAIService(apiKey: Secrets.openAIAPIKey)
     
     // MARK: - Computed Properties
     
@@ -70,7 +68,7 @@ struct IdeaPromptView: View {
                             .foregroundStyle(.primary)
                         
                         // Idea description - clear and readable
-                        Text(idea.description)
+                        Text(idea.ideaDescription)
                             .font(.body)
                             .foregroundStyle(.primary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -199,10 +197,13 @@ struct IdeaPromptView: View {
                 .background(.ultraThinMaterial)
             }
             
-            NavigationLink(destination: EvaluationResultsView(idea: idea, userResponse: userResponse, level: level), isActive: $navigateToEvaluation) {
+            NavigationLink(value: "evaluation") {
                 EmptyView()
             }
             .hidden()
+            .navigationDestination(isPresented: $navigateToEvaluation) {
+                EvaluationResultsView(idea: idea, userResponse: userResponse, level: level, openAIService: openAIService)
+            }
         }
         .navigationTitle(levelTitle)
         .navigationBarTitleDisplayMode(.inline) // Changed from .large to .inline
@@ -266,9 +267,12 @@ struct IdeaPromptView: View {
                 title: "Norman Doors",
                 description: "The mind fills in blanks. But what if the blanks are the most important part?",
                 bookTitle: "The Design of Everyday Things",
-                depthTarget: 2
+                depthTarget: 2,
+                masteryLevel: 0,
+                lastPracticed: nil
             ),
-            level: 0
+            level: 0,
+            openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }
 }
@@ -281,9 +285,12 @@ struct IdeaPromptView: View {
                 title: "Norman Doors",
                 description: "The mind fills in blanks. But what if the blanks are the most important part?",
                 bookTitle: "The Design of Everyday Things",
-                depthTarget: 2
+                depthTarget: 2,
+                masteryLevel: 0,
+                lastPracticed: nil
             ),
-            level: 1
+            level: 1,
+            openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }
 } 

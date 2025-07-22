@@ -1,7 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct OnboardingView: View {
     let openAIService: OpenAIService
+    @Environment(\.modelContext) private var modelContext
     @State private var bookTitle: String = ""
     @State private var isNavigatingToBookOverview = false
     @State private var selectedBookTitle: String = ""
@@ -30,17 +32,14 @@ struct OnboardingView: View {
                 .foregroundColor(.primary)
                 .disabled(bookTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 
-                NavigationLink(
-                    destination: BookOverviewView(bookTitle: selectedBookTitle, openAIService: openAIService),
-                    isActive: $isNavigatingToBookOverview
-                ) {
-                    EmptyView()
-                }
-                .hidden()
+                // Navigation will be handled by navigationDestination
             }
             .padding()
             .navigationTitle("Deepread")
-            .onChange(of: selectedBookTitle) { newValue in
+            .navigationDestination(isPresented: $isNavigatingToBookOverview) {
+                BookOverviewView(bookTitle: selectedBookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
+            }
+            .onChange(of: selectedBookTitle) { oldValue, newValue in
                 if !newValue.isEmpty {
                     isNavigatingToBookOverview = true
                 }
