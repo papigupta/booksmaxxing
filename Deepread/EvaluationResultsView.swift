@@ -10,6 +10,8 @@ struct EvaluationResultsView: View {
     @State private var isLoadingEvaluation = true
     @State private var evaluationError: String? = nil
     @State private var navigateToWhatThisMeans = false
+    @State private var contextAwareFeedback: String? = nil
+    @State private var isLoadingFeedback = false
     
     private var evaluationService: EvaluationService {
         EvaluationService(openAIService: openAIService)
@@ -21,13 +23,11 @@ struct EvaluationResultsView: View {
                 VStack(spacing: 32) {
                     Spacer()
                     
-                    // Headline
                     Text("Level scanner in progress")
                         .font(.title2)
                         .fontWeight(.bold)
                         .multilineTextAlignment(.center)
                     
-                    // Progress steps
                     VStack(spacing: 16) {
                         let loadingSteps = [
                             ("Scouting for hidden insights", "🔍"),
@@ -37,12 +37,10 @@ struct EvaluationResultsView: View {
                         
                         ForEach(0..<loadingSteps.count, id: \.self) { index in
                             HStack(spacing: 12) {
-                                // Progress indicator
                                 Circle()
                                     .fill(Color.primary)
                                     .frame(width: 8, height: 8)
                                 
-                                // Step text
                                 Text("\(loadingSteps[index].0) \(loadingSteps[index].1)")
                                     .font(.body)
                                     .foregroundStyle(.primary)
@@ -53,7 +51,6 @@ struct EvaluationResultsView: View {
                     }
                     .padding(.horizontal, 32)
                     
-                    // Footer helper text
                     Text("Almost there—loading challenges that match your power-ups")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -86,7 +83,7 @@ struct EvaluationResultsView: View {
             } else if let result = evaluationResult {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        // Book title - subtle at top
+                        // Book title
                         Text(idea.bookTitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -99,128 +96,127 @@ struct EvaluationResultsView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(.primary)
                         
-                        // Score and Level Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Level")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.secondary)
-                                    Text(result.level)
+                        // Score and Level
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Level")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.secondary)
+                                Text(result.level)
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.primary)
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("Score")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 4) {
+                                    Text("\(result.score10)")
                                         .font(.title3)
                                         .fontWeight(.bold)
                                         .foregroundStyle(.primary)
-                                }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    Text("Score")
+                                    Text("/ 10")
                                         .font(.caption)
-                                        .fontWeight(.semibold)
                                         .foregroundStyle(.secondary)
-                                    HStack(spacing: 4) {
-                                        Text("\(result.score10)")
-                                            .font(.title3)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(.primary)
-                                        Text("/ 10")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
                                 }
                             }
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.quaternary.opacity(0.3))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(.quaternary.opacity(0.5), lineWidth: 1)
-                                    )
-                            )
                         }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
                         
-
-                        
-                        // Your response section (read-only)
-                        VStack(alignment: .leading, spacing: 4) {
+                        // Your response
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("Your Response")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.primary)
+                            
                             Text(userResponse)
                                 .font(.body)
                                 .foregroundStyle(.primary)
-                                .padding(16)
+                                .padding()
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(.quaternary.opacity(0.3))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(.quaternary.opacity(0.5), lineWidth: 1)
-                                        )
-                                )
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
                         }
                         
-                        // Strengths section
+                        // Key Insight
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Strengths")
+                            Text("Key Insight")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.primary)
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(result.strengths, id: \.self) { strength in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.caption)
-                                            .foregroundStyle(.green)
-                                            .padding(.top, 2)
-                                        Text(strength)
-                                            .font(.body)
-                                            .foregroundStyle(.primary)
-                                    }
+                            
+                            if isLoadingFeedback {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Generating personalized feedback...")
+                                        .font(.body)
+                                        .foregroundStyle(.secondary)
                                 }
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                            } else if let feedback = contextAwareFeedback {
+                                Text(feedback)
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.orange.opacity(0.1))
+                                    .cornerRadius(12)
                             }
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.green.opacity(0.1))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(.green.opacity(0.3), lineWidth: 1)
-                                    )
-                            )
                         }
                         
-                        // Improvements section
+                        // Detailed Evaluation
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Areas for Improvement")
+                            Text("Detailed Evaluation")
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.primary)
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(result.improvements, id: \.self) { improvement in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "arrow.up.circle.fill")
-                                            .font(.caption)
-                                            .foregroundStyle(.blue)
-                                            .padding(.top, 2)
-                                        Text(improvement)
-                                            .font(.body)
-                                            .foregroundStyle(.primary)
+                            
+                            VStack(alignment: .leading, spacing: 12) {
+                                // Strengths
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(result.strengths, id: \.self) { strength in
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.green)
+                                                .padding(.top, 2)
+                                            Text(strength)
+                                                .font(.body)
+                                                .foregroundStyle(.primary)
+                                        }
+                                    }
+                                }
+                                
+                                Divider()
+                                
+                                // Improvements
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(result.improvements, id: \.self) { improvement in
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Image(systemName: "multiply.circle.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.red)
+                                                .padding(.top, 2)
+                                            Text(improvement)
+                                                .font(.body)
+                                                .foregroundStyle(.primary)
+                                        }
                                     }
                                 }
                             }
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.blue.opacity(0.1))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(.blue.opacity(0.3), lineWidth: 1)
-                                    )
-                            )
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
                         }
                         
                         // Continue Button
@@ -236,10 +232,8 @@ struct EvaluationResultsView: View {
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.blue)
-                            )
+                            .background(Color.blue)
+                            .cornerRadius(12)
                         }
                         .padding(.top, 16)
                         
@@ -282,11 +276,35 @@ struct EvaluationResultsView: View {
                     self.evaluationResult = result
                     self.isLoadingEvaluation = false
                 }
+                
+                // Load context-aware feedback after evaluation
+                await loadContextAwareFeedback(result: result)
             } catch {
                 await MainActor.run {
                     self.evaluationError = "Failed to evaluate response: \(error.localizedDescription)"
                     self.isLoadingEvaluation = false
                 }
+            }
+        }
+    }
+    
+    private func loadContextAwareFeedback(result: EvaluationResult) async {
+        isLoadingFeedback = true
+        do {
+            let feedback = try await evaluationService.generateContextAwareFeedback(
+                idea: idea,
+                userResponse: userResponse,
+                level: level,
+                evaluationResult: result
+            )
+            await MainActor.run {
+                self.contextAwareFeedback = feedback
+                self.isLoadingFeedback = false
+            }
+        } catch {
+            await MainActor.run {
+                self.contextAwareFeedback = "Unable to generate personalized feedback at this time."
+                self.isLoadingFeedback = false
             }
         }
     }

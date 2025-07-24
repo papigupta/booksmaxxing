@@ -1,5 +1,12 @@
 import Foundation
 
+// MARK: - Book Info Structure
+
+struct BookInfo {
+    let title: String
+    let author: String?
+}
+
 class OpenAIService {
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
@@ -17,23 +24,158 @@ class OpenAIService {
         self.session = URLSession(configuration: configuration)
     }
     
-    func extractIdeas(from text: String) async throws -> [String] {
+    // MARK: - Author Extraction
+    
+    func extractBookInfo(from input: String) async throws -> BookInfo {
         return try await withRetry(maxAttempts: 3) {
-            try await self.performExtractIdeas(from: text)
+            try await self.performExtractBookInfo(from: input)
         }
     }
     
-    private func performExtractIdeas(from text: String) async throws -> [String] {
+    private func performExtractBookInfo(from input: String) async throws -> BookInfo {
+        let systemPrompt = """
+        You are an expert at identifying and correcting book titles and authors from user input.
+        
+        TASK:
+        Extract the book title and determine the correct author(s) from the user's input. You should be intelligent about both title correction and author identification:
+        
+        SCENARIOS:
+        1. NO AUTHOR MENTIONED: If the user only provides a book title, make your best educated guess about the author based on your knowledge of the book.
+        2. PARTIAL AUTHOR INFO: If the user provides partial author information (e.g., "Kahneman", "Daniel K"), find the correct full name.
+        3. FULL AUTHOR NAME: If the user provides a complete, correct author name, use it as-is.
+        4. MULTIPLE AUTHORS: Handle multiple authors correctly (e.g., "John Smith and Jane Doe" or "Smith & Doe")
+        
+        TITLE CORRECTION RULES:
+        1. Correct obvious formatting issues (capitalization, punctuation, spelling)
+        2. Find the most commonly recognized, complete version of the title
+        3. If the user provides a partial or abbreviated title, find the full title
+        4. DO NOT change to a completely different book, even if similar
+        5. If the title is ambiguous or unclear, keep it as provided
+        6. Use the official, published title when possible
+        
+        AUTHOR IDENTIFICATION RULES:
+        1. When no author is provided, make your best guess based on the book title
+        2. When partial author info is given, find the correct full name
+        3. Handle multiple authors correctly with proper formatting
+        4. Clean up formatting (remove extra spaces, proper capitalization)
+        5. Handle edge cases like "by [Author]" or "[Author]'s [Book]"
+        6. Be confident in your author identification - if you're not sure, return null for author
+        7. DO NOT assume a different book than what the user specified
+        8. If you know of a book with this title, try to identify the author even if not 100% certain
+        
+        EXAMPLES:
+        Input: "thinking fast and slow" → Title: "Thinking, Fast and Slow", Author: "Daniel Kahneman"
+        Input: "thinking fast and slow by kahneman" → Title: "Thinking, Fast and Slow", Author: "Daniel Kahneman"
+        Input: "thinking fast and slow by daniel kahneman" → Title: "Thinking, Fast and Slow", Author: "Daniel Kahneman"
+        Input: "the design of everyday things" → Title: "The Design of Everyday Things", Author: "Don Norman"
+        Input: "freakonomics by levitt" → Title: "Freakonomics", Author: "Steven D. Levitt and Stephen J. Dubner"
+        Input: "atomic habits" → Title: "Atomic Habits", Author: "James Clear"
+        Input: "charlie's almanack" → Title: "Poor Charlie's Almanack", Author: "Charles T. Munger"
+        Input: "alchemy" → Title: "Alchemy", Author: "Rory Sutherland" (if you know this book)
+        Input: "some obscure book" → Title: "Some Obscure Book", Author: null (if you're not confident)
+        
+        IMPORTANT: 
+        - Correct partial or abbreviated titles to their full, official versions (e.g., "Charlie's Almanack" → "Poor Charlie's Almanack")
+        - Do not substitute completely different books (e.g., "Alchemy" should not become "The Alchemist")
+        - If you know of a book with the given title, try to identify the author
+        - Only return null for author if you truly don't know or are very uncertain
+        
+        Return ONLY a valid JSON object with this exact structure:
+        {
+          "title": "Corrected Book Title",
+          "author": "Author Name" or null
+        }
+        """
+        
+        let userPrompt = """
+        Extract and correct book title and determine author from: "\(input)"
+        """
+        
+        let requestBody = ChatRequest(
+            model: "gpt-3.5-turbo",
+            messages: [
+                Message(role: "system", content: systemPrompt),
+                Message(role: "user", content: userPrompt)
+            ],
+            max_tokens: 200,
+            temperature: 0.1
+        )
+        
+        let url = URL(string: "\(baseURL)/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        print("DEBUG: Making OpenAI API request for book info extraction: '\(input)'")
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw OpenAIServiceError.invalidResponse
+        }
+        
+        let chatResponse: ChatResponse
+        do {
+            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        } catch {
+            throw OpenAIServiceError.decodingError(error)
+        }
+        
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw OpenAIServiceError.noResponse
+        }
+        
+        // Extract JSON from response
+        let jsonString = extractJSONFromResponse(content)
+        
+        struct BookInfoResponse: Codable {
+            let title: String
+            let author: String?
+        }
+        
+        let bookInfoResponse: BookInfoResponse
+        do {
+            bookInfoResponse = try JSONDecoder().decode(BookInfoResponse.self, from: jsonString.data(using: .utf8)!)
+        } catch {
+            throw OpenAIServiceError.decodingError(error)
+        }
+        
+        print("DEBUG: Raw LLM response for book info: \(content)")
+        print("DEBUG: Parsed book info - Title: '\(bookInfoResponse.title)', Author: \(bookInfoResponse.author ?? "nil")")
+        
+        return BookInfo(title: bookInfoResponse.title, author: bookInfoResponse.author)
+    }
+    
+    private func extractJSONFromResponse(_ response: String) -> String {
+        // Look for JSON object in the response
+        if let startIndex = response.firstIndex(of: "{"),
+           let endIndex = response.lastIndex(of: "}") {
+            return String(response[startIndex...endIndex])
+        }
+        return response
+    }
+    
+    func extractIdeas(from text: String, author: String? = nil) async throws -> [String] {
+        return try await withRetry(maxAttempts: 3) {
+            try await self.performExtractIdeas(from: text, author: author)
+        }
+    }
+    
+    private func performExtractIdeas(from text: String, author: String? = nil) async throws -> [String] {
+        let authorContext = author != nil ? " by \(author!)" : ""
         let prompt = """
-        Extract and list all the core ideas, frameworks, and insights from the non-fiction book titled "\(text)". 
+        Extract and list all the core ideas, frameworks, and insights from the non-fiction book titled "\(text)"\(authorContext). 
         Return them as a JSON array of strings.
 
         \(text)
         """
 
-
         let systemPrompt = """
             Your task is to extract and list the most important, teachable ideas from a non-fiction book.
+            
+            \(author != nil ? "Book Author: \(author!)" : "")
 
             Each concept = one distinct, self-contained idea. No overlaps. No vague summaries.
 

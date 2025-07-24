@@ -35,11 +35,11 @@ class EvaluationService {
         let levelConfig = getLevelConfig(for: level)
         
         let systemPrompt = """
-        You are an expert educational evaluator. Your task is to evaluate a learner's response to an idea from a book.
+        You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are personally evaluating a reader's response to one of your ideas.
         
         EVALUATION CONTEXT:
-        - Book: \(idea.bookTitle)
-        - Idea: \(idea.title)
+        - Your Book: \(idea.bookTitle)
+        - Your Idea: \(idea.title)
         - Idea Description: \(idea.ideaDescription)
         - Level: \(levelConfig.name)
         - Level Description: \(levelConfig.description)
@@ -50,14 +50,15 @@ class EvaluationService {
         SCORING GUIDE:
         \(levelConfig.scoringGuide)
         
-        RESPONSE TO EVALUATE:
+        READER'S RESPONSE TO YOUR IDEA:
         \(userResponse)
         
         INSTRUCTIONS:
-        1. Analyze the response against the level-specific criteria
+        As the author of this book, evaluate how well this reader engaged with your idea:
+        1. Analyze their response against the level-specific criteria
         2. Assign a score from 0-10 based on the scoring guide
-        3. Identify exactly 2 key strengths (be specific and actionable)
-        4. Identify exactly 2 areas for improvement (be constructive and specific)
+        3. Identify exactly 2 key strengths (be specific and actionable, as if you're personally coaching them)
+        4. Identify exactly 2 areas for improvement (be constructive and specific, as if you're personally guiding them)
         5. Return ONLY a valid JSON object with this exact structure:
         
         {
@@ -68,10 +69,12 @@ class EvaluationService {
         }
         
         IMPORTANT:
+        - Write as if you, the author, are personally giving this feedback
         - Return ONLY the JSON, no other text
         - Ensure strengths and improvements are exactly 2 items each
-        - Make feedback specific to the response content
+        - Make feedback specific to their response content
         - Keep strengths and improvements concise (1-2 sentences each)
+        - Use your authorial voice and perspective
         """
         
         let requestBody = ChatRequest(
@@ -250,6 +253,86 @@ class EvaluationService {
             return String(response[startIndex...endIndex])
         }
         return response
+    }
+    
+    func generateContextAwareFeedback(
+        idea: Idea,
+        userResponse: String,
+        level: Int,
+        evaluationResult: EvaluationResult
+    ) async throws -> String {
+        
+        let levelConfig = getLevelConfig(for: level)
+        
+        let systemPrompt = """
+        You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are personally providing feedback to a reader who engaged with your idea.
+        
+        CONTEXT:
+        - Your Book: \(idea.bookTitle)
+        - Your Idea: \(idea.title)
+        - Idea Description: \(idea.ideaDescription)
+        - Level: \(levelConfig.name)
+        - Reader's Score: \(evaluationResult.score10)/10
+        
+        READER'S RESPONSE TO YOUR IDEA:
+        \(userResponse)
+        
+        EVALUATION RESULTS:
+        - Strengths: \(evaluationResult.strengths.joined(separator: ", "))
+        - Areas for Improvement: \(evaluationResult.improvements.joined(separator: ", "))
+        
+        TASK:
+        As the author, provide ONE clear, actionable insight about this reader's response to your idea. This should be either:
+        1. The most important thing they got right about your idea (if score ≥ 7)
+        2. The most critical misunderstanding they have about your idea (if score < 7)
+        
+        GUIDELINES:
+        - Write as if you're personally speaking to this reader
+        - Be specific and contextual to their actual response
+        - Focus on the most impactful learning moment about your idea
+        - Keep it concise (1-2 sentences max)
+        - Be encouraging but honest, as if you're mentoring them
+        - Connect to your specific idea and the level context
+        - Use your authorial voice and perspective
+        
+        Return only the feedback text, nothing else.
+        """
+        
+        let requestBody = ChatRequest(
+            model: "gpt-4",
+            messages: [
+                Message(role: "system", content: systemPrompt),
+                Message(role: "user", content: "Please provide context-aware feedback for this response.")
+            ],
+            max_tokens: 200,
+            temperature: 0.4
+        )
+        
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw EvaluationError.invalidResponse
+        }
+        
+        let chatResponse: ChatResponse
+        do {
+            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        } catch {
+            throw EvaluationError.decodingError(error)
+        }
+        
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw EvaluationError.noResponse
+        }
+        
+        return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

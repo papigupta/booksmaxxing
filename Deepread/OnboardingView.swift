@@ -16,7 +16,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.center)
                     .padding(.top, 20)
 
-                TextField("Book title", text: $bookTitle)
+                TextField("Book title and author name (we'll find the correct details)", text: $bookTitle)
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal)
 

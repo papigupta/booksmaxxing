@@ -88,6 +88,27 @@ class BookService: ObservableObject {
         return books.first
     }
     
+    func updateBookAuthor(title: String, author: String) throws {
+        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("DEBUG: Updating author for book: '\(normalizedTitle)' to '\(author)'")
+        
+        let descriptor = FetchDescriptor<Book>(
+            predicate: #Predicate<Book> { book in
+                book.title.localizedStandardContains(normalizedTitle)
+            }
+        )
+        
+        let books = try modelContext.fetch(descriptor)
+        
+        if let book = books.first {
+            book.author = author
+            try modelContext.save()
+            print("DEBUG: Successfully updated book author in database")
+        } else {
+            print("DEBUG: No book found to update author")
+        }
+    }
+    
     // Debug method to list all books
     func getAllBooks() throws -> [Book] {
         let descriptor = FetchDescriptor<Book>()

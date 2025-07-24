@@ -16,7 +16,7 @@ struct BookOverviewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(bookTitle)
+                Text(viewModel.bookInfo?.title ?? bookTitle)
                     .font(.largeTitle)
                     .bold()
                     .tracking(-0.03)
@@ -32,11 +32,19 @@ struct BookOverviewView: View {
                 #endif
             }
             
-            Text("Author name")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .padding(.top, 6)
-                .padding(.bottom, 32)
+            if let author = viewModel.bookInfo?.author {
+                Text(author)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 6)
+                    .padding(.bottom, 32)
+            } else {
+                Text("Author not specified")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 6)
+                    .padding(.bottom, 32)
+            }
 
             if viewModel.isLoading {
                 ProgressView("Breaking book into core ideas…")
@@ -143,8 +151,17 @@ struct DebugInfoView: View {
                         .font(.headline)
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Current Book Title: '\(bookTitle)'")
+                        Text("Current Book Title: '\(viewModel.bookInfo?.title ?? bookTitle)'")
                             .font(.body)
+                        
+                        Text("Original Input: '\(bookTitle)'")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                        
+                        if let author = viewModel.bookInfo?.author {
+                            Text("Author: '\(author)'")
+                                .font(.body)
+                        }
                         
                         Text("Loading State: \(viewModel.isLoading ? "Yes" : "No")")
                             .font(.body)
