@@ -220,21 +220,10 @@ struct EvaluationResultsView: View {
                         }
                         
                         // Continue Button
-                        Button(action: {
+                        Button("Continue") {
                             navigateToWhatThisMeans = true
-                        }) {
-                            HStack {
-                                Text("Continue")
-                                Image(systemName: "arrow.right")
-                            }
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(12)
                         }
+                        .buttonStyle(.borderedProminent)
                         .padding(.top, 16)
                         
                         Spacer(minLength: 32)

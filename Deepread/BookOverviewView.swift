@@ -297,22 +297,21 @@ struct ActiveIdeaCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: "play.fill")
                                 .font(.caption)
-                                .foregroundColor(.white)
                             Text("Master this idea")
                                 .font(.caption)
                                 .fontWeight(.medium)
-                                .foregroundColor(.white)
                         }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .foregroundColor(.white)
-                    .background(Color.white.opacity(0.2))
                     .padding(.top, 4)
                 }
             }
         }
-        .padding(16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.black)
@@ -369,6 +368,8 @@ struct InactiveIdeaCard: View {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

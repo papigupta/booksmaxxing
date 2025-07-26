@@ -133,7 +133,7 @@ struct IdeaPromptView: View {
                             .foregroundStyle(.primary)
                             .scrollContentBackground(.hidden)
                             .background(.clear)
-                            .frame(minHeight: 120)
+                            .frame(minHeight: 320)
                             .padding(16)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)

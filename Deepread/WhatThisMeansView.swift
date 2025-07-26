@@ -64,7 +64,7 @@ struct WhatThisMeansView: View {
                 }
                 
                 // Continue Button
-                Button(action: {
+                Button(getButtonText(score: evaluationResult.score10, currentLevel: level)) {
                     let nextLevelResult = determineNextLevel(score: evaluationResult.score10, currentLevel: level)
                     
                     if nextLevelResult == -1 {
@@ -75,21 +75,8 @@ struct WhatThisMeansView: View {
                         nextLevel = nextLevelResult
                         showingNextLevel = true
                     }
-                }) {
-                    HStack {
-                        Text(getButtonText(score: evaluationResult.score10, currentLevel: level))
-                        Image(systemName: "arrow.right")
-                    }
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(.blue)
-                    )
                 }
+                .buttonStyle(.borderedProminent)
                 .padding(.top, 16)
                 
                 Spacer(minLength: 32)

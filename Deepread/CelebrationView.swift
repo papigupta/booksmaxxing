@@ -85,26 +85,12 @@ struct CelebrationView: View {
             
             // Action Buttons
             VStack(spacing: 16) {
-                Button(action: {
+                Button("Master Another Idea") {
                     navigateToBookOverview = true
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "book.fill")
-                            .font(.caption)
-                        Text("Master Another Idea")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(.blue)
-                    )
                 }
+                .buttonStyle(.borderedProminent)
                 
-                Button(action: {
+                Button("Share Achievement") {
                     // Share achievement
                     let shareText = "I just mastered '\(idea.title)' from '\(idea.bookTitle)' with a score of \(score)/10! 🎉"
                     let activityVC = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
@@ -113,22 +99,8 @@ struct CelebrationView: View {
                        let window = windowScene.windows.first {
                         window.rootViewController?.present(activityVC, animated: true)
                     }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.caption)
-                        Text("Share Achievement")
-                            .font(.body)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundStyle(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(.blue, lineWidth: 1)
-                    )
                 }
+                .buttonStyle(.bordered)
             }
             .padding(.horizontal, 20)
         }
