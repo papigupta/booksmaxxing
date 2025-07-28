@@ -185,7 +185,7 @@ class OpenAIService {
 
             Focus only on the most important + teachable ideas. Do not include trivia or examples unless essential.
 
-            Ignore chapter structure. Group similar ideas under unified concepts.
+            Follow chapter structure. List ideas in the order they are presented in the book.
 
             Aim for 10–50 concepts per book, depending on richness.
 
