@@ -34,6 +34,39 @@ class EvaluationService {
         
         let levelConfig = getLevelConfig(for: level)
         
+        // Step 1: Get score
+        let score = try await getScore(
+            idea: idea,
+            userResponse: userResponse,
+            level: level,
+            levelConfig: levelConfig
+        )
+        
+        // Step 2: Get strengths and improvements
+        let feedback = try await getStrengthsAndImprovements(
+            idea: idea,
+            userResponse: userResponse,
+            level: level,
+            levelConfig: levelConfig,
+            score: score
+        )
+        
+        return EvaluationResult(
+            level: "L\(level)",
+            score10: score,
+            strengths: feedback.strengths,
+            improvements: feedback.improvements
+        )
+    }
+    
+    // MARK: - Prompt 1: Score Only
+    private func getScore(
+        idea: Idea,
+        userResponse: String,
+        level: Int,
+        levelConfig: LevelConfig
+    ) async throws -> Int {
+        
         let systemPrompt = """
         You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are personally evaluating a reader's response to one of your ideas.
         
@@ -53,37 +86,109 @@ class EvaluationService {
         READER'S RESPONSE TO YOUR IDEA:
         \(userResponse)
         
+        TASK:
+        As the author, assign a score from 0-10 based on how well this reader engaged with your idea.
+        
         INSTRUCTIONS:
-        As the author of this book, evaluate how well this reader engaged with your idea:
-        1. Analyze their response against the level-specific criteria
-        2. Assign a score from 0-10 based on the scoring guide
-        3. Identify exactly 2 key strengths (be specific and actionable, as if you're personally coaching them)
-        4. Identify exactly 2 areas for improvement (be constructive and specific, as if you're personally guiding them)
-        5. Return ONLY a valid JSON object with this exact structure:
+        - Analyze their response against the level-specific criteria
+        - Use the scoring guide to determine the appropriate score
+        - Consider the level context and expectations
+        - Be fair but rigorous in your assessment
         
-        {
-          "level": "L\(level)",
-          "score10": <0-10>,
-          "strengths": ["<strength1>", "<strength2>"],
-          "improvements": ["<improvement1>", "<improvement2>"]
-        }
-        
-        IMPORTANT:
-        - Write as if you, the author, are personally giving this feedback
-        - Return ONLY the JSON, no other text
-        - Ensure strengths and improvements are exactly 2 items each
-        - Make feedback specific to their response content
-        - Keep strengths and improvements concise (1-2 sentences each)
-        - Use your authorial voice and perspective
+        Return ONLY the score as a single integer (0-10), nothing else.
         """
         
         let requestBody = ChatRequest(
             model: "gpt-4",
             messages: [
                 Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: "Please evaluate this response.")
+                Message(role: "user", content: "Please score this response.")
             ],
-            max_tokens: 500,
+            max_tokens: 50,
+            temperature: 0.2
+        )
+        
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw EvaluationError.invalidResponse
+        }
+        
+        let chatResponse: ChatResponse
+        do {
+            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        } catch {
+            throw EvaluationError.decodingError(error)
+        }
+        
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw EvaluationError.noResponse
+        }
+        
+        // Parse score from response
+        let scoreString = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let score = Int(scoreString), score >= 0 && score <= 10 else {
+            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 3, userInfo: [NSLocalizedDescriptionKey: "Invalid score format"]))
+        }
+        
+        return score
+    }
+    
+    // MARK: - Prompt 2: Strengths and Improvements
+    private func getStrengthsAndImprovements(
+        idea: Idea,
+        userResponse: String,
+        level: Int,
+        levelConfig: LevelConfig,
+        score: Int
+    ) async throws -> (strengths: [String], improvements: [String]) {
+        
+        let systemPrompt = """
+        You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are personally providing feedback to a reader who engaged with your idea.
+        
+        CONTEXT:
+        - Your Book: \(idea.bookTitle)
+        - Your Idea: \(idea.title)
+        - Idea Description: \(idea.ideaDescription)
+        - Level: \(levelConfig.name)
+        - Reader's Score: \(score)/10
+        
+        READER'S RESPONSE TO YOUR IDEA:
+        \(userResponse)
+        
+        TASK:
+        As the author, provide exactly 2 strengths and 2 areas for improvement based on their score of \(score)/10.
+        
+        INSTRUCTIONS:
+        - Identify exactly 2 key strengths (be specific and actionable, as if you're personally coaching them)
+        - Identify exactly 2 areas for improvement (be constructive and specific, as if you're personally guiding them)
+        - Make feedback specific to their response content and score
+        - Keep each item concise (1-2 sentences)
+        - Use your authorial voice and perspective
+        - Be encouraging but honest
+        
+        Return ONLY a valid JSON object with this exact structure:
+        
+        {
+          "strengths": ["<strength1>", "<strength2>"],
+          "improvements": ["<improvement1>", "<improvement2>"]
+        }
+        """
+        
+        let requestBody = ChatRequest(
+            model: "gpt-4",
+            messages: [
+                Message(role: "system", content: systemPrompt),
+                Message(role: "user", content: "Please provide strengths and improvements for this response.")
+            ],
+            max_tokens: 300,
             temperature: 0.3
         )
         
@@ -111,26 +216,27 @@ class EvaluationService {
             throw EvaluationError.noResponse
         }
         
-        // Extract JSON from response (handle any wrapper text)
+        // Extract JSON from response
         let jsonString = extractJSONFromResponse(content)
         
-        let evaluationResult: EvaluationResult
+        struct FeedbackResponse: Codable {
+            let strengths: [String]
+            let improvements: [String]
+        }
+        
+        let feedbackResponse: FeedbackResponse
         do {
-            evaluationResult = try JSONDecoder().decode(EvaluationResult.self, from: jsonString.data(using: .utf8)!)
+            feedbackResponse = try JSONDecoder().decode(FeedbackResponse.self, from: jsonString.data(using: .utf8)!)
         } catch {
             throw EvaluationError.invalidEvaluationFormat(error)
         }
         
         // Validate the result
-        guard evaluationResult.strengths.count == 2 && evaluationResult.improvements.count == 2 else {
+        guard feedbackResponse.strengths.count == 2 && feedbackResponse.improvements.count == 2 else {
             throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid number of strengths or improvements"]))
         }
         
-        guard evaluationResult.score10 >= 0 && evaluationResult.score10 <= 10 else {
-            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 2, userInfo: [NSLocalizedDescriptionKey: "Score must be between 0-10"]))
-        }
-        
-        return evaluationResult
+        return (strengths: feedbackResponse.strengths, improvements: feedbackResponse.improvements)
     }
     
     // MARK: - Level Configuration
