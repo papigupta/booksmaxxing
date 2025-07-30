@@ -248,11 +248,27 @@ struct ActiveIdeaCard: View {
                     .frame(width: 24)
                 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(idea.title)
-                        .font(.body)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
-                        .foregroundColor(.white)
+                    HStack {
+                        Text(idea.title)
+                            .font(.body)
+                            .fontWeight(.semibold)
+                            .lineLimit(2)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        // Show mastered badge when masteryLevel >= 3
+                        if idea.masteryLevel >= 3 {
+                            Text("MASTERED")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.yellow)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.yellow.opacity(0.2))
+                                .cornerRadius(4)
+                        }
+                    }
                     
                     if !idea.ideaDescription.isEmpty {
                         Text(idea.ideaDescription)
@@ -297,7 +313,7 @@ struct ActiveIdeaCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: "play.fill")
                                 .font(.caption)
-                            Text("Master this idea")
+                            Text(idea.masteryLevel >= 3 ? "Remaster this idea" : "Master this idea")
                                 .font(.caption)
                                 .fontWeight(.medium)
                         }
