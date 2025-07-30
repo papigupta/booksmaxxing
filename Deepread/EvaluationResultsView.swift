@@ -12,9 +12,19 @@ struct EvaluationResultsView: View {
     @State private var navigateToWhatThisMeans = false
     @State private var contextAwareFeedback: String? = nil
     @State private var isLoadingFeedback = false
+    @State private var isResponseExpanded = false
     
     private var evaluationService: EvaluationService {
         EvaluationService(openAIService: openAIService)
+    }
+    
+    private var truncatedResponse: String {
+        let maxLength = 100
+        if userResponse.count <= maxLength {
+            return userResponse
+        }
+        let truncated = String(userResponse.prefix(maxLength))
+        return truncated + "..."
     }
     
     var body: some View {
@@ -96,6 +106,41 @@ struct EvaluationResultsView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(.primary)
                         
+                        // Your response (collapsible, at the top)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Your Response")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.primary)
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        isResponseExpanded.toggle()
+                                    }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Text(isResponseExpanded ? "Show less" : "Show more")
+                                            .font(.caption)
+                                            .foregroundStyle(.blue)
+                                        Image(systemName: isResponseExpanded ? "chevron.up" : "chevron.down")
+                                            .font(.caption2)
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
+                            }
+                            
+                            Text(isResponseExpanded ? userResponse : truncatedResponse)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .padding()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(.systemGray6))
+                                .cornerRadius(12)
+                        }
+                        
                         // Score and Level
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
@@ -129,28 +174,17 @@ struct EvaluationResultsView: View {
                         .background(Color(.systemGray6))
                         .cornerRadius(12)
                         
-                        // Your response
+                        // Silver Bullet
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Your Response")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.primary)
-                            
-                            Text(userResponse)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(.systemGray6))
-                                .cornerRadius(12)
-                        }
-                        
-                        // Key Insight
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Key Insight")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.primary)
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.down.right.dotted.2")
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                Text("Silver Bullet")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.primary)
+                            }
                             
                             if isLoadingFeedback {
                                 HStack(spacing: 8) {
