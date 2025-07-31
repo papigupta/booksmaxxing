@@ -77,6 +77,7 @@ struct WhatThisMeansView: View {
                     } else {
                         // Continue to next level
                         nextLevel = nextLevelResult
+                        saveNextLevel(nextLevel: nextLevelResult)
                         showingNextLevel = true
                     }
                 }
@@ -124,6 +125,16 @@ struct WhatThisMeansView: View {
             } catch {
                 print("DEBUG: Failed to save intermediate progress: \(error)")
             }
+        }
+    }
+    
+    private func saveNextLevel(nextLevel: Int) {
+        idea.currentLevel = nextLevel
+        do {
+            try modelContext.save()
+            print("DEBUG: Saved next level to \(nextLevel) for idea: \(idea.title)")
+        } catch {
+            print("DEBUG: Failed to save next level: \(error)")
         }
     }
     
@@ -340,7 +351,8 @@ struct WhatThisMeansView: View {
                 bookTitle: "The Design of Everyday Things",
                 depthTarget: 2,
                 masteryLevel: 0,
-                lastPracticed: nil
+                lastPracticed: nil,
+                currentLevel: nil
             ),
             evaluationResult: EvaluationResult(
                 level: "L0",

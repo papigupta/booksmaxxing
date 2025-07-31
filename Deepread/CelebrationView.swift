@@ -117,6 +117,7 @@ struct CelebrationView: View {
             print("DEBUG: Updating mastery level to 3 for idea: \(idea.title)")
             idea.masteryLevel = 3
             idea.lastPracticed = Date()
+            idea.currentLevel = nil // Clear current level since mastery is achieved
             
             // Save to database immediately
             do {
@@ -148,7 +149,8 @@ struct CelebrationView: View {
                 bookTitle: "The Design of Everyday Things",
                 depthTarget: 2,
                 masteryLevel: 0,
-                lastPracticed: nil
+                lastPracticed: nil,
+                currentLevel: nil
             ),
             userResponse: "This is my response about Norman Doors...",
             level: 3,

@@ -112,7 +112,7 @@ class IdeaExtractionViewModel: ObservableObject {
 
                 // Use the corrected book title from BookInfo instead of user input
                 let correctedBookTitle = bookInfo?.title ?? currentBookTitle
-                return Idea(id: id, title: ideaTitle, description: description, bookTitle: correctedBookTitle, depthTarget: depthTarget, masteryLevel: 0, lastPracticed: nil)
+                return Idea(id: id, title: ideaTitle, description: description, bookTitle: correctedBookTitle, depthTarget: depthTarget, masteryLevel: 0, lastPracticed: nil, currentLevel: nil)
             }
             
             print("DEBUG: Parsed \(parsedIdeas.count) ideas")

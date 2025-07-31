@@ -92,7 +92,7 @@ class OpenAIService {
         """
         
         let requestBody = ChatRequest(
-            model: "gpt-3.5-turbo",
+            model: "gpt-4",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)
@@ -217,7 +217,7 @@ class OpenAIService {
 
         
         let requestBody = ChatRequest(
-            model: "gpt-3.5-turbo",
+            model: "gpt-4",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: prompt)

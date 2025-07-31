@@ -7,6 +7,7 @@ struct LevelLoadingView: View {
     
     @State private var showContinueButton = false
     @State private var navigateToPrompt = false
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         VStack(spacing: 24) {
@@ -63,11 +64,28 @@ struct LevelLoadingView: View {
             IdeaPromptView(idea: idea, level: level, openAIService: openAIService)
         }
         .onAppear {
+            // Save current level for resume functionality
+            saveCurrentLevel()
+            
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 withAnimation {
                     showContinueButton = true
                 }
             }
+        }
+    }
+    
+    // MARK: - Progress Saving
+    
+    private func saveCurrentLevel() {
+        idea.currentLevel = level
+        idea.lastPracticed = Date()
+        
+        do {
+            try modelContext.save()
+            print("DEBUG: Saved current level \(level) for idea: \(idea.title)")
+        } catch {
+            print("DEBUG: Failed to save current level: \(error)")
         }
     }
     
@@ -134,7 +152,8 @@ struct LevelLoadingView: View {
                 bookTitle: "The Design of Everyday Things",
                 depthTarget: 2,
                 masteryLevel: 0,
-                lastPracticed: nil
+                lastPracticed: nil,
+                currentLevel: nil
             ),
             level: 0,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)

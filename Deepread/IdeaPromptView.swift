@@ -269,7 +269,8 @@ struct IdeaPromptView: View {
                 bookTitle: "The Design of Everyday Things",
                 depthTarget: 2,
                 masteryLevel: 0,
-                lastPracticed: nil
+                lastPracticed: nil,
+                currentLevel: nil
             ),
             level: 0,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
@@ -287,7 +288,8 @@ struct IdeaPromptView: View {
                 bookTitle: "The Design of Everyday Things",
                 depthTarget: 2,
                 masteryLevel: 0,
-                lastPracticed: nil
+                lastPracticed: nil,
+                currentLevel: nil
             ),
             level: 1,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)

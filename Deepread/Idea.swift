@@ -11,11 +11,12 @@ final class Idea {
     var depthTarget: Int  // 1 = Do, 2 = Question, 3 = Reinvent
     var masteryLevel: Int // 0 = not started, 1 = basic, 2 = intermediate, 3 = mastered
     var lastPracticed: Date?
+    var currentLevel: Int? // The exact level user was on when they left
     
     // Relationship back to Book
     @Relationship(deleteRule: .cascade) var book: Book?
     
-    init(id: String, title: String, description: String, bookTitle: String, depthTarget: Int, masteryLevel: Int = 0, lastPracticed: Date? = nil) {
+    init(id: String, title: String, description: String, bookTitle: String, depthTarget: Int, masteryLevel: Int = 0, lastPracticed: Date? = nil, currentLevel: Int? = nil) {
         self.id = id
         self.title = title
         self.ideaDescription = description
@@ -23,6 +24,7 @@ final class Idea {
         self.depthTarget = depthTarget
         self.masteryLevel = masteryLevel
         self.lastPracticed = lastPracticed
+        self.currentLevel = currentLevel
         print("DEBUG: Created Idea with id: \(id), title: \(title), bookTitle: \(bookTitle)")
     }
 } 

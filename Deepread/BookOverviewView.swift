@@ -349,7 +349,12 @@ struct ActiveIdeaCard: View {
     }
     
     private func getStartingLevel() -> Int {
-        // Determine starting level based on current progress
+        // If user has a saved current level, resume from there
+        if let currentLevel = idea.currentLevel {
+            return currentLevel
+        }
+        
+        // Fallback to old mastery-based logic for backward compatibility
         if idea.masteryLevel >= 3 {
             // If mastered, start from beginning for remastering
             return 0

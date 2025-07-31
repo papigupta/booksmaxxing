@@ -343,7 +343,8 @@ struct EvaluationResultsView: View {
                 bookTitle: "The Design of Everyday Things",
                 depthTarget: 2,
                 masteryLevel: 0,
-                lastPracticed: nil
+                lastPracticed: nil,
+                currentLevel: nil
             ),
             userResponse: "This is my response about Norman Doors...",
             level: 0,
