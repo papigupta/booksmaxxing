@@ -10,6 +10,7 @@ struct WhatThisMeansView: View {
     @State private var showingNextLevel = false
     @State private var showingCelebration = false
     @State private var nextLevel: Int = 0
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         ScrollView {
@@ -67,6 +68,9 @@ struct WhatThisMeansView: View {
                 Button(getButtonText(score: evaluationResult.score10, currentLevel: level)) {
                     let nextLevelResult = determineNextLevel(score: evaluationResult.score10, currentLevel: level)
                     
+                    // Save intermediate progress before proceeding
+                    saveProgress(score: evaluationResult.score10, currentLevel: level)
+                    
                     if nextLevelResult == -1 {
                         // Mastery achieved - show celebration
                         showingCelebration = true
@@ -99,6 +103,63 @@ struct WhatThisMeansView: View {
                 score: evaluationResult.score10,
                 openAIService: openAIService
             )
+        }
+    }
+    
+    // MARK: - Progress Saving
+    
+    private func saveProgress(score: Int, currentLevel: Int) {
+        // Update mastery level based on current progress
+        let newMasteryLevel = calculateMasteryLevel(score: score, currentLevel: currentLevel)
+        
+        // Only update if the new level is higher than current
+        if newMasteryLevel > idea.masteryLevel {
+            idea.masteryLevel = newMasteryLevel
+            idea.lastPracticed = Date()
+            
+            // Save to database immediately
+            do {
+                try modelContext.save()
+                print("DEBUG: Saved intermediate progress - mastery level updated to \(newMasteryLevel) for idea: \(idea.title)")
+            } catch {
+                print("DEBUG: Failed to save intermediate progress: \(error)")
+            }
+        }
+    }
+    
+    private func calculateMasteryLevel(score: Int, currentLevel: Int) -> Int {
+        // Calculate mastery level based on current level and score
+        switch currentLevel {
+        case 0: // Thought Dump
+            switch score {
+            case 1...4: return 1 // Basic understanding
+            case 5...7: return 2 // Intermediate understanding
+            case 8...10: return 2 // Intermediate understanding, ready for advanced
+            default: return 1
+            }
+        case 1: // Use
+            switch score {
+            case 1...4: return 1 // Still basic
+            case 5...7: return 2 // Intermediate understanding
+            case 8...10: return 2 // Intermediate understanding, ready for advanced
+            default: return 2
+            }
+        case 2: // Think with
+            switch score {
+            case 1...4: return 2 // Still intermediate
+            case 5...7: return 2 // Intermediate understanding
+            case 8...10: return 2 // Intermediate understanding, ready for mastery
+            default: return 2
+            }
+        case 3: // Build with
+            switch score {
+            case 1...4: return 2 // Still intermediate
+            case 5...7: return 2 // Intermediate understanding
+            case 8...10: return 3 // Mastery achieved
+            default: return 2
+            }
+        default:
+            return idea.masteryLevel // Keep current level
         }
     }
     

@@ -309,11 +309,11 @@ struct ActiveIdeaCard: View {
                     }
                     
                     // CTA Button
-                    NavigationLink(destination: LevelLoadingView(idea: idea, level: 0, openAIService: openAIService)) {
+                    NavigationLink(destination: LevelLoadingView(idea: idea, level: getStartingLevel(), openAIService: openAIService)) {
                         HStack(spacing: 4) {
                             Image(systemName: "play.fill")
                                 .font(.caption)
-                            Text(idea.masteryLevel >= 3 ? "Remaster this idea" : "Master this idea")
+                            Text(getButtonText())
                                 .font(.caption)
                                 .fontWeight(.medium)
                         }
@@ -336,6 +336,33 @@ struct ActiveIdeaCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
         )
+    }
+    
+    private func getButtonText() -> String {
+        if idea.masteryLevel >= 3 {
+            return "Remaster this idea"
+        } else if idea.masteryLevel > 0 {
+            return "Continue mastering"
+        } else {
+            return "Master this idea"
+        }
+    }
+    
+    private func getStartingLevel() -> Int {
+        // Determine starting level based on current progress
+        if idea.masteryLevel >= 3 {
+            // If mastered, start from beginning for remastering
+            return 0
+        } else if idea.masteryLevel == 2 {
+            // If intermediate, start from level 3 (Build With)
+            return 3
+        } else if idea.masteryLevel == 1 {
+            // If basic, start from level 1 (Use)
+            return 1
+        } else {
+            // If not started, start from level 0 (Thought Dump)
+            return 0
+        }
     }
 }
 
@@ -361,7 +388,7 @@ struct InactiveIdeaCard: View {
                     
                     Spacer()
                     
-                    // CRITICAL: Show mastered badge when masteryLevel >= 3
+                    // Show appropriate badge based on progress
                     if idea.masteryLevel >= 3 {
                         Text("MASTERED")
                             .font(.caption2)
@@ -370,6 +397,15 @@ struct InactiveIdeaCard: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color.yellow.opacity(0.2))
+                            .cornerRadius(4)
+                    } else if idea.masteryLevel > 0 {
+                        Text("RESUME")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.2))
                             .cornerRadius(4)
                     }
                 }
