@@ -267,6 +267,15 @@ struct ActiveIdeaCard: View {
                                 .padding(.vertical, 2)
                                 .background(Color.yellow.opacity(0.2))
                                 .cornerRadius(4)
+                        } else if idea.masteryLevel > 0 {
+                            Text("RESUME")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.2))
+                                .cornerRadius(4)
                         }
                     }
                     
