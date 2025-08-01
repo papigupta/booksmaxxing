@@ -10,6 +10,7 @@ struct WhatThisMeansView: View {
     @State private var showingNextLevel = false
     @State private var showingCelebration = false
     @State private var nextLevel: Int = 0
+    @State private var navigateToHome = false
     @Environment(\.modelContext) private var modelContext
     
     var body: some View {
@@ -91,6 +92,20 @@ struct WhatThisMeansView: View {
         }
         .navigationTitle("What This Means")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true) // Hide the back button
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    navigateToHome = true
+                }) {
+                    Image(systemName: "text.book.closed")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("Go to home")
+                .accessibilityHint("Return to all extracted ideas")
+            }
+        }
         .navigationDestination(isPresented: $showingNextLevel) {
             // Start new learning loop
             LevelLoadingView(idea: idea, level: nextLevel, openAIService: openAIService)
@@ -104,6 +119,9 @@ struct WhatThisMeansView: View {
                 score: evaluationResult.score10,
                 openAIService: openAIService
             )
+        }
+        .navigationDestination(isPresented: $navigateToHome) {
+            BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
         }
     }
     

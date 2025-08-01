@@ -12,6 +12,9 @@ struct IdeaPromptView: View {
     @State private var promptError: String? = nil
     @State private var isSubmitting: Bool = false
     @State private var navigateToEvaluation = false
+    @State private var showHomeConfirmation = false
+    @State private var navigateToHome = false
+    @Environment(\.modelContext) private var modelContext
     
     // MARK: - Computed Properties
     
@@ -207,6 +210,18 @@ struct IdeaPromptView: View {
         }
         .navigationTitle(levelTitle)
         .navigationBarTitleDisplayMode(.inline) // Changed from .large to .inline
+        .navigationBarBackButtonHidden(true) // Hide the back button
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: handleBookButtonTap) {
+                    Image(systemName: "text.book.closed")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("Go to home")
+                .accessibilityHint("Return to all extracted ideas")
+            }
+        }
         .onAppear {
             generatePrompt()
         }
@@ -214,6 +229,17 @@ struct IdeaPromptView: View {
             withAnimation(.easeInOut(duration: 0.3)) {
                 showSubmitButton = !newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
+        }
+        .alert("The response won't be saved", isPresented: $showHomeConfirmation) {
+            Button("Continue") {
+                navigateToHome = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to go back to home? Your current response will not be saved.")
+        }
+        .navigationDestination(isPresented: $navigateToHome) {
+            BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
         }
     }
     
@@ -253,6 +279,16 @@ struct IdeaPromptView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             isSubmitting = false
             navigateToEvaluation = true
+        }
+    }
+    
+    private func handleBookButtonTap() {
+        // Check if there's text in the response field
+        if !userResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            showHomeConfirmation = true
+        } else {
+            // No text to save, navigate directly
+            navigateToHome = true
         }
     }
 }

@@ -133,6 +133,7 @@ struct BookOverviewView: View {
         .sheet(isPresented: $showingDebugInfo) {
             DebugInfoView(bookTitle: bookTitle, viewModel: viewModel)
         }
+        .navigationBarBackButtonHidden(true)
     }
 }
 

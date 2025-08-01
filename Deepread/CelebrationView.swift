@@ -85,11 +85,6 @@ struct CelebrationView: View {
             
             // Action Buttons
             VStack(spacing: 16) {
-                Button("Master Another Idea") {
-                    navigateToBookOverview = true
-                }
-                .buttonStyle(.borderedProminent)
-                
                 Button("Share Achievement") {
                     // Share achievement
                     let shareText = "I just mastered '\(idea.title)' from '\(idea.bookTitle)' with a score of \(score)/10! 🎉"
@@ -108,6 +103,19 @@ struct CelebrationView: View {
         .navigationTitle("Celebration")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    navigateToBookOverview = true
+                }) {
+                    Image(systemName: "text.book.closed")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("Go to home")
+                .accessibilityHint("Return to all extracted ideas")
+            }
+        }
         .navigationDestination(isPresented: $navigateToBookOverview) {
             // Navigate back to book overview
             BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))

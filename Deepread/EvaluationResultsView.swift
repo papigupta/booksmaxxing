@@ -13,6 +13,8 @@ struct EvaluationResultsView: View {
     @State private var contextAwareFeedback: String? = nil
     @State private var isLoadingFeedback = false
     @State private var isResponseExpanded = false
+    @State private var navigateToHome = false
+    @Environment(\.modelContext) private var modelContext
     
     private var evaluationService: EvaluationService {
         EvaluationService(openAIService: openAIService)
@@ -269,6 +271,20 @@ struct EvaluationResultsView: View {
         }
         .navigationTitle("Evaluation Complete")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true) // Hide the back button
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    navigateToHome = true
+                }) {
+                    Image(systemName: "text.book.closed")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("Go to home")
+                .accessibilityHint("Return to all extracted ideas")
+            }
+        }
         .navigationDestination(isPresented: $navigateToWhatThisMeans) {
             if let result = evaluationResult {
                 WhatThisMeansView(
@@ -279,6 +295,9 @@ struct EvaluationResultsView: View {
                     openAIService: openAIService
                 )
             }
+        }
+        .navigationDestination(isPresented: $navigateToHome) {
+            BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
         }
         .onAppear {
             loadEvaluation()
