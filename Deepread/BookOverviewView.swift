@@ -239,6 +239,7 @@ struct DebugInfoView: View {
 struct ActiveIdeaCard: View {
     let idea: Idea
     let openAIService: OpenAIService
+    @State private var showingHistory = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -310,27 +311,47 @@ struct ActiveIdeaCard: View {
                             .foregroundColor(.white.opacity(0.7))
                         
                         HStack(spacing: 2) {
-                            ForEach(0..<3) { index in
-                                Image(systemName: index < idea.depthTarget ? "staroflife.fill" : "staroflife")
+                            ForEach(0..<idea.depthTarget) { index in
+                                Image(systemName: "staroflife.fill")
                                     .font(.caption)
                                     .foregroundColor(.white.opacity(0.7))
                             }
                         }
                     }
                     
-                    // CTA Button
-                    NavigationLink(destination: LevelLoadingView(idea: idea, level: getStartingLevel(), openAIService: openAIService)) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "play.fill")
-                                .font(.caption)
-                            Text(getButtonText())
-                                .font(.caption)
-                                .fontWeight(.medium)
+                    // CTA Buttons
+                    HStack(spacing: 8) {
+                        NavigationLink(destination: LevelLoadingView(idea: idea, level: getStartingLevel(), openAIService: openAIService)) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "play.fill")
+                                    .font(.caption)
+                                Text(getButtonText())
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .foregroundColor(.white)
+                        
+                        // History button for mastered ideas
+                        if idea.masteryLevel >= 3 {
+                            Button(action: {
+                                showingHistory = true
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.caption)
+                                    Text("History")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .foregroundColor(.white)
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .foregroundColor(.white)
                     .padding(.top, 4)
                 }
             }
@@ -346,6 +367,9 @@ struct ActiveIdeaCard: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
         )
+        .sheet(isPresented: $showingHistory) {
+            ResponseHistoryView(idea: idea)
+        }
     }
     
     private func getButtonText() -> String {
@@ -384,6 +408,12 @@ struct ActiveIdeaCard: View {
 // MARK: - Inactive Idea Card
 struct InactiveIdeaCard: View {
     let idea: Idea
+    @Environment(\.modelContext) private var modelContext
+    @State private var progressInfo: (responseCount: Int, bestScore: Int?) = (0, nil)
+    
+    private var userResponseService: UserResponseService {
+        UserResponseService(modelContext: modelContext)
+    }
     
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -433,10 +463,55 @@ struct InactiveIdeaCard: View {
                         .lineLimit(3)
                         .opacity(0.6)
                 }
+                
+                // Show progress information
+                if progressInfo.responseCount > 0 {
+                    HStack(spacing: 8) {
+                        Text("\(progressInfo.responseCount) responses")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        if let bestScore = progressInfo.bestScore {
+                            Text("Best: \(bestScore)/10")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if let lastPracticed = idea.lastPracticed {
+                            Text("Last: \(formatDate(lastPracticed))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            loadProgressInfo()
+        }
+    }
+    
+    private func loadProgressInfo() {
+        Task {
+            do {
+                let responses = try userResponseService.getUserResponses(for: idea.id)
+                let bestScore = responses.compactMap { $0.score }.max()
+                
+                await MainActor.run {
+                    self.progressInfo = (responses.count, bestScore)
+                }
+            } catch {
+                print("DEBUG: Failed to load progress info: \(error)")
+            }
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter.string(from: date)
     }
 }

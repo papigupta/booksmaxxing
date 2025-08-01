@@ -85,6 +85,12 @@ struct CelebrationView: View {
             
             // Action Buttons
             VStack(spacing: 16) {
+                Button("Master Another Idea") {
+                    navigateToBookOverview = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                
                 Button("Share Achievement") {
                     // Share achievement
                     let shareText = "I just mastered '\(idea.title)' from '\(idea.bookTitle)' with a score of \(score)/10! 🎉"

@@ -17,6 +17,8 @@ struct DeepreadApp: App {
         let schema = Schema([
             Book.self,
             Idea.self,
+            UserResponse.self,
+            Progress.self,
         ])
         let modelConfiguration = ModelConfiguration(
             isStoredInMemoryOnly: false

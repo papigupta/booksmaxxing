@@ -205,7 +205,13 @@ struct IdeaPromptView: View {
             }
             .hidden()
             .navigationDestination(isPresented: $navigateToEvaluation) {
-                EvaluationResultsView(idea: idea, userResponse: userResponse, level: level, openAIService: openAIService)
+                EvaluationResultsView(
+                    idea: idea, 
+                    userResponse: userResponse, 
+                    prompt: generatedPrompt,
+                    level: level, 
+                    openAIService: openAIService
+                )
             }
         }
         .navigationTitle(levelTitle)

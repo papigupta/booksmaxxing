@@ -3,21 +3,27 @@ import SwiftUI
 struct EvaluationResultsView: View {
     let idea: Idea
     let userResponse: String
+    let prompt: String // Add prompt parameter
     let level: Int
     let openAIService: OpenAIService
     
-    @State private var evaluationResult: EvaluationResult? = nil
+    @Environment(\.modelContext) private var modelContext
+    @State private var evaluationResult: EvaluationResult?
+    @State private var contextAwareFeedback: String = ""
     @State private var isLoadingEvaluation = true
-    @State private var evaluationError: String? = nil
-    @State private var navigateToWhatThisMeans = false
-    @State private var contextAwareFeedback: String? = nil
     @State private var isLoadingFeedback = false
+    @State private var evaluationError: String?
+    @State private var isSavingResponse = false
+    @State private var navigateToWhatThisMeans = false
     @State private var isResponseExpanded = false
     @State private var navigateToHome = false
-    @Environment(\.modelContext) private var modelContext
     
     private var evaluationService: EvaluationService {
         EvaluationService(openAIService: openAIService)
+    }
+    
+    private var userResponseService: UserResponseService {
+        UserResponseService(modelContext: modelContext)
     }
     
     private var truncatedResponse: String {
@@ -99,38 +105,47 @@ struct EvaluationResultsView: View {
                         Text(idea.bookTitle)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-                            .tracking(0.5)
+                            .padding(.horizontal, 24)
+                            .padding(.top, 24)
                         
                         // Idea title
                         Text(idea.title)
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 24)
                         
-                        // Your response (collapsible, at the top)
-                        VStack(alignment: .leading, spacing: 8) {
+                        // Score section
+                        VStack(spacing: 16) {
+                            HStack {
+                                Text("Your Score")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                Text("\(result.score10)/10")
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.primary)
+                            }
+                            
+                            // Progress bar
+                            ProgressView(value: Double(result.score10), total: 10.0)
+                                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                        }
+                        .padding(.horizontal, 24)
+                        
+                        // Response section
+                        VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("Your Response")
-                                    .font(.caption)
+                                    .font(.headline)
                                     .fontWeight(.semibold)
-                                    .foregroundStyle(.primary)
-                                
                                 Spacer()
-                                
                                 Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        isResponseExpanded.toggle()
-                                    }
+                                    isResponseExpanded.toggle()
                                 }) {
-                                    HStack(spacing: 4) {
-                                        Text(isResponseExpanded ? "Show less" : "Show more")
-                                            .font(.caption)
-                                            .foregroundStyle(.blue)
-                                        Image(systemName: isResponseExpanded ? "chevron.up" : "chevron.down")
-                                            .font(.caption2)
-                                            .foregroundStyle(.blue)
-                                    }
+                                    Text(isResponseExpanded ? "Show Less" : "Show More")
+                                        .font(.caption)
+                                        .foregroundStyle(.blue)
                                 }
                             }
                             
@@ -138,139 +153,112 @@ struct EvaluationResultsView: View {
                                 .font(.body)
                                 .foregroundStyle(.primary)
                                 .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(Color(.systemGray6))
-                                .cornerRadius(12)
+                                .cornerRadius(8)
                         }
+                        .padding(.horizontal, 24)
                         
-                        // Score and Level
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Level")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.secondary)
-                                Text(result.level)
-                                    .font(.title3)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.primary)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 4) {
-                                Text("Score")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.secondary)
-                                HStack(spacing: 4) {
-                                    Text("\(result.score10)")
-                                        .font(.title3)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.primary)
-                                    Text("/ 10")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
-                        
-                        // Silver Bullet
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "chevron.down.right.dotted.2")
-                                    .font(.caption)
-                                    .foregroundStyle(.primary)
-                                Text("Silver Bullet")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.primary)
-                            }
+                        // Strengths section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Strengths")
+                                .font(.headline)
+                                .fontWeight(.semibold)
                             
-                            if isLoadingFeedback {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                    Text("Generating personalized feedback...")
-                                        .font(.body)
-                                        .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(result.strengths, id: \.self) { strength in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                            .font(.caption)
+                                        Text(strength)
+                                            .font(.body)
+                                            .foregroundStyle(.primary)
+                                    }
                                 }
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(12)
-                            } else if let feedback = contextAwareFeedback {
-                                Text(feedback)
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        
+                        // Areas for improvement
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Areas for Improvement")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(result.improvements, id: \.self) { improvement in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "arrow.up.circle.fill")
+                                            .foregroundStyle(.orange)
+                                            .font(.caption)
+                                        Text(improvement)
+                                            .font(.body)
+                                            .foregroundStyle(.primary)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        
+                        // Context-aware feedback
+                        if isLoadingFeedback {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Generating personalized feedback...")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 24)
+                        } else if !contextAwareFeedback.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Author's Insight")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                
+                                Text(contextAwareFeedback)
                                     .font(.body)
                                     .foregroundStyle(.primary)
                                     .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.orange.opacity(0.1))
-                                    .cornerRadius(12)
+                                    .background(Color(.systemGray6))
+                                    .cornerRadius(8)
                             }
+                            .padding(.horizontal, 24)
                         }
                         
-                        // Detailed Evaluation
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Detailed Evaluation")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.primary)
+                        // Continue button
+                        VStack(spacing: 16) {
+                            Button(action: {
+                                saveResponseAndContinue()
+                            }) {
+                                HStack {
+                                    if isSavingResponse {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                            .foregroundStyle(.white)
+                                    } else {
+                                        Text("Continue")
+                                            .fontWeight(.semibold)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundStyle(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(isSavingResponse)
                             
-                            VStack(alignment: .leading, spacing: 12) {
-                                // Strengths
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(result.strengths, id: \.self) { strength in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.caption)
-                                                .foregroundStyle(.green)
-                                                .padding(.top, 2)
-                                            Text(strength)
-                                                .font(.body)
-                                                .foregroundStyle(.primary)
-                                        }
-                                    }
-                                }
-                                
-                                Divider()
-                                
-                                // Improvements
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(result.improvements, id: \.self) { improvement in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Image(systemName: "multiply.circle.fill")
-                                                .font(.caption)
-                                                .foregroundStyle(.red)
-                                                .padding(.top, 2)
-                                            Text(improvement)
-                                                .font(.body)
-                                                .foregroundStyle(.primary)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(.systemGray6))
-                            .cornerRadius(12)
+                            Text("Your response and evaluation will be saved")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        
-                        // Continue Button
-                        Button("Continue") {
-                            navigateToWhatThisMeans = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .padding(.top, 16)
-                        
-                        Spacer(minLength: 32)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
                 }
             }
         }
-        .navigationTitle("Evaluation Complete")
-        .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true) // Hide the back button
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -350,6 +338,36 @@ struct EvaluationResultsView: View {
             }
         }
     }
+    
+    private func saveResponseAndContinue() {
+        guard let result = evaluationResult else { return }
+        
+        isSavingResponse = true
+        
+        Task {
+            do {
+                // Save the user response with evaluation
+                _ = try userResponseService.saveUserResponse(
+                    ideaId: idea.id,
+                    level: level,
+                    prompt: prompt,
+                    response: userResponse,
+                    evaluation: result,
+                    silverBullet: contextAwareFeedback
+                )
+                
+                await MainActor.run {
+                    isSavingResponse = false
+                    navigateToWhatThisMeans = true
+                }
+            } catch {
+                await MainActor.run {
+                    isSavingResponse = false
+                    evaluationError = "Failed to save response: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
 }
 
 #Preview {
@@ -366,6 +384,7 @@ struct EvaluationResultsView: View {
                 currentLevel: nil
             ),
             userResponse: "This is my response about Norman Doors...",
+            prompt: "What is the design principle behind Norman Doors?",
             level: 0,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
