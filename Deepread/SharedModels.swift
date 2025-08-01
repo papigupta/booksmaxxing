@@ -27,6 +27,8 @@ struct Choice: Codable {
 enum OpenAIServiceError: Error {
     case noResponse
     case invalidResponse
+    case invalidURL
+    case invalidData
     case networkError(Error)
     case decodingError(Error)
 }
@@ -36,4 +38,10 @@ enum EvaluationError: Error {
     case decodingError(Error)
     case noResponse
     case invalidEvaluationFormat(Error)
+}
+
+enum BookServiceError: Error {
+    case invalidRelationship
+    case dataCorruption
+    case saveFailed(Error)
 } 

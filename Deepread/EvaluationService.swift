@@ -98,17 +98,24 @@ class EvaluationService {
         Return ONLY the score as a single integer (0-10), nothing else.
         """
         
+        let userPrompt = """
+        Evaluate this reader's response to your idea and assign a score from 0-10.
+        """
+        
         let requestBody = ChatRequest(
             model: "gpt-4",
             messages: [
                 Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: "Please score this response.")
+                Message(role: "user", content: userPrompt)
             ],
             max_tokens: 50,
-            temperature: 0.2
+            temperature: 0.1
         )
         
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
+            throw EvaluationError.invalidResponse
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")
@@ -132,10 +139,9 @@ class EvaluationService {
             throw EvaluationError.noResponse
         }
         
-        // Parse score from response
         let scoreString = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let score = Int(scoreString), score >= 0 && score <= 10 else {
-            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 3, userInfo: [NSLocalizedDescriptionKey: "Invalid score format"]))
+            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid score format: \(scoreString)"]))
         }
         
         return score
@@ -151,48 +157,54 @@ class EvaluationService {
     ) async throws -> (strengths: [String], improvements: [String]) {
         
         let systemPrompt = """
-        You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are personally providing feedback to a reader who engaged with your idea.
+        You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are providing personalized feedback on a reader's response to one of your ideas.
         
-        CONTEXT:
+        EVALUATION CONTEXT:
         - Your Book: \(idea.bookTitle)
         - Your Idea: \(idea.title)
         - Idea Description: \(idea.ideaDescription)
         - Level: \(levelConfig.name)
-        - Reader's Score: \(score)/10
+        - Level Description: \(levelConfig.description)
+        - Score: \(score)/10
         
         READER'S RESPONSE TO YOUR IDEA:
         \(userResponse)
         
         TASK:
-        As the author, provide exactly 2 strengths and 2 areas for improvement based on their score of \(score)/10.
+        Provide exactly 2 specific strengths and exactly 2 specific areas for improvement.
         
-        INSTRUCTIONS:
-        - Identify exactly 2 key strengths (be specific and actionable, as if you're personally coaching them)
-        - Identify exactly 2 areas for improvement (be constructive and specific, as if you're personally guiding them)
-        - Make feedback specific to their response content and score
-        - Keep each item concise (1-2 sentences)
-        - Use your authorial voice and perspective
+        GUIDELINES:
+        - Be specific and actionable
+        - Reference their actual response
+        - Consider the level context
         - Be encouraging but honest
+        - Keep each point concise (1-2 sentences max)
         
         Return ONLY a valid JSON object with this exact structure:
-        
         {
-          "strengths": ["<strength1>", "<strength2>"],
-          "improvements": ["<improvement1>", "<improvement2>"]
+          "strengths": ["Strength 1", "Strength 2"],
+          "improvements": ["Improvement 1", "Improvement 2"]
         }
+        """
+        
+        let userPrompt = """
+        Provide 2 strengths and 2 improvements for this reader's response.
         """
         
         let requestBody = ChatRequest(
             model: "gpt-4",
             messages: [
                 Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: "Please provide strengths and improvements for this response.")
+                Message(role: "user", content: userPrompt)
             ],
             max_tokens: 300,
             temperature: 0.3
         )
         
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
+            throw EvaluationError.invalidResponse
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")
@@ -224,9 +236,13 @@ class EvaluationService {
             let improvements: [String]
         }
         
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON data"]))
+        }
+        
         let feedbackResponse: FeedbackResponse
         do {
-            feedbackResponse = try JSONDecoder().decode(FeedbackResponse.self, from: jsonString.data(using: .utf8)!)
+            feedbackResponse = try JSONDecoder().decode(FeedbackResponse.self, from: jsonData)
         } catch {
             throw EvaluationError.invalidEvaluationFormat(error)
         }
@@ -411,7 +427,10 @@ class EvaluationService {
             temperature: 0.4
         )
         
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
+            throw EvaluationError.invalidResponse
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")

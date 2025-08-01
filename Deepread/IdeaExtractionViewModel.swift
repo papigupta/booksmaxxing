@@ -34,11 +34,34 @@ class IdeaExtractionViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        currentTask = Task {
+        currentTask = Task { [weak self] in
+            guard let self = self else { return }
+            
             do {
-                // Step 1: Extract book info (title and author)
-                print("DEBUG: Extracting book info from: '\(input)'")
-                let extractedBookInfo = try await openAIService.extractBookInfo(from: input)
+                // OPTIMIZATION: First try exact match with input to avoid LLM call for existing books
+                print("DEBUG: Checking for exact match with input: '\(input)'")
+                do {
+                    if let existingBook = try self.bookService.getBook(withTitle: input) {
+                        print("DEBUG: Found exact match! Loading existing book with \(existingBook.ideas.count) ideas")
+                        await MainActor.run {
+                            self.extractedIdeas = existingBook.ideas.sorted { idea1, idea2 in
+                                idea1.id < idea2.id
+                            }
+                            self.isLoading = false
+                            self.errorMessage = nil
+                            self.currentBookTitle = existingBook.title
+                            // Set book info from existing book
+                            self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
+                        }
+                        return
+                    }
+                } catch {
+                    print("DEBUG: Error checking for exact match: \(error)")
+                }
+                
+                // Step 1: Extract book info (title and author) - only if no exact match found
+                print("DEBUG: No exact match found. Extracting book info from: '\(input)'")
+                let extractedBookInfo = try await self.openAIService.extractBookInfo(from: input)
                 
                 // Check if task was cancelled
                 try Task.checkCancellation()
@@ -51,10 +74,10 @@ class IdeaExtractionViewModel: ObservableObject {
                 print("DEBUG: Extracted book info - Title: '\(extractedBookInfo.title)', Author: \(extractedBookInfo.author ?? "nil")")
                 print("DEBUG: Original input: '\(input)' → Corrected title: '\(extractedBookInfo.title)'")
                 
-                // Step 2: Try to load existing ideas first
+                // Step 2: Try to load existing ideas with corrected title
                 do {
-                    if let existingBook = try bookService.getBook(withTitle: extractedBookInfo.title) {
-                        print("DEBUG: Found existing book with \(existingBook.ideas.count) ideas")
+                    if let existingBook = try self.bookService.getBook(withTitle: extractedBookInfo.title) {
+                        print("DEBUG: Found existing book with corrected title with \(existingBook.ideas.count) ideas")
                         await MainActor.run {
                             self.extractedIdeas = existingBook.ideas.sorted { idea1, idea2 in
                                 idea1.id < idea2.id
@@ -65,16 +88,16 @@ class IdeaExtractionViewModel: ObservableObject {
                         return
                     }
                 } catch {
-                    print("DEBUG: Error loading existing book: \(error)")
+                    print("DEBUG: Error loading existing book with corrected title: \(error)")
                 }
                 
                 // Step 3: Extract ideas if no existing book found
-                await extractIdeas(from: extractedBookInfo.title)
+                await self.extractIdeas(from: extractedBookInfo.title)
                 
                 // Step 4: If no author was found but ideas were extracted, try to get author from the ideas context
                 if extractedBookInfo.author == nil && !self.extractedIdeas.isEmpty {
                     print("DEBUG: No author found initially, but ideas were extracted. Trying to identify author from context...")
-                    await tryExtractAuthorFromContext(bookTitle: extractedBookInfo.title)
+                    await self.tryExtractAuthorFromContext(bookTitle: extractedBookInfo.title)
                 }
                 
             } catch is CancellationError {
@@ -149,7 +172,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 
                 // Try to load existing ideas as fallback
                 do {
-                    if let existingBook = try bookService.getBook(withTitle: currentBookTitle) {
+                    if let existingBook = try self.bookService.getBook(withTitle: self.currentBookTitle) {
                         print("DEBUG: Loading existing ideas as fallback")
                         self.extractedIdeas = existingBook.ideas
                         self.errorMessage = nil
@@ -220,7 +243,11 @@ class IdeaExtractionViewModel: ObservableObject {
                 temperature: 0.1
             )
             
-            let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+            guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
+                print("DEBUG: Invalid URL for author extraction")
+                return
+            }
+            
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")

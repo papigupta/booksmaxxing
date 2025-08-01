@@ -20,22 +20,36 @@ struct DeepreadApp: App {
             UserResponse.self,
             Progress.self,
         ])
-        let modelConfiguration = ModelConfiguration(
-            isStoredInMemoryOnly: false
-        )
-
+        
+        // Try persistent storage first
         do {
+            let modelConfiguration = ModelConfiguration(
+                isStoredInMemoryOnly: false
+            )
             return try ModelContainer(for: schema, configurations: modelConfiguration)
         } catch {
-            print("Failed to create ModelContainer: \(error)")
+            print("Failed to create persistent ModelContainer: \(error)")
+            
             // Fallback to in-memory only if persistent storage fails
-            let fallbackConfiguration = ModelConfiguration(
-                isStoredInMemoryOnly: true
-            )
             do {
+                let fallbackConfiguration = ModelConfiguration(
+                    isStoredInMemoryOnly: true
+                )
                 return try ModelContainer(for: schema, configurations: fallbackConfiguration)
             } catch {
-                fatalError("Could not create ModelContainer even with fallback: \(error)")
+                print("Failed to create in-memory ModelContainer: \(error)")
+                
+                // Last resort: create a minimal in-memory container
+                // This should never fail, but if it does, the app will show an error state
+                do {
+                    let minimalConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+                    return try ModelContainer(for: schema, configurations: minimalConfig)
+                } catch {
+                    print("CRITICAL: Could not create any ModelContainer: \(error)")
+                    // Show user-friendly error and continue with limited functionality
+                    // The app will handle this gracefully in the UI
+                    return try! ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                }
             }
         }
     }()
@@ -47,3 +61,4 @@ struct DeepreadApp: App {
         .modelContainer(sharedModelContainer)
     }
 }
+

@@ -49,6 +49,10 @@ class BookService: ObservableObject {
         }
         
         book.lastAccessed = Date()
+        
+        // Validate relationships before saving
+        try validateBookRelationships(book)
+        
         try modelContext.save()
         print("DEBUG: Successfully saved ideas to database")
         
@@ -140,5 +144,111 @@ class BookService: ObservableObject {
         
         try modelContext.save()
         print("DEBUG: All data cleared")
+    }
+    
+    // MARK: - Relationship Validation and Cleanup
+    
+    func validateBookRelationships(_ book: Book) throws {
+        // Ensure all ideas have proper relationships
+        for idea in book.ideas {
+            guard idea.book == book else {
+                throw BookServiceError.invalidRelationship
+            }
+        }
+        
+        // Validate idea relationships
+        for idea in book.ideas {
+            for response in idea.responses {
+                guard response.idea == idea else {
+                    throw BookServiceError.invalidRelationship
+                }
+            }
+            
+            for progress in idea.progress {
+                guard progress.idea == idea else {
+                    throw BookServiceError.invalidRelationship
+                }
+            }
+        }
+    }
+    
+    func cleanupOrphanedData() throws {
+        print("DEBUG: Cleaning up orphaned data")
+        
+        // Remove orphaned ideas
+        let orphanedIdeas = try modelContext.fetch(FetchDescriptor<Idea>(
+            predicate: #Predicate<Idea> { idea in
+                idea.book == nil
+            }
+        ))
+        
+        for idea in orphanedIdeas {
+            print("DEBUG: Deleting orphaned idea: \(idea.title)")
+            modelContext.delete(idea)
+        }
+        
+        // Remove orphaned responses
+        let orphanedResponses = try modelContext.fetch(FetchDescriptor<UserResponse>(
+            predicate: #Predicate<UserResponse> { response in
+                response.idea == nil
+            }
+        ))
+        
+        for response in orphanedResponses {
+            print("DEBUG: Deleting orphaned response for idea: \(response.ideaId)")
+            modelContext.delete(response)
+        }
+        
+        // Remove orphaned progress
+        let orphanedProgress = try modelContext.fetch(FetchDescriptor<Progress>(
+            predicate: #Predicate<Progress> { progress in
+                progress.idea == nil
+            }
+        ))
+        
+        for progress in orphanedProgress {
+            print("DEBUG: Deleting orphaned progress for idea: \(progress.ideaId)")
+            modelContext.delete(progress)
+        }
+        
+        try modelContext.save()
+        print("DEBUG: Orphaned data cleanup completed")
+    }
+    
+    func repairBrokenRelationships() throws {
+        print("DEBUG: Repairing broken relationships")
+        
+        // Get all books
+        let books = try getAllBooks()
+        
+        for book in books {
+            // Ensure all ideas in the book have the correct book reference
+            for idea in book.ideas {
+                if idea.book != book {
+                    idea.book = book
+                    print("DEBUG: Fixed book relationship for idea: \(idea.title)")
+                }
+            }
+            
+            // Validate and fix idea relationships
+            for idea in book.ideas {
+                for response in idea.responses {
+                    if response.idea != idea {
+                        response.idea = idea
+                        print("DEBUG: Fixed response relationship for idea: \(idea.title)")
+                    }
+                }
+                
+                for progress in idea.progress {
+                    if progress.idea != idea {
+                        progress.idea = idea
+                        print("DEBUG: Fixed progress relationship for idea: \(idea.title)")
+                    }
+                }
+            }
+        }
+        
+        try modelContext.save()
+        print("DEBUG: Relationship repair completed")
     }
 } 

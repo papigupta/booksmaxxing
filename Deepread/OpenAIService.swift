@@ -1,4 +1,27 @@
 import Foundation
+import Network
+
+// MARK: - Network Monitor
+
+class NetworkMonitor: ObservableObject {
+    @Published var isConnected = true
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "NetworkMonitor")
+    
+    init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            DispatchQueue.main.async {
+                self?.isConnected = path.status == .satisfied
+                print("DEBUG: Network status changed - Connected: \(path.status == .satisfied)")
+            }
+        }
+        monitor.start(queue: queue)
+    }
+    
+    deinit {
+        monitor.cancel()
+    }
+}
 
 // MARK: - Book Info Structure
 
@@ -11,24 +34,76 @@ class OpenAIService {
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
     private let session: URLSession
+    private let networkMonitor: NetworkMonitor
     
     init(apiKey: String) {
         self.apiKey = apiKey
+        self.networkMonitor = NetworkMonitor()
         
         // Create a custom configuration with timeout settings
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30.0  // 30 seconds for request timeout
         configuration.timeoutIntervalForResource = 60.0 // 60 seconds for resource timeout
         configuration.waitsForConnectivity = true       // Wait for connectivity if offline
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData // Always get fresh data
         
         self.session = URLSession(configuration: configuration)
+    }
+    
+    // MARK: - Input Validation and Sanitization
+    
+    private func validateAndSanitizeInput(_ input: String) -> String {
+        return input.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\"", with: "'")
+            .prefix(1000) // Limit length
+            .description
+    }
+    
+    private func validateAPIResponse(_ data: Data) throws -> ChatResponse {
+        guard !data.isEmpty else {
+            throw OpenAIServiceError.noResponse
+        }
+        
+        do {
+            let response = try JSONDecoder().decode(ChatResponse.self, from: data)
+            guard !response.choices.isEmpty else {
+                throw OpenAIServiceError.noResponse
+            }
+            return response
+        } catch {
+            throw OpenAIServiceError.decodingError(error)
+        }
+    }
+    
+    private func validateBookInfoResponse(_ response: BookInfo) -> Bool {
+        guard !response.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        
+        // Validate title length
+        guard response.title.count <= 200 else {
+            return false
+        }
+        
+        // Validate author if present
+        if let author = response.author {
+            guard !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return false
+            }
+            guard author.count <= 100 else {
+                return false
+            }
+        }
+        
+        return true
     }
     
     // MARK: - Author Extraction
     
     func extractBookInfo(from input: String) async throws -> BookInfo {
+        let sanitizedInput = validateAndSanitizeInput(input)
         return try await withRetry(maxAttempts: 3) {
-            try await self.performExtractBookInfo(from: input)
+            try await self.performExtractBookInfo(from: sanitizedInput)
         }
     }
     
@@ -101,7 +176,10 @@ class OpenAIService {
             temperature: 0.1
         )
         
-        let url = URL(string: "\(baseURL)/chat/completions")!
+        guard let url = URL(string: "\(baseURL)/chat/completions") else {
+            throw OpenAIServiceError.invalidURL
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -116,12 +194,7 @@ class OpenAIService {
             throw OpenAIServiceError.invalidResponse
         }
         
-        let chatResponse: ChatResponse
-        do {
-            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-        } catch {
-            throw OpenAIServiceError.decodingError(error)
-        }
+        let chatResponse = try validateAPIResponse(data)
         
         guard let content = chatResponse.choices.first?.message.content else {
             throw OpenAIServiceError.noResponse
@@ -135,17 +208,28 @@ class OpenAIService {
             let author: String?
         }
         
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw OpenAIServiceError.invalidData
+        }
+        
         let bookInfoResponse: BookInfoResponse
         do {
-            bookInfoResponse = try JSONDecoder().decode(BookInfoResponse.self, from: jsonString.data(using: .utf8)!)
+            bookInfoResponse = try JSONDecoder().decode(BookInfoResponse.self, from: jsonData)
         } catch {
             throw OpenAIServiceError.decodingError(error)
+        }
+        
+        let bookInfo = BookInfo(title: bookInfoResponse.title, author: bookInfoResponse.author)
+        
+        // Validate the response
+        guard validateBookInfoResponse(bookInfo) else {
+            throw OpenAIServiceError.invalidResponse
         }
         
         print("DEBUG: Raw LLM response for book info: \(content)")
         print("DEBUG: Parsed book info - Title: '\(bookInfoResponse.title)', Author: \(bookInfoResponse.author ?? "nil")")
         
-        return BookInfo(title: bookInfoResponse.title, author: bookInfoResponse.author)
+        return bookInfo
     }
     
     private func extractJSONFromResponse(_ response: String) -> String {
@@ -164,7 +248,7 @@ class OpenAIService {
     }
     
     private func performExtractIdeas(from text: String, author: String? = nil) async throws -> [String] {
-        let authorContext = author != nil ? " by \(author!)" : ""
+        let authorContext = author.map { " by \($0)" } ?? ""
         let prompt = """
         Extract and list all the core ideas, frameworks, and insights from the non-fiction book titled "\(text)"\(authorContext). 
         Return them as a JSON array of strings.
@@ -175,7 +259,7 @@ class OpenAIService {
         let systemPrompt = """
             Your task is to extract and list the most important, teachable ideas from a non-fiction book.
             
-            \(author != nil ? "Book Author: \(author!)" : "")
+            \(author.map { "Book Author: \($0)" } ?? "")
 
             Each concept = one distinct, self-contained idea. No overlaps. No vague summaries.
 
@@ -222,19 +306,21 @@ class OpenAIService {
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: prompt)
             ],
-            max_tokens: 1000,
-            temperature: 0.3
+            max_tokens: 2000,
+            temperature: 0.1
         )
         
-        let url = URL(string: "\(baseURL)/chat/completions")!
+        guard let url = URL(string: "\(baseURL)/chat/completions") else {
+            throw OpenAIServiceError.invalidURL
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
         request.httpBody = try JSONEncoder().encode(requestBody)
         
-        print("DEBUG: Making OpenAI API request for book: '\(text)'")
+        print("DEBUG: Making OpenAI API request for idea extraction: '\(text)'")
         
         let (data, response): (Data, URLResponse)
         do {
@@ -276,7 +362,7 @@ class OpenAIService {
         
         guard let contentData = content.data(using: .utf8) else {
             print("DEBUG: Failed to convert content to data")
-            throw OpenAIServiceError.noResponse
+            throw OpenAIServiceError.invalidData
         }
         
         do {
@@ -289,11 +375,18 @@ class OpenAIService {
         }
     }
     
-    // Retry logic with exponential backoff
+    // Retry logic with exponential backoff and network connectivity checks
     private func withRetry<T>(maxAttempts: Int, operation: @escaping () async throws -> T) async throws -> T {
         var lastError: Error?
         
         for attempt in 1...maxAttempts {
+            // Check network connectivity before attempting
+            guard networkMonitor.isConnected else {
+                let error = OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No internet connection"]))
+                print("DEBUG: No network connectivity, skipping attempt \(attempt)")
+                throw error
+            }
+            
             do {
                 return try await operation()
             } catch {
@@ -338,7 +431,10 @@ class OpenAIService {
             temperature: 0.7
         )
         
-        let url = URL(string: "\(baseURL)/chat/completions")!
+        guard let url = URL(string: "\(baseURL)/chat/completions") else {
+            throw OpenAIServiceError.invalidURL
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
