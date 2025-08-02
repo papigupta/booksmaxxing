@@ -209,8 +209,7 @@ struct IdeaPromptView: View {
                     idea: idea, 
                     userResponse: userResponse, 
                     prompt: generatedPrompt,
-                    level: level, 
-                    openAIService: openAIService
+                    level: level
                 )
             }
         }

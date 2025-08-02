@@ -38,6 +38,10 @@ enum EvaluationError: Error {
     case decodingError(Error)
     case noResponse
     case invalidEvaluationFormat(Error)
+    case networkError(Error)
+    case timeout
+    case rateLimitExceeded
+    case serverError(Int)
 }
 
 enum BookServiceError: Error {

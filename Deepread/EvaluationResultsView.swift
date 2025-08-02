@@ -5,7 +5,6 @@ struct EvaluationResultsView: View {
     let userResponse: String
     let prompt: String // Add prompt parameter
     let level: Int
-    let openAIService: OpenAIService
     
     @Environment(\.modelContext) private var modelContext
     @State private var evaluationResult: EvaluationResult?
@@ -19,7 +18,7 @@ struct EvaluationResultsView: View {
     @State private var navigateToHome = false
     
     private var evaluationService: EvaluationService {
-        EvaluationService(openAIService: openAIService)
+        EvaluationService(apiKey: Secrets.openAIAPIKey)
     }
     
     private var userResponseService: UserResponseService {
@@ -280,12 +279,12 @@ struct EvaluationResultsView: View {
                     evaluationResult: result,
                     userResponse: userResponse,
                     level: level,
-                    openAIService: openAIService
+                    openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
                 )
             }
         }
         .navigationDestination(isPresented: $navigateToHome) {
-            BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
+            BookOverviewView(bookTitle: idea.bookTitle, openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey), bookService: BookService(modelContext: modelContext))
         }
         .onAppear {
             loadEvaluation()
@@ -311,7 +310,8 @@ struct EvaluationResultsView: View {
                 await loadContextAwareFeedback(result: result)
             } catch {
                 await MainActor.run {
-                    self.evaluationError = "Failed to evaluate response: \(error.localizedDescription)"
+                    let errorMessage = getErrorMessage(for: error)
+                    self.evaluationError = errorMessage
                     self.isLoadingEvaluation = false
                 }
             }
@@ -333,7 +333,8 @@ struct EvaluationResultsView: View {
             }
         } catch {
             await MainActor.run {
-                self.contextAwareFeedback = "Unable to generate personalized feedback at this time."
+                let errorMessage = getErrorMessage(for: error)
+                self.contextAwareFeedback = "Unable to generate personalized feedback: \(errorMessage)"
                 self.isLoadingFeedback = false
             }
         }
@@ -368,6 +369,34 @@ struct EvaluationResultsView: View {
             }
         }
     }
+    
+    // MARK: - Helper Methods
+    
+    private func getErrorMessage(for error: Error) -> String {
+        if let evaluationError = error as? EvaluationError {
+            switch evaluationError {
+            case .networkError:
+                return "Network connection issue. Please check your internet connection and try again."
+            case .timeout:
+                return "Request timed out. Please try again - this usually resolves on retry."
+            case .rateLimitExceeded:
+                return "Service is busy right now. Please wait a moment and try again."
+            case .serverError(let code):
+                return "Server error (\(code)). Please try again in a moment."
+            case .noResponse:
+                return "No response received. Please try again."
+            case .decodingError:
+                return "Response format error. Please try again."
+            case .invalidResponse:
+                return "Invalid response from server. Please try again."
+            case .invalidEvaluationFormat:
+                return "Evaluation format error. Please try again."
+            }
+        }
+        
+        // Fallback for other errors
+        return "Failed to evaluate response: \(error.localizedDescription)"
+    }
 }
 
 #Preview {
@@ -385,8 +414,7 @@ struct EvaluationResultsView: View {
             ),
             userResponse: "This is my response about Norman Doors...",
             prompt: "What is the design principle behind Norman Doors?",
-            level: 0,
-            openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
+            level: 0
         )
     }
 } 
