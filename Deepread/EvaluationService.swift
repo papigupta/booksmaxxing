@@ -252,7 +252,7 @@ class EvaluationService {
             temperature: 0.1
         )
         
-        let (data, response) = try await makeAPIRequest(requestBody: requestBody)
+        let (data, _) = try await makeAPIRequest(requestBody: requestBody)
         
         let chatResponse: ChatResponse
         do {
@@ -328,7 +328,7 @@ class EvaluationService {
             temperature: 0.3
         )
         
-        let (data, response) = try await makeAPIRequest(requestBody: requestBody)
+        let (data, _) = try await makeAPIRequest(requestBody: requestBody)
         
         let chatResponse: ChatResponse
         do {
@@ -482,7 +482,7 @@ class EvaluationService {
             temperature: 0.4
         )
         
-        let (data, response) = try await makeAPIRequest(requestBody: requestBody)
+        let (data, _) = try await makeAPIRequest(requestBody: requestBody)
         
         let chatResponse: ChatResponse
         do {

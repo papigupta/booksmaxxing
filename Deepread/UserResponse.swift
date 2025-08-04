@@ -115,7 +115,7 @@ extension UserResponse {
     
     func updateSilverBullet(_ silverBullet: String) throws {
         guard let data = evaluationData,
-              var evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
+              let evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
             throw NSError(domain: "UserResponse", code: 1, userInfo: [NSLocalizedDescriptionKey: "No evaluation data found"])
         }
         

@@ -320,7 +320,7 @@ struct ActiveIdeaCard: View {
                             .foregroundColor(.white.opacity(0.7))
                         
                         HStack(spacing: 2) {
-                            ForEach(0..<idea.depthTarget) { index in
+                            ForEach(0..<min(idea.depthTarget, 5), id: \.self) { index in
                                 Image(systemName: "staroflife.fill")
                                     .font(.caption)
                                     .foregroundColor(.white.opacity(0.7))
