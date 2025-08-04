@@ -9,6 +9,15 @@ class BookService: ObservableObject {
         self.modelContext = modelContext
     }
     
+    // MARK: - Helper Functions
+    
+    /// Ensures consistent ordering of ideas by ID (i1, i2, i3, etc.)
+    private func sortIdeasById(_ book: Book) {
+        book.ideas.sort { idea1, idea2 in
+            idea1.id < idea2.id
+        }
+    }
+    
     func findOrCreateBook(title: String, author: String? = nil) throws -> Book {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         print("DEBUG: Looking for book with title: '\(normalizedTitle)'")
@@ -81,9 +90,7 @@ class BookService: ObservableObject {
         if let book = books.first {
             print("DEBUG: Retrieved book: '\(book.title)' with \(book.ideas.count) ideas")
             // CRITICAL: Sort ideas by ID to maintain consistent order
-            book.ideas.sort { idea1, idea2 in
-                idea1.id < idea2.id
-            }
+            sortIdeasById(book)
             print("DEBUG: Ideas sorted by ID: \(book.ideas.map { $0.id })")
         } else {
             print("DEBUG: No book found with title: '\(normalizedTitle)'")

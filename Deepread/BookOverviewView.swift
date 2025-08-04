@@ -113,19 +113,28 @@ struct BookOverviewView: View {
                 if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
                     activeIdeaIndex = firstUnmasteredIndex
                     print("DEBUG: Set activeIdeaIndex to first unmastered idea at index \(firstUnmasteredIndex)")
+                } else {
+                    // If all ideas are mastered, start with the first one
+                    activeIdeaIndex = 0
+                    print("DEBUG: All ideas mastered, set activeIdeaIndex to 0")
                 }
             }
         }
         .onAppear {
-            print("DEBUG: BookOverviewView appeared")
-            // Refresh ideas when view appears (e.g., returning from other views)
-            Task {
-                await viewModel.refreshIdeas()
-                // Set activeIdeaIndex to first unmastered idea
-                await MainActor.run {
-                    if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
-                        activeIdeaIndex = firstUnmasteredIndex
-                        print("DEBUG: Set activeIdeaIndex to first unmastered idea at index \(firstUnmasteredIndex)")
+            // Only refresh if returning from other views and ideas might have changed
+            // This prevents race conditions while still updating mastery levels
+            if !viewModel.extractedIdeas.isEmpty {
+                print("DEBUG: BookOverviewView appeared with existing ideas, checking if refresh needed")
+                Task {
+                    await viewModel.refreshIdeasIfNeeded()
+                    // Update activeIdeaIndex if mastery levels changed
+                    await MainActor.run {
+                        if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
+                            if activeIdeaIndex != firstUnmasteredIndex {
+                                activeIdeaIndex = firstUnmasteredIndex
+                                print("DEBUG: Updated activeIdeaIndex to \(firstUnmasteredIndex) after refresh")
+                            }
+                        }
                     }
                 }
             }

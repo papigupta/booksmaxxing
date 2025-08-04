@@ -22,6 +22,22 @@ class IdeaExtractionViewModel: ObservableObject {
         currentTask?.cancel()
     }
     
+    // MARK: - Helper Functions
+    
+    /// Ensures consistent ordering of ideas by ID (i1, i2, i3, etc.)
+    private func sortedIdeas(_ ideas: [Idea]) -> [Idea] {
+        return ideas.sorted { idea1, idea2 in
+            idea1.id < idea2.id
+        }
+    }
+    
+    /// Updates extractedIdeas with proper sorting and logging
+    private func updateExtractedIdeas(_ ideas: [Idea], source: String) {
+        let sortedIdeas = sortedIdeas(ideas)
+        self.extractedIdeas = sortedIdeas
+        print("DEBUG: Updated extractedIdeas from \(source) with \(sortedIdeas.count) ideas in order: \(sortedIdeas.map { $0.id })")
+    }
+    
     func loadOrExtractIdeas(from input: String) async {
         guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorMessage = "Book input is empty"
@@ -44,9 +60,7 @@ class IdeaExtractionViewModel: ObservableObject {
                     if let existingBook = try self.bookService.getBook(withTitle: input) {
                         print("DEBUG: Found exact match! Loading existing book with \(existingBook.ideas.count) ideas")
                         await MainActor.run {
-                            self.extractedIdeas = existingBook.ideas.sorted { idea1, idea2 in
-                                idea1.id < idea2.id
-                            }
+                            self.updateExtractedIdeas(existingBook.ideas, source: "exact match")
                             self.isLoading = false
                             self.errorMessage = nil
                             self.currentBookTitle = existingBook.title
@@ -79,9 +93,7 @@ class IdeaExtractionViewModel: ObservableObject {
                     if let existingBook = try self.bookService.getBook(withTitle: extractedBookInfo.title) {
                         print("DEBUG: Found existing book with corrected title with \(existingBook.ideas.count) ideas")
                         await MainActor.run {
-                            self.extractedIdeas = existingBook.ideas.sorted { idea1, idea2 in
-                                idea1.id < idea2.id
-                            }
+                            self.updateExtractedIdeas(existingBook.ideas, source: "corrected title match")
                             self.isLoading = false
                             self.errorMessage = nil
                         }
@@ -145,14 +157,14 @@ class IdeaExtractionViewModel: ObservableObject {
                 let book = try bookService.findOrCreateBook(title: currentBookTitle, author: bookInfo?.author)
                 try bookService.saveIdeas(parsedIdeas, for: book)
                 await MainActor.run {
-                    self.extractedIdeas = parsedIdeas
+                    self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")
                 }
                 print("DEBUG: Successfully saved ideas to database")
             } catch {
                 print("DEBUG: Error saving ideas: \(error)")
                 // Even if saving fails, show the ideas to the user
                 await MainActor.run {
-                    self.extractedIdeas = parsedIdeas
+                    self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction (save failed)")
                 }
             }
             
@@ -170,11 +182,11 @@ class IdeaExtractionViewModel: ObservableObject {
                 self.errorMessage = "Failed to extract ideas. Please check your internet connection and try again."
                 self.isLoading = false
                 
-                // Try to load existing ideas as fallback
+                // Try to load existing ideas as fallback - FIXED: Now includes sorting
                 do {
                     if let existingBook = try self.bookService.getBook(withTitle: self.currentBookTitle) {
                         print("DEBUG: Loading existing ideas as fallback")
-                        self.extractedIdeas = existingBook.ideas
+                        self.updateExtractedIdeas(existingBook.ideas, source: "error fallback")
                         self.errorMessage = nil
                     }
                 } catch {
@@ -197,16 +209,37 @@ class IdeaExtractionViewModel: ObservableObject {
         do {
             if let existingBook = try bookService.getBook(withTitle: currentBookTitle) {
                 print("DEBUG: Refreshing ideas from database")
-                // CRITICAL: Sort ideas by ID to maintain consistent order
-                self.extractedIdeas = existingBook.ideas.sorted { idea1, idea2 in
-                    idea1.id < idea2.id
-                }
-                print("DEBUG: Ideas refreshed in order: \(self.extractedIdeas.map { $0.id })")
+                self.updateExtractedIdeas(existingBook.ideas, source: "refresh")
                 self.isLoading = false
                 self.errorMessage = nil
             }
         } catch {
             print("DEBUG: Error refreshing ideas: \(error)")
+        }
+    }
+    
+    // Method to refresh ideas only if user has been practicing (to update mastery levels)
+    func refreshIdeasIfNeeded() async {
+        guard !currentBookTitle.isEmpty else { return }
+        
+        do {
+            if let existingBook = try bookService.getBook(withTitle: currentBookTitle) {
+                // Only refresh if any idea has different mastery level or last practiced date
+                let currentIdeaMap = Dictionary(uniqueKeysWithValues: extractedIdeas.map { ($0.id, ($0.masteryLevel, $0.lastPracticed)) })
+                let needsRefresh = existingBook.ideas.contains { idea in
+                    guard let current = currentIdeaMap[idea.id] else { return true }
+                    return current.0 != idea.masteryLevel || current.1 != idea.lastPracticed
+                }
+                
+                if needsRefresh {
+                    print("DEBUG: Ideas have changed, refreshing from database")
+                    self.updateExtractedIdeas(existingBook.ideas, source: "conditional refresh")
+                } else {
+                    print("DEBUG: Ideas unchanged, skipping refresh")
+                }
+            }
+        } catch {
+            print("DEBUG: Error checking if refresh needed: \(error)")
         }
     }
     
