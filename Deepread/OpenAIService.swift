@@ -404,17 +404,17 @@ class OpenAIService {
         throw lastError ?? OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Max retry attempts exceeded"]))
     }
     
-    func generatePrompt(for idea: String, level: Int) async throws -> String {
+    func generatePrompt(for idea: Idea, level: Int) async throws -> String {
         // Check if we have a static template for this level
-        if let template = getPromptTemplate(for: level, idea: idea) {
+        if let template = getPromptTemplate(for: level, idea: idea.title) {
             return template
         }
         
         // For levels 1+, use AI generation with level-specific system prompts
-        let systemPrompt = getSystemPrompt(for: level)
+        let systemPrompt = getSystemPrompt(for: level, idea: idea)
         
         let userPrompt = """
-        Generate a prompt for the idea: "\(idea)"
+        Generate a prompt for the idea: "\(idea.title)"
         
         Level context: \(getLevelContext(level))
         
@@ -493,21 +493,23 @@ class OpenAIService {
     }
     
     // Level-specific system prompts for AI generation
-    private func getSystemPrompt(for level: Int) -> String {
+    private func getSystemPrompt(for level: Int, idea: Idea) -> String {
         switch level {
         case 1:
             return """
             You are an expert educational prompt generator for Level 1 (Use).
             
-            Guidelines:
-            - Create prompts that help users apply the idea directly in practical situations
-            - Ask questions that encourage immediate, practical application
-            - Focus on "How can I use this right now?" type questions
-            - Make prompts actionable and concrete
-            - Avoid yes/no questions
-            - Keep prompts concise but open-ended
+            CONTEXT:
+            - Book: \(idea.bookTitle)
+            - Author: \(idea.book?.author ?? "the author")
+            - Idea: \(idea.title)
             
-            Return only the prompt text, nothing else.
+            TASK:
+            Generate one open-ended, writing-based question for Level 1 based on this idea from \(idea.bookTitle) by \(idea.book?.author ?? "the author"): "\(idea.title)". 
+            The goal is to ensure the user understands why this idea matters, such as its significance, impacts, or value in real-world contexts. Make the question concise so a user can answer it thoughtfully in under 10 minutes (e.g., 1-2 short paragraphs).
+            If answered correctly and substantively, it should confirm they've met the goal. Be creative with the context to make it engaging.
+            
+            Return only the question text, nothing else.
             """
             
         case 2:

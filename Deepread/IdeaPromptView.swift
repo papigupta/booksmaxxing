@@ -256,7 +256,7 @@ struct IdeaPromptView: View {
         
         Task {
             do {
-                let prompt = try await openAIService.generatePrompt(for: idea.title, level: level)
+                let prompt = try await openAIService.generatePrompt(for: idea, level: level)
                 await MainActor.run {
                     generatedPrompt = prompt
                     isLoadingPrompt = false
