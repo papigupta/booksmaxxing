@@ -6,6 +6,7 @@ struct BookOverviewView: View {
     @StateObject private var viewModel: IdeaExtractionViewModel
     @State private var activeIdeaIndex: Int = 0 // Track which idea is active
     @State private var showingDebugInfo = false
+    @State private var navigateToOnboarding = false
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -15,37 +16,9 @@ struct BookOverviewView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(viewModel.bookInfo?.title ?? bookTitle)
-                    .font(.largeTitle)
-                    .bold()
-                    .tracking(-0.03)
-                
-                Spacer()
-                
-                #if DEBUG
-                Button("Debug") {
-                    showingDebugInfo = true
-                }
-                .font(.caption)
-                .foregroundColor(.secondary)
-                #endif
-            }
+            // Beautiful Header with Home Button
+            headerView
             
-            if let author = viewModel.bookInfo?.author {
-                Text(author)
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 6)
-                    .padding(.bottom, 32)
-            } else {
-                Text("Author not specified")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 6)
-                    .padding(.bottom, 32)
-            }
-
             if viewModel.isLoading {
                 ProgressView("Breaking book into core ideas…")
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -104,7 +77,8 @@ struct BookOverviewView: View {
                 }
             }
         }
-        .padding()
+        .padding(.horizontal)
+        .padding(.top, 8)
         .task {
             print("DEBUG: BookOverviewView task triggered")
             await viewModel.loadOrExtractIdeas(from: bookTitle)
@@ -143,6 +117,71 @@ struct BookOverviewView: View {
             DebugInfoView(bookTitle: bookTitle, viewModel: viewModel)
         }
         .navigationBarBackButtonHidden(true)
+        .navigationDestination(isPresented: $navigateToOnboarding) {
+            OnboardingView(openAIService: openAIService)
+        }
+    }
+    
+    // MARK: - Header View
+    private var headerView: some View {
+        VStack(spacing: 0) {
+            // Top row with home button and debug
+            HStack {
+                // Home Button
+                Button(action: {
+                    navigateToOnboarding = true
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 16, weight: .medium))
+                        Text("Select Another Book")
+                            .font(.system(size: 15, weight: .medium))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.blue.opacity(0.1))
+                    )
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                Spacer()
+                
+                #if DEBUG
+                Button("Debug") {
+                    showingDebugInfo = true
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+                #endif
+            }
+            .padding(.horizontal, 4)
+            .padding(.bottom, 16)
+            
+            // Book title and author
+            VStack(alignment: .leading, spacing: 6) {
+                Text(viewModel.bookInfo?.title ?? bookTitle)
+                    .font(.system(size: 28, weight: .bold, design: .default))
+                    .tracking(-0.03)
+                    .foregroundColor(.primary)
+                    .lineLimit(2)
+                
+                if let author = viewModel.bookInfo?.author {
+                    Text("by \(author)")
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Author not specified")
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 24)
+        }
+        .background(Color(.systemBackground))
     }
 }
 

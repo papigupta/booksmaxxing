@@ -497,7 +497,7 @@ class OpenAIService {
         switch level {
         case 1:
             return """
-            You are an expert educational prompt generator for Level 1 (Use).
+            You are an expert educational prompt generator for Level 1.
             
             CONTEXT:
             - Book: \(idea.bookTitle)
@@ -514,30 +514,34 @@ class OpenAIService {
             
         case 2:
             return """
-            You are an expert educational prompt generator for Level 2 (Think with).
+            You are an expert educational prompt generator for Level 2.
             
-            Guidelines:
-            - Create prompts that help users use the idea as a thinking tool
-            - Ask questions that encourage analysis and problem-solving
-            - Focus on "How does this help me think about..." type questions
-            - Encourage using the idea as a mental model or framework
-            - Avoid yes/no questions
-            - Keep prompts concise but open-ended
+            CONTEXT:
+            - Book: \(idea.bookTitle)
+            - Author: \(idea.book?.author ?? "the author")
+            - Idea: \(idea.title)
+            
+            TASK:
+            Generate one open-ended, writing-based question for Level 2 based on this idea from \(idea.bookTitle) by \(idea.book?.author ?? "the author"): "\(idea.title)". 
+            The goal is to ensure the user can identify when to recall and apply this idea, such as triggers, situations, or practical contexts for using it effectively. Make the question concise so a user can answer it thoughtfully in under 10 minutes (e.g., 1-2 short paragraphs).
+            If answered correctly and substantively, it should confirm they've met the goal. Be creative with the context to make it engaging.
             
             Return only the prompt text, nothing else.
             """
             
         case 3:
             return """
-            You are an expert educational prompt generator for Level 3 (Build with).
+            You are an expert educational prompt generator for Level 3.
             
-            Guidelines:
-            - Create prompts that help users build new concepts using the idea
-            - Ask questions that encourage creation and innovation
-            - Focus on "What can I create using this?" and "How can I combine this with..." type questions
-            - Encourage synthesis and construction of new ideas
-            - Avoid yes/no questions
-            - Keep prompts concise but open-ended
+            CONTEXT:
+            - Book: \(idea.bookTitle)
+            - Author: \(idea.book?.author ?? "the author")
+            - Idea: \(idea.title)
+            
+            TASK:
+            Generate one open-ended, writing-based question for Level 3 based on this idea from \(idea.bookTitle) by \(idea.book?.author ?? "the author"): "\(idea.title)".
+            The goal is to ensure the user can wield this idea creatively or critically, such as extending it to new applications, innovating with it, or analyzing its limitations. Make the question concise so a user can answer it thoughtfully in under 10 minutes (e.g., 1-2 short paragraphs).
+            If answered correctly and substantively, it should confirm they've met the goal. Be creative with the context to make it engaging.
             
             Return only the prompt text, nothing else.
             """
