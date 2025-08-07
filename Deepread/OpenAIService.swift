@@ -167,7 +167,7 @@ class OpenAIService {
         """
         
         let requestBody = ChatRequest(
-            model: "gpt-4",
+            model: "gpt-4.1-mini",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)
@@ -250,58 +250,39 @@ class OpenAIService {
     private func performExtractIdeas(from text: String, author: String? = nil) async throws -> [String] {
         let authorContext = author.map { " by \($0)" } ?? ""
         let prompt = """
-        Extract and list all the core ideas, frameworks, and insights from the non-fiction book titled "\(text)"\(authorContext). 
+        Extract the core, teachable ideas from the non-fiction book titled "\(text)"\(authorContext). 
         Return them as a JSON array of strings.
 
         \(text)
         """
 
         let systemPrompt = """
-            Your task is to extract and list the most important, teachable ideas from a non-fiction book.
+            Your goal is to extract all core, teachable ideas that a user could master one by one to deeply understand and apply the book. Output them as a JSON array of strings.
             
             \(author.map { "Book Author: \($0)" } ?? "")
 
-            Each concept = one distinct, self-contained idea. No overlaps. No vague summaries.
+            Guidelines:
 
-            Prefer explanatory power over catchy phrasing. Extract the mental models, distinctions, frameworks, and cause-effect patterns that drive the book.
-
-            Give the concept a short, clear title (1 line max) and a brief explanation (1–2 lines).
-
-            Focus only on the most important + teachable ideas. Do not include trivia or examples unless essential.
-
-            Follow chapter structure. List ideas in the order they are presented in the book.
-
-            Aim for 10–50 concepts per book, depending on richness.
-
-            Don't quote—explain.
+            • Ideas are distinct mental models, frameworks, distinctions, or cause-effect patterns. Make each self-contained with no overlaps.
+            • Split if truly separate; combine if they form one cohesive idea (e.g., related concepts like 'Affordances and Signifiers' as one if cohesive).
+            • Adapt to the book's style—e.g., extract practical steps and mindsets from applied books, or theories and models from conceptual ones.
+            • Be comprehensive: Cover all ideas worth mastering, in the order they appear in the book. Aim for completeness, but if over 50, prioritize the most impactful.
+            • Be consistent across runs: Prioritize the book's core narrative and key takeaways. Focus on explanatory power and applicability, not trivia or examples unless essential.
+            • For each idea: Use format "iX | Title — Description" (Title: short and clear, 1 line max; Description: 1-2 sentences explaining essence, significance, and application).
 
             Additional rules for this API call:
             • Titles must be unique. Do not output synonyms or sub-variants as separate items.  
             • Prepend each concept with an ID in the form **i1, i2, …** so the client can parse it.  
-            • Assign a depth_target (1, 2, or 3) to each idea using the rubric below. Focus on how much understanding is required before the idea becomes useful or safe to use.
 
-            Use this rubric:
-
-            1 (Use): The idea can be applied directly with shallow understanding. It is simple, isolated, and unlikely to be misused. Learner benefit is immediate after basic explanation. Use only for small, narrow-scope ideas.
-
-            2 (Think with): The idea requires reflection, context, or judgment to apply correctly. It is often misunderstood or used in oversimplified ways. Learners must analyze its limits or compare it to alternatives. Use for foundational ideas that are frequently misinterpreted when treated too simply.
-
-            3 (Build with): The idea is generative. Learners should be able to extend or remix it into tools, frameworks, or systems. It serves as a building block for broader innovation. Use only when the idea clearly supports creative transfer into new domains.
-
-            Assignment rules:
-            - Do not assign 1 to any idea that serves as a core mental model, explanatory lens, or conceptual foundation for the rest of the book.
-            - Use 3 only when the idea enables design, strategy, or cross-domain transfer.
-            - Avoid assigning the same value to every idea. Return a realistic mix.
+            Example output element: "i1 | Anchoring Effect — Initial numbers bias judgments even if irrelevant, leading to flawed decisions in negotiations or estimates."
             
-            Example output element: `"i7 | Anchoring effect — Initial numbers bias estimates even when irrelevant. | 2"`
-            • If more than 25 unique concepts remain, keep only the 25 most important, then maintain narrative order.
 
             Return a **JSON array of strings** (no objects, no extra text).
         """
 
         
         let requestBody = ChatRequest(
-            model: "gpt-4",
+            model: "gpt-4.1",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: prompt)
@@ -422,7 +403,7 @@ class OpenAIService {
         """
         
         let requestBody = ChatRequest(
-            model: "gpt-3.5-turbo",
+            model: "gpt-4.1",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)

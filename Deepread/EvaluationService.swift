@@ -243,7 +243,7 @@ class EvaluationService {
         """
         
         let requestBody = ChatRequest(
-            model: "gpt-4",
+            model: "gpt-4.1-mini",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)
@@ -319,7 +319,7 @@ class EvaluationService {
         """
         
         let requestBody = ChatRequest(
-            model: "gpt-4",
+            model: "gpt-4.1-mini",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)
@@ -473,7 +473,7 @@ class EvaluationService {
         """
         
         let requestBody = ChatRequest(
-            model: "gpt-4",
+            model: "gpt-4.1-mini",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: "Please provide context-aware feedback for this response.")

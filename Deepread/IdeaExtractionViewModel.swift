@@ -267,7 +267,7 @@ class IdeaExtractionViewModel: ObservableObject {
             """
             
             let requestBody = ChatRequest(
-                model: "gpt-3.5-turbo",
+                model: "gpt-4.1-mini",
                 messages: [
                     Message(role: "system", content: systemPrompt),
                     Message(role: "user", content: "Who is the most likely author of this book based on the ideas?")
