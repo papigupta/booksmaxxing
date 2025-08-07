@@ -9,201 +9,161 @@ class UserResponseService: ObservableObject {
         self.modelContext = modelContext
     }
     
-    // MARK: - Save User Response with Evaluation
+    // MARK: - Core Methods
+    
     func saveUserResponse(
         ideaId: String,
         level: Int,
         prompt: String,
-        response: String,
-        evaluation: EvaluationResult,
-        silverBullet: String? = nil
-    ) throws -> UserResponse {
+        response: String
+    ) async throws {
         print("DEBUG: Saving user response for idea: \(ideaId), level: \(level)")
         
-        // Create new user response
         let userResponse = UserResponse(ideaId: ideaId, level: level, prompt: prompt, response: response)
         
-        // Save evaluation data
-        try userResponse.saveEvaluation(evaluation, silverBullet: silverBullet)
-        
-        // Find the idea and add the response
+        // Find the specific idea using the book-specific ID
         if let idea = try findIdea(ideaId: ideaId) {
-            idea.responses.append(userResponse)
             userResponse.idea = idea
-            
-            // Update idea's last practiced date
-            idea.lastPracticed = Date()
-            idea.currentLevel = level
+            idea.responses.append(userResponse)
+            print("DEBUG: Linked response to idea: \(idea.title)")
+        } else {
+            print("DEBUG: WARNING - Could not find idea with ID: \(ideaId)")
         }
         
-        // Save progress
-        let newMasteryLevel = Progress.calculateMasteryLevel(score: evaluation.score10, currentLevel: level)
-        let progress = Progress(ideaId: ideaId, level: level, score: evaluation.score10, masteryLevel: newMasteryLevel)
-        
-        if let idea = try findIdea(ideaId: ideaId) {
-            idea.progress.append(progress)
-            progress.idea = idea
-            
-            // Update idea's mastery level if this is the highest level completed
-            if level > idea.masteryLevel {
-                idea.masteryLevel = newMasteryLevel
-            }
-        }
-        
+        modelContext.insert(userResponse)
         try modelContext.save()
-        print("DEBUG: Successfully saved user response and progress")
+        print("DEBUG: Successfully saved user response")
+    }
+    
+    func saveUserResponseWithEvaluation(
+        ideaId: String,
+        level: Int,
+        prompt: String,
+        response: String,
+        evaluation: EvaluationResult
+    ) async throws -> UserResponse {
+        print("DEBUG: Saving user response with evaluation for idea: \(ideaId), level: \(level)")
+        
+        let userResponse = UserResponse(ideaId: ideaId, level: level, prompt: prompt, response: response)
+        
+        // Find the specific idea using the book-specific ID
+        if let idea = try findIdea(ideaId: ideaId) {
+            userResponse.idea = idea
+            idea.responses.append(userResponse)
+            
+            // Calculate new mastery level
+            let newMasteryLevel = calculateMasteryLevel(currentLevel: idea.masteryLevel, newScore: evaluation.score10)
+            idea.masteryLevel = newMasteryLevel
+            
+            // Create progress record
+            let progress = Progress(ideaId: ideaId, level: level, score: evaluation.score10, masteryLevel: newMasteryLevel)
+            progress.idea = idea
+            idea.progress.append(progress)
+            
+            print("DEBUG: Linked response and progress to idea: \(idea.title)")
+        } else {
+            print("DEBUG: WARNING - Could not find idea with ID: \(ideaId)")
+        }
+        
+        // Save evaluation data
+        try userResponse.saveEvaluation(evaluation)
+        
+        modelContext.insert(userResponse)
+        try modelContext.save()
+        print("DEBUG: Successfully saved user response with evaluation")
         
         return userResponse
     }
     
-    // MARK: - Get User Responses for an Idea
+    // MARK: - Query Methods (Now using book-specific IDs)
+    
     func getUserResponses(for ideaId: String) throws -> [UserResponse] {
         let descriptor = FetchDescriptor<UserResponse>(
             predicate: #Predicate<UserResponse> { response in
                 response.ideaId == ideaId
-            },
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            }
         )
-        
         return try modelContext.fetch(descriptor)
     }
     
-    // MARK: - Get Progress for an Idea
     func getProgress(for ideaId: String) throws -> [Progress] {
         let descriptor = FetchDescriptor<Progress>(
             predicate: #Predicate<Progress> { progress in
                 progress.ideaId == ideaId
-            },
-            sortBy: [SortDescriptor(\.completedAt, order: .reverse)]
+            }
         )
-        
         return try modelContext.fetch(descriptor)
     }
     
-    // MARK: - Get Latest Response for an Idea and Level
     func getLatestResponse(for ideaId: String, level: Int) throws -> UserResponse? {
-        var descriptor = FetchDescriptor<UserResponse>(
+        let descriptor = FetchDescriptor<UserResponse>(
             predicate: #Predicate<UserResponse> { response in
                 response.ideaId == ideaId && response.level == level
             },
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         )
-        descriptor.fetchLimit = 1
-        
         let responses = try modelContext.fetch(descriptor)
         return responses.first
     }
     
-    // MARK: - Get Best Score for an Idea and Level
     func getBestScore(for ideaId: String, level: Int) throws -> Int? {
         let responses = try getUserResponses(for: ideaId)
-        let levelResponses = responses.filter { $0.level == level && $0.hasEvaluation }
-        
-        return levelResponses.compactMap { $0.score }.max()
+        let levelResponses = responses.filter { $0.level == level }
+        return levelResponses.map { $0.score ?? 0 }.max()
     }
     
-    // MARK: - Check if Level is Completed
     func isLevelCompleted(for ideaId: String, level: Int) throws -> Bool {
         let progress = try getProgress(for: ideaId)
-        return progress.contains { $0.level == level && $0.isCompleted }
+        return progress.contains { $0.level == level }
     }
     
-    // MARK: - Get Overall Progress for an Idea
     func getOverallProgress(for ideaId: String) throws -> (completedLevels: Int, totalLevels: Int, averageScore: Double) {
         let progress = try getProgress(for: ideaId)
-        let completedLevels = progress.filter { $0.isCompleted }.count
-        let totalLevels = 3 // Assuming 3 levels per idea
-        
-        let scores = progress.compactMap { $0.score }
-        let averageScore = scores.isEmpty ? 0.0 : Double(scores.reduce(0, +)) / Double(scores.count)
-        
+        let completedLevels = Set(progress.map { $0.level }).count
+        let totalLevels = 4 // Assuming 4 levels (0-3)
+        let averageScore = progress.isEmpty ? 0.0 : Double(progress.map { $0.score }.reduce(0, +)) / Double(progress.count)
         return (completedLevels, totalLevels, averageScore)
     }
     
-    // MARK: - Get Responses Grouped by Level
     func getResponsesGroupedByLevel(for ideaId: String) throws -> [Int: [UserResponse]] {
         let responses = try getUserResponses(for: ideaId)
-        
-        // Group responses by level
-        var groupedResponses: [Int: [UserResponse]] = [:]
-        for response in responses {
-            if groupedResponses[response.level] == nil {
-                groupedResponses[response.level] = []
-            }
-            groupedResponses[response.level]?.append(response)
-        }
-        
-        return groupedResponses
+        return Dictionary(grouping: responses) { $0.level }
     }
     
-    // MARK: - Get Best Response for Each Level
     func getBestResponsesByLevel(for ideaId: String) async throws -> [Int: UserResponse] {
         let groupedResponses = try getResponsesGroupedByLevel(for: ideaId)
         var bestResponses: [Int: UserResponse] = [:]
         
         for (level, responses) in groupedResponses {
-            // Find the response with the highest score
-            let bestResponse = responses.max { first, second in
-                let firstScore = first.score ?? 0
-                let secondScore = second.score ?? 0
-                return firstScore < secondScore
-            }
-            
-            if let best = bestResponse {
-                bestResponses[level] = best
+            if let bestResponse = responses.max(by: { ($0.score ?? 0) < ($1.score ?? 0) }) {
+                bestResponses[level] = bestResponse
             }
         }
         
         return bestResponses
     }
     
-    // MARK: - Get All Responses for a Specific Level
     func getAllResponsesForLevel(ideaId: String, level: Int) async throws -> [UserResponse] {
         let responses = try getUserResponses(for: ideaId)
-        return responses.filter { $0.level == level }.sorted { $0.timestamp > $1.timestamp }
+        return responses.filter { $0.level == level }
     }
     
     // MARK: - Helper Methods
+    
     private func findIdea(ideaId: String) throws -> Idea? {
         let descriptor = FetchDescriptor<Idea>(
             predicate: #Predicate<Idea> { idea in
                 idea.id == ideaId
             }
         )
-        
-        let ideas = try modelContext.fetch(descriptor)
-        return ideas.first
+        return try modelContext.fetch(descriptor).first
     }
     
-    // MARK: - Debug Methods
-    func getAllUserResponses() throws -> [UserResponse] {
-        let descriptor = FetchDescriptor<UserResponse>()
-        return try modelContext.fetch(descriptor)
-    }
-    
-    func getAllProgress() throws -> [Progress] {
-        let descriptor = FetchDescriptor<Progress>()
-        return try modelContext.fetch(descriptor)
-    }
-    
-    func clearAllUserData() throws {
-        print("DEBUG: Clearing all user response and progress data")
-        
-        // Delete all user responses
-        let responseDescriptor = FetchDescriptor<UserResponse>()
-        let responses = try modelContext.fetch(responseDescriptor)
-        for response in responses {
-            modelContext.delete(response)
-        }
-        
-        // Delete all progress
-        let progressDescriptor = FetchDescriptor<Progress>()
-        let progress = try modelContext.fetch(progressDescriptor)
-        for prog in progress {
-            modelContext.delete(prog)
-        }
-        
-        try modelContext.save()
-        print("DEBUG: All user data cleared")
+    private func calculateMasteryLevel(currentLevel: Int, newScore: Int) -> Int {
+        // Simple mastery calculation - can be enhanced
+        if newScore >= 8 { return max(currentLevel, 3) } // Mastered
+        else if newScore >= 6 { return max(currentLevel, 2) } // Intermediate
+        else if newScore >= 4 { return max(currentLevel, 1) } // Basic
+        else { return currentLevel } // No improvement
     }
 } 

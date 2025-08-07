@@ -7,7 +7,7 @@ struct PrimerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     
-    @StateObject private var primerService: PrimerService
+    @State private var primerService: PrimerService?
     @State private var primer: Primer?
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -16,9 +16,6 @@ struct PrimerView: View {
     init(idea: Idea, openAIService: OpenAIService) {
         self.idea = idea
         self.openAIService = openAIService
-        // Initialize with a temporary context, will be updated in onAppear
-        let tempContext = try! ModelContainer(for: Idea.self).mainContext
-        self._primerService = StateObject(wrappedValue: PrimerService(openAIService: openAIService, modelContext: tempContext))
     }
     
     var body: some View {
@@ -174,8 +171,8 @@ struct PrimerView: View {
             }
         }
         .onAppear {
-            // Update the primerService with the correct modelContext
-            primerService.updateModelContext(modelContext)
+            // Initialize primerService with the correct modelContext
+            primerService = PrimerService(openAIService: openAIService, modelContext: modelContext)
             loadPrimer()
         }
     }
@@ -186,8 +183,15 @@ struct PrimerView: View {
         isLoading = true
         errorMessage = nil
         
+        // Ensure primerService is initialized
+        guard let service = primerService else {
+            errorMessage = "Primer service not initialized"
+            isLoading = false
+            return
+        }
+        
         // Check if primer already exists
-        if let existingPrimer = primerService.getPrimer(for: idea) {
+        if let existingPrimer = service.getPrimer(for: idea) {
             primer = existingPrimer
             isLoading = false
             return
@@ -196,7 +200,7 @@ struct PrimerView: View {
         // Generate new primer
         Task {
             do {
-                let newPrimer = try await primerService.generatePrimer(for: idea)
+                let newPrimer = try await service.generatePrimer(for: idea)
                 await MainActor.run {
                     primer = newPrimer
                     isLoading = false
@@ -213,9 +217,16 @@ struct PrimerView: View {
     private func refreshPrimer() {
         isRefreshing = true
         
+        // Ensure primerService is initialized
+        guard let service = primerService else {
+            errorMessage = "Primer service not initialized"
+            isRefreshing = false
+            return
+        }
+        
         Task {
             do {
-                let newPrimer = try await primerService.refreshPrimer(for: idea)
+                let newPrimer = try await service.refreshPrimer(for: idea)
                 await MainActor.run {
                     primer = newPrimer
                     isRefreshing = false

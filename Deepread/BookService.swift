@@ -11,7 +11,14 @@ class BookService: ObservableObject {
     
     // MARK: - Helper Functions
     
-    /// Ensures consistent ordering of ideas by ID (i1, i2, i3, etc.)
+    /// Generates a unique book-specific idea ID
+    private func generateBookSpecificIdeaId(book: Book, originalId: String) -> String {
+        // Extract idea number from original ID (e.g., "i1" -> "1")
+        let ideaNumber = originalId.hasPrefix("i") ? String(originalId.dropFirst()) : originalId
+        return "b\(book.bookNumber)i\(ideaNumber)"
+    }
+    
+    /// Ensures consistent ordering of ideas by ID (b1i1, b1i2, b1i3, etc.)
     private func sortIdeasById(_ book: Book) {
         book.ideas.sort { idea1, idea2 in
             idea1.id < idea2.id
@@ -39,10 +46,29 @@ class BookService: ObservableObject {
         } else {
             print("DEBUG: Creating new book: '\(normalizedTitle)'")
             let newBook = Book(title: normalizedTitle, author: author)
+            
+            // Assign the next sequential book number
+            newBook.bookNumber = try getNextBookNumber()
+            print("DEBUG: Assigned book number \(newBook.bookNumber) to new book '\(normalizedTitle)'")
+            
             modelContext.insert(newBook)
             try modelContext.save()
             return newBook
         }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Gets the next available book number
+    private func getNextBookNumber() throws -> Int {
+        var descriptor = FetchDescriptor<Book>(
+            sortBy: [SortDescriptor(\.bookNumber, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        
+        let books = try modelContext.fetch(descriptor)
+        let maxBookNumber = books.first?.bookNumber ?? 0
+        return maxBookNumber + 1
     }
     
     func saveIdeas(_ ideas: [Idea], for book: Book) throws {
@@ -52,6 +78,10 @@ class BookService: ObservableObject {
         book.ideas.removeAll()
         
         for idea in ideas {
+            // Generate book-specific ID if it's not already book-specific
+            if !idea.id.hasPrefix("b") {
+                idea.id = generateBookSpecificIdeaId(book: book, originalId: idea.id)
+            }
             idea.book = book
             book.ideas.append(idea)
             modelContext.insert(idea)
@@ -257,5 +287,64 @@ class BookService: ObservableObject {
         
         try modelContext.save()
         print("DEBUG: Relationship repair completed")
+    }
+    
+    // MARK: - Migration Methods
+    
+    func migrateExistingDataToBookSpecificIds() async throws {
+        print("DEBUG: Starting migration to book-specific IDs")
+        
+        let allBooks = try getAllBooks()
+        
+        // Step 1: Assign sequential book numbers to existing books
+        print("DEBUG: Assigning book numbers to \(allBooks.count) existing books")
+        for (index, book) in allBooks.enumerated() {
+            if book.bookNumber == 0 {
+                book.bookNumber = index + 1
+                print("DEBUG: Assigned book number \(book.bookNumber) to '\(book.title)'")
+            }
+        }
+        
+        // Step 2: Migrate idea IDs to book-specific format
+        for book in allBooks {
+            print("DEBUG: Migrating ideas for book: \(book.title) (book #\(book.bookNumber))")
+            
+            for idea in book.ideas {
+                // Only migrate if the ID is not already book-specific
+                if !idea.id.hasPrefix("b") {
+                    let oldId = idea.id
+                    let newId = generateBookSpecificIdeaId(book: book, originalId: idea.id)
+                    
+                    print("DEBUG: Migrating idea \(oldId) -> \(newId)")
+                    
+                    // Update idea ID
+                    idea.id = newId
+                    
+                    // Update all related UserResponse records
+                    for response in idea.responses {
+                        response.ideaId = newId
+                    }
+                    
+                    // Update all related Progress records
+                    for progress in idea.progress {
+                        progress.ideaId = newId
+                    }
+                    
+                    // Update all related Primer records
+                    let primerDescriptor = FetchDescriptor<Primer>(
+                        predicate: #Predicate<Primer> { primer in
+                            primer.ideaId == oldId
+                        }
+                    )
+                    let primers = try modelContext.fetch(primerDescriptor)
+                    for primer in primers {
+                        primer.ideaId = newId
+                    }
+                }
+            }
+        }
+        
+        try modelContext.save()
+        print("DEBUG: Migration completed successfully - \(allBooks.count) books migrated")
     }
 } 

@@ -4,12 +4,11 @@ import SwiftData
 @Model
 final class Progress {
     var id: UUID
-    var ideaId: String
+    var ideaId: String  // Now uses book-specific IDs like "b1i1", "b2i3"
     var level: Int
     var score: Int
-    var completedAt: Date
     var masteryLevel: Int
-    var isCompleted: Bool
+    var timestamp: Date
     
     // Relationship back to Idea
     @Relationship(deleteRule: .cascade) var idea: Idea?
@@ -19,9 +18,8 @@ final class Progress {
         self.ideaId = ideaId
         self.level = level
         self.score = score
-        self.completedAt = Date()
         self.masteryLevel = masteryLevel
-        self.isCompleted = true
+        self.timestamp = Date()
     }
 }
 

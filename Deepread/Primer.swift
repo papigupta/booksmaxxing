@@ -4,7 +4,7 @@ import SwiftData
 @Model
 final class Primer {
     var id: UUID
-    var ideaId: String
+    var ideaId: String  // Now uses book-specific IDs like "b1i1", "b2i3"
     var overview: String
     var keyNuances: [String]
     var digDeeperLinks: [PrimerLink]

@@ -58,6 +58,17 @@ struct DeepreadApp: App {
     var body: some Scene {
         WindowGroup {
             OnboardingView(openAIService: openAIService)
+                .onAppear {
+                    // Run migration for existing data
+                    Task {
+                        do {
+                            let bookService = BookService(modelContext: sharedModelContainer.mainContext)
+                            try await bookService.migrateExistingDataToBookSpecificIds()
+                        } catch {
+                            print("DEBUG: Migration failed: \(error)")
+                        }
+                    }
+                }
         }
         .modelContainer(sharedModelContainer)
     }

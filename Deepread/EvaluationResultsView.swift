@@ -364,14 +364,18 @@ struct EvaluationResultsView: View {
         Task {
             do {
                 // Save the user response with evaluation
-                _ = try userResponseService.saveUserResponse(
+                let savedResponse = try await userResponseService.saveUserResponseWithEvaluation(
                     ideaId: idea.id,
                     level: level,
                     prompt: prompt,
                     response: userResponse,
-                    evaluation: result,
-                    silverBullet: contextAwareFeedback
+                    evaluation: result
                 )
+                
+                // Update silver bullet if we have context-aware feedback
+                if !contextAwareFeedback.isEmpty {
+                    try savedResponse.updateSilverBullet(contextAwareFeedback)
+                }
                 
                 await MainActor.run {
                     isSavingResponse = false

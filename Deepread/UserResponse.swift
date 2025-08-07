@@ -107,6 +107,12 @@ extension UserResponse {
 
 // MARK: - Evaluation Saving Methods
 extension UserResponse {
+    func saveEvaluation(_ evaluation: EvaluationResult) throws {
+        let evaluationData = EvaluationData(from: evaluation)
+        self.evaluationData = try JSONEncoder().encode(evaluationData)
+        self.evaluationVersion = evaluationData.version
+    }
+    
     func saveEvaluation(_ evaluation: EvaluationResult, silverBullet: String? = nil) throws {
         let evaluationData = EvaluationData(from: evaluation, silverBullet: silverBullet)
         self.evaluationData = try JSONEncoder().encode(evaluationData)
