@@ -16,6 +16,7 @@ struct EvaluationResultsView: View {
     @State private var navigateToWhatThisMeans = false
     @State private var isResponseExpanded = false
     @State private var navigateToHome = false
+    @State private var showingPrimer = false // Add this line
     
     private var evaluationService: EvaluationService {
         EvaluationService(apiKey: Secrets.openAIAPIKey)
@@ -271,6 +272,18 @@ struct EvaluationResultsView: View {
                 .accessibilityLabel("Go to home")
                 .accessibilityHint("Return to all extracted ideas")
             }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showingPrimer = true
+                }) {
+                    Image(systemName: "lightbulb")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("View Primer")
+                .accessibilityHint("Open primer for this idea")
+            }
         }
         .navigationDestination(isPresented: $navigateToWhatThisMeans) {
             if let result = evaluationResult {
@@ -285,6 +298,9 @@ struct EvaluationResultsView: View {
         }
         .navigationDestination(isPresented: $navigateToHome) {
             BookOverviewView(bookTitle: idea.bookTitle, openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey), bookService: BookService(modelContext: modelContext))
+        }
+        .sheet(isPresented: $showingPrimer) {
+            PrimerView(idea: idea, openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey))
         }
         .onAppear {
             loadEvaluation()

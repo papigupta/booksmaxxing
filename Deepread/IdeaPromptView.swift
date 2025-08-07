@@ -14,6 +14,7 @@ struct IdeaPromptView: View {
     @State private var navigateToEvaluation = false
     @State private var showHomeConfirmation = false
     @State private var navigateToHome = false
+    @State private var showingPrimer = false // Add this line
     @Environment(\.modelContext) private var modelContext
     
     // MARK: - Computed Properties
@@ -226,6 +227,18 @@ struct IdeaPromptView: View {
                 .accessibilityLabel("Go to home")
                 .accessibilityHint("Return to all extracted ideas")
             }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showingPrimer = true
+                }) {
+                    Image(systemName: "lightbulb")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("View Primer")
+                .accessibilityHint("Open primer for this idea")
+            }
         }
         .onAppear {
             generatePrompt()
@@ -245,6 +258,9 @@ struct IdeaPromptView: View {
         }
         .navigationDestination(isPresented: $navigateToHome) {
             BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
+        }
+        .sheet(isPresented: $showingPrimer) {
+            PrimerView(idea: idea, openAIService: openAIService)
         }
     }
     

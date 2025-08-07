@@ -8,6 +8,7 @@ struct LevelLoadingView: View {
     @State private var showContinueButton = false
     @State private var navigateToPrompt = false
     @State private var navigateToHome = false
+    @State private var showingPrimer = false // Add this line
     @Environment(\.modelContext) private var modelContext
     
     var body: some View {
@@ -74,12 +75,27 @@ struct LevelLoadingView: View {
                 .accessibilityLabel("Go to home")
                 .accessibilityHint("Return to all extracted ideas")
             }
+            
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showingPrimer = true
+                }) {
+                    Image(systemName: "lightbulb")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
+                }
+                .accessibilityLabel("View Primer")
+                .accessibilityHint("Open primer for this idea")
+            }
         }
         .navigationDestination(isPresented: $navigateToPrompt) {
             IdeaPromptView(idea: idea, level: level, openAIService: openAIService)
         }
         .navigationDestination(isPresented: $navigateToHome) {
             BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
+        }
+        .sheet(isPresented: $showingPrimer) {
+            PrimerView(idea: idea, openAIService: openAIService)
         }
         .onAppear {
             // Save current level for resume functionality

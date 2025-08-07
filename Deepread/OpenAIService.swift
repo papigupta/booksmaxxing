@@ -268,6 +268,7 @@ class OpenAIService {
             • Adapt to the book's style—e.g., extract practical steps and mindsets from applied books, or theories and models from conceptual ones.
             • Be comprehensive: Cover all ideas worth mastering, in the order they appear in the book. Aim for completeness, but if over 50, prioritize the most impactful.
             • Be consistent across runs: Prioritize the book's core narrative and key takeaways. Focus on explanatory power and applicability, not trivia or examples unless essential.
+            • Avoid redundancy. For eg. Don't extract "Strange Loops" and "Strange Loops in Art and Music", instead use either of the two, and aim to teach both with one single idea.
             • For each idea: Use format "iX | Title — Description" (Title: short and clear, 1 line max; Description: 1-2 sentences explaining essence, significance, and application).
 
             Additional rules for this API call:
@@ -408,7 +409,7 @@ class OpenAIService {
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)
             ],
-            max_tokens: 150,
+            max_tokens: 500,
             temperature: 0.7
         )
         

@@ -11,6 +11,7 @@ struct WhatThisMeansView: View {
     @State private var showingCelebration = false
     @State private var nextLevel: Int = 0
     @State private var navigateToHome = false
+    @State private var showingPrimer = false // Add this line
     @Environment(\.modelContext) private var modelContext
     
     var body: some View {
@@ -85,6 +86,30 @@ struct WhatThisMeansView: View {
                 .buttonStyle(.borderedProminent)
                 .padding(.top, 16)
                 
+                // Primer suggestion for low scores
+                if evaluationResult.score10 < 5 {
+                    VStack(spacing: 8) {
+                        Text("Need a refresher?")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Button(action: {
+                            showingPrimer = true
+                        }) {
+                            HStack {
+                                Image(systemName: "lightbulb")
+                                    .font(.title3)
+                                Text("View Primer")
+                                    .font(.body)
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .padding(.top, 8)
+                }
+                
                 Spacer(minLength: 32)
             }
             .padding(.horizontal, 20)
@@ -122,6 +147,9 @@ struct WhatThisMeansView: View {
         }
         .navigationDestination(isPresented: $navigateToHome) {
             BookOverviewView(bookTitle: idea.bookTitle, openAIService: openAIService, bookService: BookService(modelContext: modelContext))
+        }
+        .sheet(isPresented: $showingPrimer) {
+            PrimerView(idea: idea, openAIService: openAIService)
         }
     }
     

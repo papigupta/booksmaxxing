@@ -19,6 +19,7 @@ struct DeepreadApp: App {
             Idea.self,
             UserResponse.self,
             Progress.self,
+            Primer.self, // Add Primer to schema
         ])
         
         // Try persistent storage first
