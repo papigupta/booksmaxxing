@@ -13,6 +13,9 @@ struct DeepreadApp: App {
     // Shared OpenAIService instance
     private let openAIService = OpenAIService(apiKey: Secrets.openAIAPIKey)
     
+    // State to control splash screen visibility
+    @State private var isShowingSplash = true
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Book.self,
@@ -57,18 +60,35 @@ struct DeepreadApp: App {
 
     var body: some Scene {
         WindowGroup {
-            OnboardingView(openAIService: openAIService)
-                .onAppear {
-                    // Run migration for existing data
-                    Task {
-                        do {
-                            let bookService = BookService(modelContext: sharedModelContainer.mainContext)
-                            try await bookService.migrateExistingDataToBookSpecificIds()
-                        } catch {
-                            print("DEBUG: Migration failed: \(error)")
+            ZStack {
+                if isShowingSplash {
+                    SplashScreenView()
+                        .transition(.opacity)
+                } else {
+                    OnboardingView(openAIService: openAIService)
+                        .onAppear {
+                            // Run migration for existing data
+                            Task {
+                                do {
+                                    let bookService = BookService(modelContext: sharedModelContainer.mainContext)
+                                    try await bookService.migrateExistingDataToBookSpecificIds()
+                                } catch {
+                                    print("DEBUG: Migration failed: \(error)")
+                                }
+                            }
                         }
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.5), value: isShowingSplash)
+            .onAppear {
+                // Hide splash screen after a delay to allow everything to load
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    withAnimation {
+                        isShowingSplash = false
                     }
                 }
+            }
         }
         .modelContainer(sharedModelContainer)
     }
