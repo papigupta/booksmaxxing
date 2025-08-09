@@ -53,12 +53,16 @@ class PrimerService: ObservableObject {
         // Parse the response into structured data
         let parsedPrimer = try parsePrimerResponse(primerContent)
         
-        // Create and save the primer
+        // Create and save the primer with new structure
         let primer = Primer(
             ideaId: idea.id,
-            overview: parsedPrimer.overview,
-            keyNuances: parsedPrimer.keyNuances,
-            digDeeperLinks: parsedPrimer.digDeeperLinks
+            thesis: parsedPrimer.thesis,
+            core: parsedPrimer.core,
+            useItWhen: parsedPrimer.useItWhen,
+            howToApply: parsedPrimer.howToApply,
+            edgesAndLimits: parsedPrimer.edgesAndLimits,
+            oneLineRecall: parsedPrimer.oneLineRecall,
+            furtherLearning: parsedPrimer.furtherLearning
         )
         
         primer.idea = idea
@@ -102,79 +106,138 @@ class PrimerService: ObservableObject {
     
     private func createPrimerPrompt(for idea: Idea) -> String {
         return """
-        Your task is to generate a "Primer" for the idea "\(idea.title)" from the book "\(idea.bookTitle)".
+        GOAL: Teach "\(idea.title)" (from "\(idea.bookTitle)") in one page, ready to use now.
 
-        Use ONLY the following description as your source material—do not add external knowledge, interpretations, or details not explicitly in this description: \(idea.ideaDescription).
+        SOURCE: Use only this description; add no outside facts:
+        \(idea.ideaDescription)
 
-        The Primer should be a short, efficient refresher that stays true to the author's intended voice, tone, and content as reflected in the description.
+        Voice: Mirror the author's diction, cadence, and stance in the description. Reuse key terms verbatim. Vary sentence length. No filler. No meta (don't say "in this primer/section").
 
-        Focus on brevity to allow users to grasp the idea in the shortest time possible, covering key aspects without unnecessary depth.
+        Output format — use these exact headings:
 
-        Structure the output exactly as follows:
-        1. **Overview**: A 150-250 word summary explaining the idea, its key components, significance, impacts, or value—keep it concise and skimmable.
-        2. **Key Nuances**: 4-6 bullet points covering subtleties, examples, or limitations from the description—make each bullet short and direct.
-        3. **Dig Deeper Hyperlinks**: Suggest 3-5 relevant hyperlinks for further reading.
+        # Thesis (≤22 words)
+        A single, sharp claim that captures the idea's essence.
 
-        These should be logical recommendations based solely on the book title and idea (e.g., official book pages, author sites, or public-domain excerpts).
+        # Core (110–150 words)
+        Explain what it is, how it works, and why it matters — strictly in the author's voice. Each sentence must add new information.
 
-        Format as: - [Link Title]: [URL] (use placeholders like amazon.com/[book-title] if exact URLs aren't known).
+        # Use it when… (3 bullets, ≤10 words each)
+        Concrete cues/conditions that signal the idea applies.
 
-        Keep the tone neutral, factual, and true to the description's style (e.g., if it's analytical, be precise; if narrative, be straightforward).
+        # How to apply (3 bullets, ≤12 words each, verb-first)
+        Actionable steps or checks drawn only from the description.
 
-        Ensure the Primer is quick to read (under 5 minutes) and feels like a search result—informative and to-the-point.
+        # Edges & limits (2–3 bullets, ≤12 words)
+        Boundaries, exceptions, or trade-offs stated or implied in the description.
+
+        # One-line recall (≤14 words)
+        A memorable line in the author's tone.
+
+        # Further learning (3–4 links)
+        - [Official/book page]: https://amazon.com/<book-slug-or-isbn>
+        - [In-depth article]: https://<reputable-site>/<book-or-idea-slug>
+        - [Talk/lecture video]: https://youtube.com/results?search_query=<author+idea+book>
+        - [Review/critique]: https://<quality-blog>/<book-or-idea-review>
+
+        Rules: No repetition across sections. No hedging. Don't invent examples; if the description includes one, compress it briefly in Core. Total length ≤ 260 words.
         """
     }
     
-    private func parsePrimerResponse(_ response: String) throws -> (overview: String, keyNuances: [String], digDeeperLinks: [PrimerLink]) {
-        // Simple parsing logic - you might want to make this more robust
+    private func parsePrimerResponse(_ response: String) throws -> (thesis: String, core: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
         let lines = response.components(separatedBy: .newlines)
         
-        var overview = ""
-        var keyNuances: [String] = []
-        var digDeeperLinks: [PrimerLink] = []
+        var thesis = ""
+        var core = ""
+        var useItWhen: [String] = []
+        var howToApply: [String] = []
+        var edgesAndLimits: [String] = []
+        var oneLineRecall = ""
+        var furtherLearning: [PrimerLink] = []
         
         var currentSection = ""
         
         for line in lines {
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
             
-            if trimmedLine.contains("**Overview**") {
-                currentSection = "overview"
+            // Check for section headers
+            if trimmedLine.hasPrefix("# Thesis") {
+                currentSection = "thesis"
                 continue
-            } else if trimmedLine.contains("**Key Nuances**") {
-                currentSection = "nuances"
+            } else if trimmedLine.hasPrefix("# Core") {
+                currentSection = "core"
                 continue
-            } else if trimmedLine.contains("**Dig Deeper Hyperlinks**") {
-                currentSection = "links"
+            } else if trimmedLine.hasPrefix("# Use it when") {
+                currentSection = "useItWhen"
+                continue
+            } else if trimmedLine.hasPrefix("# How to apply") {
+                currentSection = "howToApply"
+                continue
+            } else if trimmedLine.hasPrefix("# Edges & limits") {
+                currentSection = "edgesAndLimits"
+                continue
+            } else if trimmedLine.hasPrefix("# One-line recall") {
+                currentSection = "oneLineRecall"
+                continue
+            } else if trimmedLine.hasPrefix("# Further learning") {
+                currentSection = "furtherLearning"
                 continue
             }
             
+            // Process content based on current section
             switch currentSection {
-            case "overview":
-                if !trimmedLine.isEmpty {
-                    overview += trimmedLine + " "
+            case "thesis":
+                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
+                    thesis += trimmedLine + " "
                 }
-            case "nuances":
+            case "core":
+                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
+                    core += trimmedLine + " "
+                }
+            case "useItWhen":
                 if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
-                    let nuance = trimmedLine.replacingOccurrences(of: "- ", with: "")
+                    let item = trimmedLine.replacingOccurrences(of: "- ", with: "")
                         .replacingOccurrences(of: "• ", with: "")
-                    if !nuance.isEmpty {
-                        keyNuances.append(nuance)
+                    if !item.isEmpty {
+                        useItWhen.append(item)
                     }
                 }
-            case "links":
+            case "howToApply":
+                if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
+                    let item = trimmedLine.replacingOccurrences(of: "- ", with: "")
+                        .replacingOccurrences(of: "• ", with: "")
+                    if !item.isEmpty {
+                        howToApply.append(item)
+                    }
+                }
+            case "edgesAndLimits":
+                if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
+                    let item = trimmedLine.replacingOccurrences(of: "- ", with: "")
+                        .replacingOccurrences(of: "• ", with: "")
+                    if !item.isEmpty {
+                        edgesAndLimits.append(item)
+                    }
+                }
+            case "oneLineRecall":
+                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
+                    oneLineRecall += trimmedLine + " "
+                }
+            case "furtherLearning":
                 if trimmedLine.hasPrefix("-") {
                     let linkText = trimmedLine.replacingOccurrences(of: "- ", with: "")
                     if let colonIndex = linkText.firstIndex(of: ":") {
-                        let title = String(linkText[..<colonIndex]).trimmingCharacters(in: .whitespaces)
-                        var url = String(linkText[linkText.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
+                        let title = String(linkText[..<colonIndex])
+                            .trimmingCharacters(in: .whitespaces)
+                            .replacingOccurrences(of: "[", with: "")
+                            .replacingOccurrences(of: "]", with: "")
+                        var url = String(linkText[linkText.index(after: colonIndex)...])
+                            .trimmingCharacters(in: .whitespaces)
                         
                         // Ensure URL has proper scheme
                         if !url.hasPrefix("http://") && !url.hasPrefix("https://") {
                             url = "https://" + url
                         }
                         
-                        digDeeperLinks.append(PrimerLink(title: title, url: url))
+                        furtherLearning.append(PrimerLink(title: title, url: url))
                     }
                 }
             default:
@@ -182,6 +245,14 @@ class PrimerService: ObservableObject {
             }
         }
         
-        return (overview.trimmingCharacters(in: .whitespaces), keyNuances, digDeeperLinks)
+        return (
+            thesis: thesis.trimmingCharacters(in: .whitespaces),
+            core: core.trimmingCharacters(in: .whitespaces),
+            useItWhen: useItWhen,
+            howToApply: howToApply,
+            edgesAndLimits: edgesAndLimits,
+            oneLineRecall: oneLineRecall.trimmingCharacters(in: .whitespaces),
+            furtherLearning: furtherLearning
+        )
     }
 } 
