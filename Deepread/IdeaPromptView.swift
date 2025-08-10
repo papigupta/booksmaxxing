@@ -210,7 +210,10 @@ struct IdeaPromptView: View {
                     idea: idea, 
                     userResponse: userResponse, 
                     prompt: generatedPrompt,
-                    level: level
+                    level: level,
+                    onOpenPrimer: {
+                        showingPrimer = true
+                    }
                 )
             }
         }

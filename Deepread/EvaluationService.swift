@@ -42,6 +42,22 @@ struct EvaluationResult: Codable {
     let score10: Int         // 0-10 integer
     let strengths: [String]  // exactly two short bullets
     let improvements: [String] // exactly two short bullets
+    let pass: Bool           // whether the response passes the level
+    let mastery: Bool        // whether mastery is achieved
+}
+
+// Structured author feedback for dense non-fiction (universal)
+struct AuthorFeedback: Codable {
+    let rubric: [String]         // e.g., ["definition_accuracy","interplay","application_example"]
+    let verdict: String
+    let oneBigThing: String
+    let evidence: [String]
+    let upgrade: String
+    let transferCue: String
+    let microDrill: String
+    let memoryHook: String
+    let edgeOrTrap: String?
+    let confidence: Double?
 }
 
 struct LevelConfig {
@@ -80,10 +96,12 @@ class EvaluationService {
     private let apiKey: String
     private let session: URLSession
     private let networkMonitor: EvaluationNetworkMonitor
+    private let openAI: OpenAIService
     
     init(apiKey: String) {
         self.apiKey = apiKey
         self.networkMonitor = EvaluationNetworkMonitor()
+        self.openAI = OpenAIService(apiKey: apiKey)
         
         // Create robust session configuration
         let configuration = URLSessionConfiguration.default
@@ -122,6 +140,23 @@ class EvaluationService {
         })
     }
     
+    // Fetches structured, compact, level-aware feedback without altering scoring logic
+    func generateStructuredFeedback(
+        idea: Idea,
+        userResponse: String,
+        level: Int,
+        evaluationResult: EvaluationResult
+    ) async throws -> AuthorFeedback {
+        try await withRetry(maxAttempts: 2) {
+            try await self.performStructuredFeedback(
+                idea: idea,
+                userResponse: userResponse,
+                level: level,
+                evaluationResult: evaluationResult
+            )
+        }
+    }
+    
     private func performEvaluation(
         idea: Idea,
         userResponse: String,
@@ -130,38 +165,40 @@ class EvaluationService {
         
         print("EVAL DEBUG: Starting evaluation for idea: \(idea.title), level: \(level)")
         
-        let levelConfig = getLevelConfig(for: level)
+        // PATCH: inside EvaluationService.evaluate(...)
         
-        // Step 1: Get score with retry
-        print("EVAL DEBUG: Getting score...")
-        let score = try await withRetry(maxAttempts: 2, operation: {
-            try await self.getScore(
-                idea: idea,
-                userResponse: userResponse,
-                level: level,
-                levelConfig: levelConfig
-            )
-        })
-        print("EVAL DEBUG: Score received: \(score)")
+        let prompt = EvaluationPrompts.feedbackPrompt(
+            ideaTitle: idea.title,
+            ideaDescription: idea.ideaDescription, // or whatever field you store the canonical idea text in
+            userResponse: userResponse,
+            level: mapLevel(level) // map your app's level enum to EvalLevel
+        )
         
-        // Step 2: Get strengths and improvements with retry
-        print("EVAL DEBUG: Getting feedback...")
-        let feedback = try await withRetry(maxAttempts: 2, operation: {
-            try await self.getStrengthsAndImprovements(
-                idea: idea,
-                userResponse: userResponse,
-                level: level,
-                levelConfig: levelConfig,
-                score: score
-            )
-        })
-        print("EVAL DEBUG: Feedback received: \(feedback.strengths.count) strengths, \(feedback.improvements.count) improvements")
+        // Models: use 4.1 for extraction elsewhere; here we use 4.1-mini for eval (fast/cheap)
+        let model = "gpt-4.1-mini"
         
+        // Tuned knobs for better feedback
+        let temperature: Double = 0.2
+        let maxTokens: Int = 400
+        
+        let raw = try await openAI.complete(
+            prompt: prompt,
+            model: model,
+            temperature: temperature,
+            maxTokens: maxTokens
+        )
+        
+        // Strict JSON parsing with graceful fallback
+        let parsed = Self.parseEvalJSON(raw)
+        
+        // Map parsed → your existing EvaluationResult (DO NOT rename fields used elsewhere)
         let result = EvaluationResult(
             level: "L\(level)",
-            score10: score,
-            strengths: feedback.strengths,
-            improvements: feedback.improvements
+            score10: parsed.score,
+            strengths: parsed.strengths,
+            improvements: parsed.gaps, // map gaps to improvements
+            pass: parsed.pass,
+            mastery: parsed.mastery
         )
         
         print("EVAL DEBUG: Evaluation completed successfully")
@@ -248,7 +285,7 @@ class EvaluationService {
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)
             ],
-            max_tokens: 50,
+            max_tokens: 100,
             temperature: 0.1
         )
         
@@ -324,8 +361,8 @@ class EvaluationService {
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: userPrompt)
             ],
-            max_tokens: 300,
-            temperature: 0.3
+            max_tokens: 500,
+            temperature: 0.7
         )
         
         let (data, _) = try await makeAPIRequest(requestBody: requestBody)
@@ -473,13 +510,13 @@ class EvaluationService {
         """
         
         let requestBody = ChatRequest(
-            model: "gpt-4.1-mini",
+            model: "gpt-4.1",
             messages: [
                 Message(role: "system", content: systemPrompt),
                 Message(role: "user", content: "Please provide context-aware feedback for this response.")
             ],
-            max_tokens: 200,
-            temperature: 0.4
+            max_tokens: 700,
+            temperature: 1
         )
         
         let (data, _) = try await makeAPIRequest(requestBody: requestBody)
@@ -611,6 +648,138 @@ class EvaluationService {
     
     // MARK: - Helper Methods
     
+    private func performStructuredFeedback(
+        idea: Idea,
+        userResponse: String,
+        level: Int,
+        evaluationResult: EvaluationResult
+    ) async throws -> AuthorFeedback {
+
+        let levelConfig = getLevelConfig(for: level)
+
+        // Hard constraints to avoid generic fluff
+        let bannedPhrases = [
+            "could improve clarity and nuance",
+            "accurately defines",
+            "relatable example",
+            "deepen understanding",
+            "this interplay",
+            "recognizing this",
+            "in summary",
+            "overall",
+            "add more detail",
+            "be more specific"
+        ].joined(separator: ", ")
+
+        // STRONGER SPEC — quote-anchored, level-aware, no fluff
+        func makePrompt(regenerate: Bool) -> String {
+            """
+            You are \(idea.book?.author ?? "the author"). Provide compact, surgical feedback that works for any dense non-fiction idea.
+            Use ONLY Idea Description + Reader Response. NO external facts.
+
+            CONTEXT
+            - Book: \(idea.bookTitle)
+            - Idea: \(idea.title)
+            - Idea Description: \(idea.ideaDescription)
+            - Level: \(levelConfig.name) — \(levelConfig.description)
+            - Reader Score: \(evaluationResult.score10)/10
+
+            READER RESPONSE
+            \(userResponse)
+
+            RULES
+            - Ground every judgment in the user's own words: include 1–2 verbatim quotes (3–12 words each) from the response in `evidence`.
+            - `verdict` MUST follow: "Met X/Y: <met items>; Missed: <missed items> — because <short reason tied to a quote>."
+            - Pick 2–3 items for `rubric` from: definition_accuracy, interplay, application_example, limitations, transfer, reasoning_quality, clarity.
+            - `oneBigThing`: exactly ONE surgical improvement (if score >= 7) OR the ONE most costly misconception (if < 7). Must reference a phrase from the response.
+            - `upgrade`: rewrite ONE weak sentence from the response in the user's likely voice, ≤ 22 words, no hedging words (no "may", "might", "could").
+            - `transferCue`: one If/Then rule with a concrete trigger and concrete action.
+            - `microDrill`: 60–90 seconds; concrete; something the reader can do NOW; starts with an imperative verb.
+            - `memoryHook`: 5–7 words, punchy, no commas or quotes.
+            - `edgeOrTrap`: optional; if included, name a subtle boundary or common confusion in ≤ 18 words.
+            - Avoid generic filler. Do NOT use any of these phrases: \(bannedPhrases).
+            \(regenerate ? "- THIS IS A REGENERATION. Prior output was generic. Make every field specific and quote-anchored." : "")
+
+            OUTPUT
+            Return ONLY valid JSON with keys:
+            {
+              "rubric": ["definition_accuracy","..."],
+              "verdict": "Met X/Y: ...",
+              "oneBigThing": "...",
+              "evidence": ["\"<quote 1>\"", "\"<quote 2>\""],
+              "upgrade": "...",
+              "transferCue": "If <trigger>, then <action>.",
+              "microDrill": "<imperative action in 1–2 sentences>",
+              "memoryHook": "<5–7 words>",
+              "edgeOrTrap": "<optional>" ,
+              "confidence": 0.0
+            }
+            """
+        }
+
+        // one-shot caller
+        @discardableResult
+        func callOnce(regenerate: Bool) async throws -> AuthorFeedback {
+            let requestBody = ChatRequest(
+                model: "gpt-4.1-mini",
+                messages: [
+                    Message(role: "system", content: makePrompt(regenerate: regenerate)),
+                    Message(role: "user", content: "Return ONLY the JSON object now.")
+                ],
+                max_tokens: 520,
+                temperature: 0.1   // be deterministic & sharp
+            )
+
+            let (data, _) = try await makeAPIRequest(requestBody: requestBody)
+            let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+            guard let content = chatResponse.choices.first?.message.content else {
+                throw EvaluationError.noResponse
+            }
+            let jsonString = extractJSONFromResponse(content)
+            guard let jsonData = jsonString.data(using: .utf8) else {
+                throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON data"]))
+            }
+            let feedback = try JSONDecoder().decode(AuthorFeedback.self, from: jsonData)
+            return feedback
+        }
+
+        // lightweight validator to reject bland/generic results
+        func isGeneric(_ fb: AuthorFeedback) -> Bool {
+            // must have quotes in evidence and not be empty
+            let quotesOK = fb.evidence.contains { $0.contains("\"") || $0.contains("\"") || $0.contains("'") } && !fb.evidence.joined().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if !quotesOK { return true }
+
+            // verdict must contain "Met " and "Missed" and "because"
+            let v = fb.verdict.lowercased()
+            let verdictOK = v.contains("met ") && v.contains("missed") && v.contains("because")
+            if !verdictOK { return true }
+
+            // reject banned phrases & hedging in upgrade
+            let banned = ["could", "might", "may", "overall", "in summary", "deepen understanding", "clarity and nuance"]
+            if banned.contains(where: { v.contains($0) }) { return true }
+            let up = fb.upgrade.lowercased()
+            if up.contains("could ") || up.contains("might ") || up.contains("may ") { return true }
+
+            // memory hook length 2..8 words
+            let hookWords = fb.memoryHook.split(separator: " ")
+            if hookWords.count < 2 || hookWords.count > 8 { return true }
+
+            return false
+        }
+
+        // try once; if generic, regenerate with stricter instruction
+        var feedback = try await callOnce(regenerate: false)
+        if isGeneric(feedback) {
+            feedback = try await callOnce(regenerate: true)
+        }
+
+        // final guardrails
+        guard !feedback.oneBigThing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing oneBigThing"]))
+        }
+        return feedback
+    }
+    
     private func extractJSONFromResponse(_ response: String) -> String {
         // Look for JSON object in the response
         if let startIndex = response.firstIndex(of: "{"),
@@ -618,6 +787,63 @@ class EvaluationService {
             return String(response[startIndex...endIndex])
         }
         return response
+    }
+    
+    // --- helpers (add privately in the same file) ---
+    private func mapLevel(_ level: Int) -> EvalLevel {
+        switch level {
+        case 0: return .L0
+        case 1: return .L1
+        case 2: return .L2
+        case 3: return .L3
+        default: return .L0
+        }
+    }
+    
+    private struct ParsedEval: Decodable {
+        let score: Int
+        let silverBullet: String
+        let strengths: [String]
+        let gaps: [String]
+        let nextAction: String
+        let pass: Bool
+        let mastery: Bool
+        
+        enum CodingKeys: String, CodingKey {
+            case score
+            case silverBullet = "silver_bullet"
+            case strengths
+            case gaps
+            case nextAction = "next_action"
+            case pass
+            case mastery
+        }
+    }
+    
+    private static func parseEvalJSON(_ raw: String) -> ParsedEval {
+        // 1) Try direct JSON
+        if let data = raw.data(using: .utf8),
+           let parsed = try? JSONDecoder().decode(ParsedEval.self, from: data) {
+            return parsed
+        }
+        // 2) Try to extract a JSON object substring
+        if let start = raw.firstIndex(of: "{"), let end = raw.lastIndex(of: "}") {
+            let jsonSub = String(raw[start...end])
+            if let data = jsonSub.data(using: .utf8),
+               let parsed = try? JSONDecoder().decode(ParsedEval.self, from: data) {
+                return parsed
+            }
+        }
+        // 3) Fallback safe default
+        return ParsedEval(
+            score: 0,
+            silverBullet: "Couldn't parse feedback.",
+            strengths: [],
+            gaps: ["Response could not be evaluated due to formatting. Try again."],
+            nextAction: "Re-submit a concise response focusing on the core idea.",
+            pass: false,
+            mastery: false
+        )
     }
 }
 

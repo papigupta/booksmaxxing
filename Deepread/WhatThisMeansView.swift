@@ -404,7 +404,9 @@ struct WhatThisMeansView: View {
                 level: "L0",
                 score10: 7,
                 strengths: ["Good engagement with the concept", "Clear personal connection"],
-                improvements: ["Could explore practical applications more", "Consider deeper analysis"]
+                improvements: ["Could explore practical applications more", "Consider deeper analysis"],
+                pass: true,
+                mastery: false
             ),
             userResponse: "This is my response about Norman Doors...",
             level: 0,

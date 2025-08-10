@@ -8,6 +8,8 @@ struct EvaluationData: Codable {
     let strengths: [String]
     let improvements: [String]
     let silverBullet: String?
+    let pass: Bool           // whether the response passes the level
+    let mastery: Bool        // whether mastery is achieved
     let metadata: [String: String]
     let version: String
     
@@ -17,16 +19,20 @@ struct EvaluationData: Codable {
         self.strengths = evaluation.strengths
         self.improvements = evaluation.improvements
         self.silverBullet = silverBullet
+        self.pass = evaluation.pass
+        self.mastery = evaluation.mastery
         self.metadata = [:]
         self.version = "1.0"
     }
     
-    init(score: Int, level: String, strengths: [String], improvements: [String], silverBullet: String?, metadata: [String: String], version: String) {
+    init(score: Int, level: String, strengths: [String], improvements: [String], silverBullet: String?, pass: Bool, mastery: Bool, metadata: [String: String], version: String) {
         self.score = score
         self.level = level
         self.strengths = strengths
         self.improvements = improvements
         self.silverBullet = silverBullet
+        self.pass = pass
+        self.mastery = mastery
         self.metadata = metadata
         self.version = version
     }
@@ -100,6 +106,22 @@ extension UserResponse {
         return evaluation.level
     }
     
+    var pass: Bool? {
+        guard let data = evaluationData,
+              let evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
+            return nil
+        }
+        return evaluation.pass
+    }
+    
+    var mastery: Bool? {
+        guard let data = evaluationData,
+              let evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
+            return nil
+        }
+        return evaluation.mastery
+    }
+    
     var hasEvaluation: Bool {
         return evaluationData != nil
     }
@@ -132,6 +154,8 @@ extension UserResponse {
             strengths: evaluation.strengths,
             improvements: evaluation.improvements,
             silverBullet: silverBullet,
+            pass: evaluation.pass,
+            mastery: evaluation.mastery,
             metadata: evaluation.metadata,
             version: evaluation.version
         )

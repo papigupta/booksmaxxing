@@ -5,18 +5,20 @@ struct EvaluationResultsView: View {
     let userResponse: String
     let prompt: String // Add prompt parameter
     let level: Int
+    let onOpenPrimer: () -> Void // Add callback for parent to handle primer navigation
     
     @Environment(\.modelContext) private var modelContext
     @State private var evaluationResult: EvaluationResult?
-    @State private var contextAwareFeedback: String = ""
     @State private var isLoadingEvaluation = true
-    @State private var isLoadingFeedback = false
     @State private var evaluationError: String?
     @State private var isSavingResponse = false
     @State private var navigateToWhatThisMeans = false
     @State private var isResponseExpanded = false
     @State private var navigateToHome = false
     @State private var showingPrimer = false // Add this line
+    @State private var authorFeedback: AuthorFeedback? = nil
+    @State private var isLoadingStructuredFeedback = false
+    @State private var structuredFeedbackError: String? = nil
     
     private var evaluationService: EvaluationService {
         EvaluationService(apiKey: Secrets.openAIAPIKey)
@@ -158,70 +160,115 @@ struct EvaluationResultsView: View {
                         }
                         .padding(.horizontal, 24)
                         
-                        // Strengths section
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Strengths")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(result.strengths, id: \.self) { strength in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.green)
-                                            .font(.caption)
-                                        Text(strength)
-                                            .font(.body)
-                                            .foregroundStyle(.primary)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 24)
+
                         
-                        // Areas for improvement
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Areas for Improvement")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(result.improvements, id: \.self) { improvement in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Image(systemName: "arrow.up.circle.fill")
-                                            .foregroundStyle(.orange)
-                                            .font(.caption)
-                                        Text(improvement)
-                                            .font(.body)
-                                            .foregroundStyle(.primary)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        
-                        // Context-aware feedback
-                        if isLoadingFeedback {
+                        // Structured Author Feedback
+                        if isLoadingStructuredFeedback {
                             VStack(spacing: 12) {
-                                ProgressView()
-                                    .scaleEffect(0.8)
+                                ProgressView().scaleEffect(0.8)
                                 Text("Generating personalized feedback...")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             .padding(.horizontal, 24)
-                        } else if !contextAwareFeedback.isEmpty {
+                        } else if let fb = authorFeedback {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Author's Insight")
                                     .font(.headline)
                                     .fontWeight(.semibold)
+
+                                Text(fb.verdict)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("One Big Thing").font(.subheadline).fontWeight(.semibold)
+                                    Text(fb.oneBigThing)
+                                        .font(.body)
+                                        .padding()
+                                        .background(Color(.systemGray6))
+                                        .cornerRadius(8)
+                                }
+
+                                if !fb.evidence.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Receipts").font(.subheadline).fontWeight(.semibold)
+                                        ForEach(fb.evidence, id: \.self) { q in
+                                            Text("\"\(q)\"").font(.callout).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+
+                                if !fb.upgrade.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Upgrade (try this rewrite)").font(.subheadline).fontWeight(.semibold)
+                                        Text(fb.upgrade)
+                                            .font(.body)
+                                            .padding()
+                                            .background(Color(.systemGray6))
+                                            .cornerRadius(8)
+                                    }
+                                }
+
+                                if !fb.transferCue.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Transfer Cue").font(.subheadline).fontWeight(.semibold)
+                                        Text(fb.transferCue).font(.body)
+                                    }
+                                }
+
+                                if !fb.microDrill.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("60-sec Drill").font(.subheadline).fontWeight(.semibold)
+                                        Text(fb.microDrill).font(.body)
+                                    }
+                                }
+
+                                if !fb.memoryHook.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Memory Hook").font(.subheadline).fontWeight(.semibold)
+                                        Text(fb.memoryHook)
+                                            .font(.headline) // slightly stronger
+                                    }
+                                }
+
+                                if let trap = fb.edgeOrTrap, !trap.isEmpty {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("Edge/Trap").font(.subheadline).fontWeight(.semibold)
+                                        Text(trap).font(.body)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                        }
+                        
+                        // Primer CTA for failed responses
+                        if !result.pass {
+                            VStack(spacing: 16) {
+                                Text("Need a refresher?")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.secondary)
                                 
-                                Text(contextAwareFeedback)
-                                    .font(.body)
-                                    .foregroundStyle(.primary)
+                                Button(action: {
+                                    onOpenPrimer()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "lightbulb")
+                                            .font(.title3)
+                                        Text("Open Primer")
+                                            .fontWeight(.semibold)
+                                    }
+                                    .frame(maxWidth: .infinity)
                                     .padding()
-                                    .background(Color(.systemGray6))
-                                    .cornerRadius(8)
+                                    .background(Color.orange)
+                                    .foregroundStyle(.white)
+                                    .cornerRadius(12)
+                                }
+                                
+                                Text("Review the core concepts before continuing")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                             .padding(.horizontal, 24)
                         }
@@ -322,8 +369,8 @@ struct EvaluationResultsView: View {
                     self.isLoadingEvaluation = false
                 }
                 
-                // Load context-aware feedback after evaluation
-                await loadContextAwareFeedback(result: result)
+                // Load structured feedback after evaluation
+                await loadStructuredFeedback(result: result)
             } catch {
                 await MainActor.run {
                     let errorMessage = getErrorMessage(for: error)
@@ -334,24 +381,24 @@ struct EvaluationResultsView: View {
         }
     }
     
-    private func loadContextAwareFeedback(result: EvaluationResult) async {
-        isLoadingFeedback = true
+    private func loadStructuredFeedback(result: EvaluationResult) async {
+        isLoadingStructuredFeedback = true
         do {
-            let feedback = try await evaluationService.generateContextAwareFeedback(
+            let fb = try await evaluationService.generateStructuredFeedback(
                 idea: idea,
                 userResponse: userResponse,
                 level: level,
                 evaluationResult: result
             )
             await MainActor.run {
-                self.contextAwareFeedback = feedback
-                self.isLoadingFeedback = false
+                self.authorFeedback = fb
+                self.isLoadingStructuredFeedback = false
             }
         } catch {
             await MainActor.run {
-                let errorMessage = getErrorMessage(for: error)
-                self.contextAwareFeedback = "Unable to generate personalized feedback: \(errorMessage)"
-                self.isLoadingFeedback = false
+                self.structuredFeedbackError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.authorFeedback = nil
+                self.isLoadingStructuredFeedback = false
             }
         }
     }
@@ -372,10 +419,7 @@ struct EvaluationResultsView: View {
                     evaluation: result
                 )
                 
-                // Update silver bullet if we have context-aware feedback
-                if !contextAwareFeedback.isEmpty {
-                    try savedResponse.updateSilverBullet(contextAwareFeedback)
-                }
+
                 
                 await MainActor.run {
                     isSavingResponse = false
@@ -434,7 +478,8 @@ struct EvaluationResultsView: View {
             ),
             userResponse: "This is my response about Norman Doors...",
             prompt: "What is the design principle behind Norman Doors?",
-            level: 0
+            level: 0,
+            onOpenPrimer: {}
         )
     }
 } 

@@ -543,6 +543,48 @@ class OpenAIService {
             """
         }
     }
+    
+    // MARK: - Complete Method for Evaluation Service
+    
+    func complete(
+        prompt: String,
+        model: String,
+        temperature: Double,
+        maxTokens: Int
+    ) async throws -> String {
+        let requestBody = ChatRequest(
+            model: model,
+            messages: [
+                Message(role: "user", content: prompt)
+            ],
+            max_tokens: maxTokens,
+            temperature: temperature
+        )
+        
+        guard let url = URL(string: "\(baseURL)/chat/completions") else {
+            throw OpenAIServiceError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw OpenAIServiceError.invalidResponse
+        }
+        
+        let chatResponse = try validateAPIResponse(data)
+        
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw OpenAIServiceError.noResponse
+        }
+        
+        return content
+    }
 }
 
 
