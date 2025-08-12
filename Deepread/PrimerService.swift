@@ -58,6 +58,7 @@ class PrimerService: ObservableObject {
             ideaId: idea.id,
             thesis: parsedPrimer.thesis,
             core: parsedPrimer.core,
+            story: parsedPrimer.story,
             useItWhen: parsedPrimer.useItWhen,
             howToApply: parsedPrimer.howToApply,
             edgesAndLimits: parsedPrimer.edgesAndLimits,
@@ -120,6 +121,9 @@ class PrimerService: ObservableObject {
 
         # Core (110–150 words)
         Explain what it is, how it works, and why it matters — strictly in the author's voice. Each sentence must add new information.
+        
+        # Story (80–120 words)
+        Share a compelling narrative or example that illustrates this idea in action. Use concrete details and make it memorable.
 
         # Use it when… (3 bullets, ≤10 words each)
         Concrete cues/conditions that signal the idea applies.
@@ -139,15 +143,16 @@ class PrimerService: ObservableObject {
         - [Talk/lecture video]: https://youtube.com/results?search_query=<author+idea+book>
         - [Review/critique]: https://<quality-blog>/<book-or-idea-review>
 
-        Rules: No repetition across sections. No hedging. Don't invent examples; if the description includes one, compress it briefly in Core. Total length ≤ 260 words.
+        Rules: No repetition across sections. No hedging. Don't invent examples; if the description includes one, compress it briefly in Story section. Total length ≤ 320 words.
         """
     }
     
-    private func parsePrimerResponse(_ response: String) throws -> (thesis: String, core: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
+    private func parsePrimerResponse(_ response: String) throws -> (thesis: String, core: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
         let lines = response.components(separatedBy: .newlines)
         
         var thesis = ""
         var core = ""
+        var story = ""
         var useItWhen: [String] = []
         var howToApply: [String] = []
         var edgesAndLimits: [String] = []
@@ -165,6 +170,9 @@ class PrimerService: ObservableObject {
                 continue
             } else if trimmedLine.hasPrefix("# Core") {
                 currentSection = "core"
+                continue
+            } else if trimmedLine.hasPrefix("# Story") {
+                currentSection = "story"
                 continue
             } else if trimmedLine.hasPrefix("# Use it when") {
                 currentSection = "useItWhen"
@@ -192,6 +200,10 @@ class PrimerService: ObservableObject {
             case "core":
                 if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
                     core += trimmedLine + " "
+                }
+            case "story":
+                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
+                    story += trimmedLine + " "
                 }
             case "useItWhen":
                 if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
@@ -248,6 +260,7 @@ class PrimerService: ObservableObject {
         return (
             thesis: thesis.trimmingCharacters(in: .whitespaces),
             core: core.trimmingCharacters(in: .whitespaces),
+            story: story.trimmingCharacters(in: .whitespaces),
             useItWhen: useItWhen,
             howToApply: howToApply,
             edgesAndLimits: edgesAndLimits,

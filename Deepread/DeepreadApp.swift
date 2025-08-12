@@ -22,38 +22,55 @@ struct DeepreadApp: App {
             Idea.self,
             UserResponse.self,
             Progress.self,
-            Primer.self, // Add Primer to schema
+            Primer.self
         ])
         
-        // Try persistent storage first
         do {
-            let modelConfiguration = ModelConfiguration(
-                isStoredInMemoryOnly: false
-            )
-            return try ModelContainer(for: schema, configurations: modelConfiguration)
+            // Try to create persistent container with default configuration
+            let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: false)
+            let container = try ModelContainer(for: schema, configurations: modelConfiguration)
+            print("✅ Successfully created persistent ModelContainer")
+            return container
         } catch {
-            print("Failed to create persistent ModelContainer: \(error)")
+            print("⚠️  Failed to create persistent ModelContainer: \(error)")
             
-            // Fallback to in-memory only if persistent storage fails
-            do {
-                let fallbackConfiguration = ModelConfiguration(
-                    isStoredInMemoryOnly: true
-                )
-                return try ModelContainer(for: schema, configurations: fallbackConfiguration)
-            } catch {
-                print("Failed to create in-memory ModelContainer: \(error)")
+            // For migration issues, try to reset the data store
+            if error.localizedDescription.contains("migration") || error.localizedDescription.contains("schema") || error.localizedDescription.contains("model") {
+                print("🔄 Detected schema migration issue - attempting to reset data store")
                 
-                // Last resort: create a minimal in-memory container
-                // This should never fail, but if it does, the app will show an error state
-                do {
-                    let minimalConfig = ModelConfiguration(isStoredInMemoryOnly: true)
-                    return try ModelContainer(for: schema, configurations: minimalConfig)
-                } catch {
-                    print("CRITICAL: Could not create any ModelContainer: \(error)")
-                    // Show user-friendly error and continue with limited functionality
-                    // The app will handle this gracefully in the UI
-                    return try! ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                // Try to get the default store location and delete it
+                let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+                if let storeDirectory = appSupportURL?.appendingPathComponent("default.store") {
+                    try? FileManager.default.removeItem(at: storeDirectory)
+                    print("🗑️  Attempted to delete existing data store")
                 }
+                
+                // Also try deleting common SwiftData store locations
+                if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                    let swiftDataStore = documentsURL.appendingPathComponent("default.store")
+                    try? FileManager.default.removeItem(at: swiftDataStore)
+                }
+                
+                // Try creating container again with fresh store
+                do {
+                    let freshConfig = ModelConfiguration(isStoredInMemoryOnly: false)
+                    let freshContainer = try ModelContainer(for: schema, configurations: freshConfig)
+                    print("✅ Successfully created fresh ModelContainer after reset")
+                    return freshContainer
+                } catch {
+                    print("❌ Failed to create container even after reset: \(error)")
+                }
+            }
+            
+            // Final fallback to in-memory storage
+            print("⚠️  Falling back to in-memory storage - data will not persist between app launches")
+            do {
+                let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+                let inMemoryContainer = try ModelContainer(for: schema, configurations: inMemoryConfig)
+                print("ℹ️  Successfully created in-memory ModelContainer")
+                return inMemoryContainer
+            } catch {
+                fatalError("CRITICAL: Cannot create even in-memory ModelContainer: \(error)")
             }
         }
     }()

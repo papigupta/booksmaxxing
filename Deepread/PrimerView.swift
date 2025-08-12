@@ -112,6 +112,7 @@ struct PrimerView: View {
             VStack(alignment: .leading, spacing: 24) {
                 thesisSection(primer)
                 coreSection(primer)
+                storySection(primer)
                 useItWhenSection(primer)
                 howToApplySection(primer)
                 edgesAndLimitsSection(primer)
@@ -170,6 +171,33 @@ struct PrimerView: View {
                     .font(.body)
                     .foregroundStyle(.primary)
                     .lineSpacing(4)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func storySection(_ primer: Primer) -> some View {
+        if !primer.story.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "book.fill")
+                        .foregroundColor(.purple)
+                        .font(.title3)
+                    Text("Story")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                }
+                
+                Text(primer.story)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .lineSpacing(4)
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.purple.opacity(0.05))
+                            .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                    )
             }
         }
     }

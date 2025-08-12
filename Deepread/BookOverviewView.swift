@@ -255,6 +255,11 @@ struct DebugInfoView: View {
                         .buttonStyle(.bordered)
                         
                         #if DEBUG
+                        NavigationLink("Persistence Debug") {
+                            PersistenceDebugView()
+                        }
+                        .buttonStyle(.bordered)
+                        
                         Button("Clear All Data") {
                             do {
                                 let bookService = BookService(modelContext: modelContext)
