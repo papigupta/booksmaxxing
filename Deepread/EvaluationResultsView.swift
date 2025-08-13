@@ -243,19 +243,8 @@ struct EvaluationResultsView: View {
                 // Response Section
                 responseSection
                 
-                // Wisdom Feedback Section (Primary)
-                if let wf = wisdomFeedback {
-                    wisdomFeedbackSection(wf)
-                } else if isLoadingWisdomFeedback {
-                    wisdomFeedbackLoadingSection
-                }
-                
-                // Traditional Feedback Section (Secondary)
-                if let fb = authorFeedback {
-                    traditionalFeedbackSection(fb)
-                } else if isLoadingStructuredFeedback && wisdomFeedback != nil {
-                    traditionalFeedbackLoadingSection
-                }
+                // Insight Compass Section (Now built into evaluation)
+                wisdomFeedbackSection(result.insightCompass)
                 
                 // Action Section
                 actionSection(result)
@@ -306,75 +295,71 @@ struct EvaluationResultsView: View {
     // MARK: - Score Section
     private func scoreSection(_ result: EvaluationResult) -> some View {
         VStack(spacing: 24) {
-            // Score display
+            // Star score display
             VStack(spacing: 16) {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Your Score")
+                        Text("Your Insight Level")
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
                         
-                        Text("\(result.score10) out of 10")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundStyle(result.pass ? .green : .orange)
+                        Text(result.starDescription)
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(getStarColor(result.starScore))
                     }
                     
                     Spacer()
                     
-                    // Score badge
+                    // Star badge
                     ZStack {
                         Circle()
-                            .fill(result.pass ? successGradient : orangeGradient)
+                            .fill(getStarGradient(result.starScore))
                             .frame(width: 80, height: 80)
                         
-                        VStack(spacing: 2) {
-                            Text("\(result.score10)")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.white)
-                            
-                            Text("/10")
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.8))
+                        HStack(spacing: 2) {
+                            ForEach(1...3, id: \.self) { star in
+                                Image(systemName: star <= result.starScore ? "star.fill" : "star")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.white)
+                            }
                         }
                     }
                 }
                 
-                // Progress bar
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("Progress")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(Int((Double(result.score10) / 10.0) * 100))%")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
-                    }
+                // Star progress display
+                HStack(spacing: 8) {
+                    Text("Insight Progress")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     
-                    ProgressView(value: Double(result.score10), total: 10.0)
-                        .progressViewStyle(LinearProgressViewStyle(tint: result.pass ? .green : .orange))
-                        .scaleEffect(y: 2)
+                    Spacer()
+                    
+                    HStack(spacing: 4) {
+                        ForEach(1...3, id: \.self) { star in
+                            Image(systemName: star <= result.starScore ? "star.fill" : "star")
+                                .font(.caption)
+                                .foregroundStyle(star <= result.starScore ? getStarColor(result.starScore) : .secondary)
+                        }
+                    }
                 }
             }
             
-            // Pass/Fail indicator
+            // Completion status
             HStack(spacing: 12) {
-                Image(systemName: result.pass ? "checkmark.circle.fill" : "xmark.circle.fill")
+                Image(systemName: result.pass ? "lightbulb.fill" : "arrow.clockwise")
                     .font(.title2)
-                    .foregroundStyle(result.pass ? .green : .orange)
+                    .foregroundStyle(getStarColor(result.starScore))
                 
-                Text(result.pass ? "Level Complete!" : "Level Incomplete")
+                Text(result.pass ? getCompletionText(result.starScore) : "Keep Exploring!")
                     .font(.headline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(result.pass ? .green : .orange)
+                    .foregroundStyle(getStarColor(result.starScore))
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
             .background(
-                (result.pass ? Color.green : Color.orange).opacity(0.1)
+                getStarColor(result.starScore).opacity(0.1)
             )
             .cornerRadius(12)
         }
@@ -869,12 +854,7 @@ struct EvaluationResultsView: View {
                 await MainActor.run {
                     self.evaluationResult = result
                     self.isLoadingEvaluation = false
-                }
-                
-                // Load both wisdom and structured feedback after evaluation
-                await withTaskGroup(of: Void.self) { group in
-                    group.addTask { await self.loadWisdomFeedback(result: result) }
-                    group.addTask { await self.loadStructuredFeedback(result: result) }
+                    // Insight compass is now included in result.insightCompass
                 }
             } catch {
                 await MainActor.run {
@@ -965,6 +945,35 @@ struct EvaluationResultsView: View {
         }
     }
     
+    // MARK: - Star System Helpers
+    
+    private func getStarColor(_ starScore: Int) -> Color {
+        switch starScore {
+        case 1: return .orange
+        case 2: return .blue  
+        case 3: return .green
+        default: return .gray
+        }
+    }
+    
+    private func getStarGradient(_ starScore: Int) -> LinearGradient {
+        switch starScore {
+        case 1: return orangeGradient
+        case 2: return primaryGradient
+        case 3: return successGradient
+        default: return primaryGradient
+        }
+    }
+    
+    private func getCompletionText(_ starScore: Int) -> String {
+        switch starScore {
+        case 1: return "Keep Going!"
+        case 2: return "Well Done!"
+        case 3: return "Aha! Moment!"
+        default: return "Complete!"
+        }
+    }
+    
     // MARK: - Helper Methods
     
     private func getErrorMessage(for error: Error) -> String {
@@ -1009,7 +1018,7 @@ struct EvaluationResultsView: View {
             ),
             userResponse: "This is my response about Norman Doors...",
             prompt: "What is the design principle behind Norman Doors?",
-            level: 0,
+            level: 1,
             onOpenPrimer: {}
         )
     }

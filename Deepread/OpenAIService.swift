@@ -451,14 +451,12 @@ class OpenAIService {
     
     private func getLevelContext(_ level: Int) -> String {
         switch level {
-        case 0:
-            return "Level 0 - Thought Dump: Encourage free-form, unfiltered thinking. Ask users to dump all their thoughts about the idea, no matter how messy or half-formed."
         case 1:
-            return "Level 1 - Use: Help users apply the idea directly in practical situations."
+            return "Level 1 - Why Care: Help users understand why this idea matters and its significance."
         case 2:
-            return "Level 2 - Think with: Guide users to use the idea as a thinking tool to analyze and solve problems."
+            return "Level 2 - When Use: Guide users to identify when to recall and apply this idea in real situations."
         case 3:
-            return "Level 3 - Build with: Encourage users to use the idea as a foundation to create new concepts and systems."
+            return "Level 3 - How Wield: Encourage users to use the idea creatively or critically to extend their thinking."
         default:
             return "Level \(level) - Deep Dive: Create prompts that encourage deep, structured thinking about the idea."
         }
@@ -466,12 +464,8 @@ class OpenAIService {
     
     // Static templates (no AI needed)
     private func getPromptTemplate(for level: Int, idea: String) -> String? {
-        switch level {
-        case 0:
-            return "Write down everything that comes to your mind when you hear ***\(idea)***"
-        default:
-            return nil // Use AI generation for other levels
-        }
+        // All levels now use AI generation - no static templates
+        return nil
     }
     
     // Level-specific system prompts for AI generation

@@ -1,7 +1,7 @@
 // EvaluationPrompts.swift
 import Foundation
 
-enum EvalLevel: String { case L0, L1, L2, L3 }
+enum EvalLevel: String { case L1, L2, L3 }
 
 struct EvaluationPrompts {
     static func feedbackPrompt(
@@ -45,10 +45,9 @@ struct EvaluationPrompts {
 
     private static func levelRule(_ level: EvalLevel) -> String {
         switch level {
-        case .L0: return "L0: Basic understanding: definitions and main claim must be correct."
-        case .L1: return "L1: Understanding + why it matters; detect a correct causal link or implication."
-        case .L2: return "L2: Application to a new scenario; evaluate if the application is faithful to the idea."
-        case .L3: return "L3 (Final Boss): Creative/critical wielding; catch tradeoffs/edge-cases without inventing facts."
+        case .L1: return "L1: Why it matters - user must understand the significance and core importance of the idea."
+        case .L2: return "L2: When to use - user must identify triggers and application contexts for the idea."
+        case .L3: return "L3: How to wield - user must demonstrate creative or critical extension of the idea."
         }
     }
 } 

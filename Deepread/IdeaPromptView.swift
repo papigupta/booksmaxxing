@@ -21,14 +21,12 @@ struct IdeaPromptView: View {
     
     private var levelTitle: String {
         switch level {
-        case 0:
-            return "Level 0: Thought Dump"
         case 1:
-            return "Level 1: Use"
+            return "Level 1: Why Care"
         case 2:
-            return "Level 2: Think with"
+            return "Level 2: When Use"
         case 3:
-            return "Level 3: Build with"
+            return "Level 3: How Wield"
         default:
             return "Level \(level): Advanced"
         }
@@ -36,14 +34,12 @@ struct IdeaPromptView: View {
     
     private var levelDescription: String {
         switch level {
-        case 0:
-            return "Think out loud and dump all your thoughts about this idea. Messy. Personal. Half-formed. Everything works."
         case 1:
-            return "Apply this idea directly in practical situations."
+            return "Explain why this idea matters and its significance in real-world contexts."
         case 2:
-            return "Use this idea as a thinking tool to analyze and solve problems."
+            return "Identify when and where to recall and apply this idea effectively."
         case 3:
-            return "Use this idea as a foundation to create new concepts and systems."
+            return "Wield this idea creatively or critically to extend your thinking."
         default:
             return "Advanced level requiring sophisticated understanding and application."
         }
@@ -332,7 +328,7 @@ struct IdeaPromptView: View {
                 lastPracticed: nil,
                 currentLevel: nil
             ),
-            level: 0,
+            level: 1,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }

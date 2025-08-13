@@ -452,8 +452,8 @@ struct ActiveIdeaCard: View {
             // If basic, start from level 1 (Use)
             return 1
         } else {
-            // If not started, start from level 0 (Thought Dump)
-            return 0
+            // If not started, start from level 1 (Why Care)
+            return 1
         }
     }
 }

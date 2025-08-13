@@ -51,12 +51,13 @@ class UserResponseService: ObservableObject {
             userResponse.idea = idea
             idea.responses.append(userResponse)
             
-            // Calculate new mastery level
-            let newMasteryLevel = calculateMasteryLevel(currentLevel: idea.masteryLevel, newScore: evaluation.score10)
+            // Calculate new mastery level based on star score
+            let newMasteryLevel = calculateMasteryLevel(currentLevel: idea.masteryLevel, starScore: evaluation.starScore)
             idea.masteryLevel = newMasteryLevel
             
-            // Create progress record
-            let progress = Progress(ideaId: ideaId, level: level, score: evaluation.score10, masteryLevel: newMasteryLevel)
+            // Create progress record (converting star to 0-10 for legacy compatibility)
+            let legacyScore = convertStarToLegacyScore(starScore: evaluation.starScore)
+            let progress = Progress(ideaId: ideaId, level: level, score: legacyScore, masteryLevel: newMasteryLevel)
             progress.idea = idea
             idea.progress.append(progress)
             
@@ -120,7 +121,7 @@ class UserResponseService: ObservableObject {
     func getOverallProgress(for ideaId: String) throws -> (completedLevels: Int, totalLevels: Int, averageScore: Double) {
         let progress = try getProgress(for: ideaId)
         let completedLevels = Set(progress.map { $0.level }).count
-        let totalLevels = 4 // Assuming 4 levels (0-3)
+        let totalLevels = 3 // Three levels (1-3): Why Care, When Use, How Wield
         let averageScore = progress.isEmpty ? 0.0 : Double(progress.map { $0.score }.reduce(0, +)) / Double(progress.count)
         return (completedLevels, totalLevels, averageScore)
     }
@@ -159,11 +160,23 @@ class UserResponseService: ObservableObject {
         return try modelContext.fetch(descriptor).first
     }
     
-    private func calculateMasteryLevel(currentLevel: Int, newScore: Int) -> Int {
-        // Simple mastery calculation - can be enhanced
-        if newScore >= 8 { return max(currentLevel, 3) } // Mastered
-        else if newScore >= 6 { return max(currentLevel, 2) } // Intermediate
-        else if newScore >= 4 { return max(currentLevel, 1) } // Basic
-        else { return currentLevel } // No improvement
+    private func calculateMasteryLevel(currentLevel: Int, starScore: Int) -> Int {
+        // Star-based mastery calculation
+        switch starScore {
+        case 3: return max(currentLevel, 3) // ⭐⭐⭐ Aha! Moment - Mastery
+        case 2: return max(currentLevel, 2) // ⭐⭐ Solid Grasp - Intermediate
+        case 1: return max(currentLevel, 1) // ⭐ Getting There - Basic
+        default: return currentLevel // No improvement
+        }
+    }
+    
+    private func convertStarToLegacyScore(starScore: Int) -> Int {
+        // Convert star score to legacy 0-10 scale for backward compatibility
+        switch starScore {
+        case 1: return 4 // ⭐ Getting There
+        case 2: return 7 // ⭐⭐ Solid Grasp  
+        case 3: return 9 // ⭐⭐⭐ Aha! Moment
+        default: return 0
+        }
     }
 } 

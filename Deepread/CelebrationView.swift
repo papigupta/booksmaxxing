@@ -5,7 +5,7 @@ struct CelebrationView: View {
     let idea: Idea
     let userResponse: String
     let level: Int
-    let score: Int
+    let starScore: Int
     let openAIService: OpenAIService
     
     @Environment(\.modelContext) private var modelContext
@@ -45,16 +45,19 @@ struct CelebrationView: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
                 
-                // Score Display
+                // Star Display
                 HStack(spacing: 8) {
-                    Text("Final Score:")
+                    Text("Achievement Level:")
                         .font(.body)
                         .foregroundStyle(.secondary)
                     
-                    Text("\(score)/10")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.primary)
+                    HStack(spacing: 2) {
+                        ForEach(1...3, id: \.self) { star in
+                            Image(systemName: star <= starScore ? "star.fill" : "star")
+                                .font(.title3)
+                                .foregroundStyle(star <= starScore ? .yellow : .secondary)
+                        }
+                    }
                 }
                 .padding(.top, 8)
             }
@@ -93,7 +96,7 @@ struct CelebrationView: View {
                 
                 Button("Share Achievement") {
                     // Share achievement
-                    let shareText = "I just mastered '\(idea.title)' from '\(idea.bookTitle)' with a score of \(score)/10! 🎉"
+                    let shareText = "I just mastered '\(idea.title)' from '\(idea.bookTitle)' with \(starScore) stars! 🎉"
                     let activityVC = UIActivityViewController(activityItems: [shareText], applicationActivities: nil)
                     
                     if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
@@ -168,7 +171,7 @@ struct CelebrationView: View {
             ),
             userResponse: "This is my response about Norman Doors...",
             level: 3,
-            score: 9,
+            starScore: 3,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }

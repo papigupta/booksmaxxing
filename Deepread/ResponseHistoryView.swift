@@ -57,7 +57,7 @@ struct ResponseHistoryView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            // Sort levels (L0, L1, L2, L3, etc.)
+                            // Sort levels (L1, L2, L3, etc.)
                             let sortedLevels = bestResponses.keys.sorted()
                             
                             ForEach(sortedLevels, id: \.self) { level in
@@ -110,10 +110,9 @@ struct ResponseHistoryView: View {
     
     private func getLevelName(for level: Int) -> String {
         switch level {
-        case 0: return "Thought Dump"
-        case 1: return "Do"
-        case 2: return "Question"
-        case 3: return "Reinvent"
+        case 1: return "Why Care"
+        case 2: return "When Use"
+        case 3: return "How Wield"
         default: return "Level \(level)"
         }
     }

@@ -36,7 +36,7 @@ struct WhatThisMeansView: View {
                         .font(.headline)
                         .fontWeight(.bold)
                     
-                    let progressionInfo = getLevelProgressionInfo(score: evaluationResult.score10, currentLevel: level)
+                    let progressionInfo = getLevelProgressionInfo(starScore: evaluationResult.starScore, currentLevel: level)
                     
                     VStack(alignment: .leading, spacing: 8) {
                         Text(progressionInfo.explanation)
@@ -67,11 +67,11 @@ struct WhatThisMeansView: View {
                 }
                 
                 // Continue Button
-                Button(getButtonText(score: evaluationResult.score10, currentLevel: level)) {
-                    let nextLevelResult = determineNextLevel(score: evaluationResult.score10, currentLevel: level)
+                Button(getButtonText(starScore: evaluationResult.starScore, currentLevel: level)) {
+                    let nextLevelResult = determineNextLevel(starScore: evaluationResult.starScore, currentLevel: level)
                     
                     // Save intermediate progress before proceeding
-                    saveProgress(score: evaluationResult.score10, currentLevel: level)
+                    saveProgress(starScore: evaluationResult.starScore, currentLevel: level)
                     
                     if nextLevelResult == -1 {
                         // Mastery achieved - show celebration
@@ -87,7 +87,7 @@ struct WhatThisMeansView: View {
                 .padding(.top, 16)
                 
                 // Primer suggestion for low scores
-                if evaluationResult.score10 < 5 {
+                if evaluationResult.starScore == 1 {
                     VStack(spacing: 8) {
                         Text("Need a refresher?")
                             .font(.caption)
@@ -141,7 +141,7 @@ struct WhatThisMeansView: View {
                 idea: idea,
                 userResponse: userResponse,
                 level: level,
-                score: evaluationResult.score10,
+                starScore: evaluationResult.starScore,
                 openAIService: openAIService
             )
         }
@@ -155,9 +155,9 @@ struct WhatThisMeansView: View {
     
     // MARK: - Progress Saving
     
-    private func saveProgress(score: Int, currentLevel: Int) {
+    private func saveProgress(starScore: Int, currentLevel: Int) {
         // Update mastery level based on current progress
-        let newMasteryLevel = calculateMasteryLevel(score: score, currentLevel: currentLevel)
+        let newMasteryLevel = calculateMasteryLevel(starScore: starScore, currentLevel: currentLevel)
         
         // Only update if the new level is higher than current
         if newMasteryLevel > idea.masteryLevel {
@@ -184,35 +184,28 @@ struct WhatThisMeansView: View {
         }
     }
     
-    private func calculateMasteryLevel(score: Int, currentLevel: Int) -> Int {
-        // Calculate mastery level based on current level and score
+    private func calculateMasteryLevel(starScore: Int, currentLevel: Int) -> Int {
+        // Calculate mastery level based on current level and star score
         switch currentLevel {
-        case 0: // Thought Dump
-            switch score {
-            case 1...4: return 1 // Basic understanding
-            case 5...7: return 2 // Intermediate understanding
-            case 8...10: return 2 // Intermediate understanding, ready for advanced
+        case 1: // Why Care
+            switch starScore {
+            case 1: return 1 // Basic understanding
+            case 2: return 2 // Solid grasp
+            case 3: return 2 // Aha moment - ready for advanced
             default: return 1
             }
-        case 1: // Use
-            switch score {
-            case 1...4: return 1 // Still basic
-            case 5...7: return 2 // Intermediate understanding
-            case 8...10: return 2 // Intermediate understanding, ready for advanced
+        case 2: // When Use  
+            switch starScore {
+            case 1: return 1 // Still basic
+            case 2: return 2 // Solid understanding
+            case 3: return 2 // Aha moment - ready for mastery
             default: return 2
             }
-        case 2: // Think with
-            switch score {
-            case 1...4: return 2 // Still intermediate
-            case 5...7: return 2 // Intermediate understanding
-            case 8...10: return 2 // Intermediate understanding, ready for mastery
-            default: return 2
-            }
-        case 3: // Build with
-            switch score {
-            case 1...4: return 2 // Still intermediate
-            case 5...7: return 2 // Intermediate understanding
-            case 8...10: return 3 // Mastery achieved
+        case 3: // How Wield
+            switch starScore {
+            case 1: return 2 // Still intermediate
+            case 2: return 3 // Mastery achieved
+            case 3: return 3 // Master level achieved
             default: return 2
             }
         default:
@@ -222,48 +215,38 @@ struct WhatThisMeansView: View {
     
     // MARK: - Level Progression Logic
     
-    private func getLevelProgressionInfo(score: Int, currentLevel: Int) -> (explanation: String, nextLevelName: String) {
+    private func getLevelProgressionInfo(starScore: Int, currentLevel: Int) -> (explanation: String, nextLevelName: String) {
         switch currentLevel {
-        case 0: // Thought Dump
-            return getThoughtDumpProgression(score: score)
-        case 1: // Use
-            return getUseLevelProgression(score: score)
-        case 2: // Think with
-            return getThinkWithProgression(score: score)
-        case 3: // Build with
-            return getBuildWithProgression(score: score)
+        case 1: // Why Care
+            return getWhyCareProgression(starScore: starScore)
+        case 2: // When Use  
+            return getWhenUseProgression(starScore: starScore)
+        case 3: // How Wield
+            return getHowWieldProgression(starScore: starScore)
         default:
-            return getDefaultProgression(score: score, currentLevel: currentLevel)
+            return getDefaultProgression(starScore: starScore, currentLevel: currentLevel)
         }
     }
     
-    private func determineNextLevel(score: Int, currentLevel: Int) -> Int {
+    private func determineNextLevel(starScore: Int, currentLevel: Int) -> Int {
         switch currentLevel {
-        case 0: // Thought Dump
-            switch score {
-            case 1...4: return 1 // Level 1: Use
-            case 5...7: return 2 // Level 2: Think With
-            case 8...10: return 3 // Level 3: Build With
+        case 1: // Why Care
+            switch starScore {
+            case 1: return 1 // ⭐ Retry Level 1
+            case 2: return 2 // ⭐⭐ Advance to Level 2  
+            case 3: return 3 // ⭐⭐⭐ Skip to Level 3
             default: return 1
             }
-        case 1: // Use
-            switch score {
-            case 1...4: return 1 // Retry Level 1
-            case 5...7: return 2 // Level 2: Think With
-            case 8...10: return 3 // Level 3: Build With
+        case 2: // When Use
+            switch starScore {
+            case 1: return 2 // ⭐ Retry Level 2
+            case 2, 3: return 3 // ⭐⭐ or ⭐⭐⭐ Advance to Level 3
             default: return 2
             }
-        case 2: // Think with
-            switch score {
-            case 1...4: return 2 // Retry Level 2
-            case 5...7, 8...10: return 3 // Level 3: Build With
-            default: return 3
-            }
-        case 3: // Build with
-            switch score {
-            case 1...4: return 3 // Retry Level 3
-            case 5...7: return 3 // Retry Level 3 for improvement
-            case 8...10: return -1 // Mastery achieved - show celebration
+        case 3: // How Wield  
+            switch starScore {
+            case 1: return 3 // ⭐ Retry Level 3
+            case 2, 3: return -1 // ⭐⭐ or ⭐⭐⭐ Mastery achieved!
             default: return 3
             }
         default:
@@ -271,118 +254,97 @@ struct WhatThisMeansView: View {
         }
     }
     
-    private func getThoughtDumpProgression(score: Int) -> (explanation: String, nextLevelName: String) {
-        switch score {
-        case 1...4:
+    private func getWhyCareProgression(starScore: Int) -> (explanation: String, nextLevelName: String) {
+        switch starScore {
+        case 1: // ⭐ Getting There
             return (
-                explanation: "Your understanding is still developing. Let's build a stronger foundation with practical applications.",
-                nextLevelName: "Level 1: Use"
+                explanation: "Your understanding of why this idea matters is developing. Let's explore it again to build deeper insight.",
+                nextLevelName: "Level 1: Why Care (Retry)"
             )
-        case 5...7:
+        case 2: // ⭐⭐ Solid Grasp  
             return (
-                explanation: "Strong thinking! You've shown good engagement. Let's skip ahead to more advanced analysis.",
-                nextLevelName: "Level 2: Think With"
+                explanation: "Great work! You understand the significance well. Ready to learn when to use this idea.",
+                nextLevelName: "Level 2: When Use"
             )
-        case 8...10:
+        case 3: // ⭐⭐⭐ Aha! Moment
             return (
-                explanation: "Exceptional depth! You're ready for the most challenging level of creative synthesis.",
-                nextLevelName: "Level 3: Build With"
+                explanation: "Incredible insight! You've achieved deep understanding. Let's jump to the highest level - wielding this idea creatively.",
+                nextLevelName: "Level 3: How Wield"
             )
         default:
             return (
-                explanation: "Let's continue your learning journey.",
-                nextLevelName: "Level 1: Use"
+                explanation: "Let's continue building your understanding.",
+                nextLevelName: "Level 1: Why Care (Retry)"
             )
         }
     }
     
-    private func getUseLevelProgression(score: Int) -> (explanation: String, nextLevelName: String) {
-        switch score {
-        case 1...4:
+    private func getWhenUseProgression(starScore: Int) -> (explanation: String, nextLevelName: String) {
+        switch starScore {
+        case 1: // ⭐ Getting There
             return (
-                explanation: "Keep practicing practical applications. Mastery comes with repetition.",
-                nextLevelName: "Level 1: Use (Retry)"
+                explanation: "Recognition skills need more work. Let's practice identifying when to use this idea.",
+                nextLevelName: "Level 2: When Use (Retry)"
             )
-        case 5...7:
+        case 2: // ⭐⭐ Solid Grasp
             return (
-                explanation: "Good application skills! Ready to use this idea as a thinking tool.",
-                nextLevelName: "Level 2: Think With"
+                explanation: "Excellent recognition! You know when to apply this idea. Ready for creative mastery.",
+                nextLevelName: "Level 3: How Wield"
             )
-        case 8...10:
+        case 3: // ⭐⭐⭐ Aha! Moment
             return (
-                explanation: "Excellent application! You're ready to build new concepts with this idea.",
-                nextLevelName: "Level 3: Build With"
+                explanation: "Perfect application sense! You've mastered recognition. Time for creative wielding.",
+                nextLevelName: "Level 3: How Wield"
             )
         default:
             return (
-                explanation: "Continue developing your application skills.",
-                nextLevelName: "Level 2: Think With"
+                explanation: "Continue developing your recognition skills.",
+                nextLevelName: "Level 2: When Use (Retry)"
             )
         }
     }
     
-    private func getThinkWithProgression(score: Int) -> (explanation: String, nextLevelName: String) {
-        switch score {
-        case 1...4:
+    private func getHowWieldProgression(starScore: Int) -> (explanation: String, nextLevelName: String) {
+        switch starScore {
+        case 1: // ⭐ Getting There
             return (
-                explanation: "Critical thinking takes practice. Let's strengthen your analytical skills.",
-                nextLevelName: "Level 2: Think With (Retry)"
+                explanation: "Creative mastery is the hardest level. Let's keep practicing how to wield this idea innovatively.",
+                nextLevelName: "Level 3: How Wield (Retry)"
             )
-        case 5...7:
+        case 2: // ⭐⭐ Solid Grasp
             return (
-                explanation: "Solid analytical thinking! Ready to create new concepts.",
-                nextLevelName: "Level 3: Build With"
+                explanation: "Excellent creative work! You've mastered this idea completely. Congratulations!",
+                nextLevelName: "Mastery Achieved! 🎉"
             )
-        case 8...10:
+        case 3: // ⭐⭐⭐ Aha! Moment
             return (
-                explanation: "Outstanding critical thinking! You've mastered this level.",
-                nextLevelName: "Level 3: Build With"
+                explanation: "Incredible mastery! You've achieved the highest level of understanding and creative insight. You're now an expert!",
+                nextLevelName: "Master Level Achieved! ✨"
             )
         default:
             return (
-                explanation: "Continue developing your critical thinking skills.",
-                nextLevelName: "Level 3: Build With"
+                explanation: "Continue developing your creative mastery.",
+                nextLevelName: "Level 3: How Wield (Retry)"
             )
         }
     }
     
-    private func getBuildWithProgression(score: Int) -> (explanation: String, nextLevelName: String) {
-        switch score {
-        case 1...4:
-            return (
-                explanation: "Creative synthesis is challenging. Keep exploring and building.",
-                nextLevelName: "Level 3: Build With (Retry)"
-            )
-        case 5...7:
-            return (
-                explanation: "Great creative work! You're developing strong synthesis skills.",
-                nextLevelName: "Level 3: Build With (Retry)"
-            )
-        case 8...10:
-            return (
-                explanation: "Masterful synthesis! You've reached the highest level of understanding.",
-                nextLevelName: "Mastery Achieved"
-            )
-        default:
-            return (
-                explanation: "Continue your creative journey.",
-                nextLevelName: "Level 3: Build With (Retry)"
-            )
-        }
-    }
-    
-    private func getDefaultProgression(score: Int, currentLevel: Int) -> (explanation: String, nextLevelName: String) {
+    private func getDefaultProgression(starScore: Int, currentLevel: Int) -> (explanation: String, nextLevelName: String) {
         return (
             explanation: "You've completed this level. Continue your learning journey.",
             nextLevelName: "Level \(currentLevel + 1)"
         )
     }
     
-    private func getButtonText(score: Int, currentLevel: Int) -> String {
-        if currentLevel == 3 && score >= 8 {
-            return "Celebrate Mastery"
+    private func getButtonText(starScore: Int, currentLevel: Int) -> String {
+        let nextLevel = determineNextLevel(starScore: starScore, currentLevel: currentLevel)
+        
+        if nextLevel == -1 {
+            return starScore == 3 ? "🎉 Celebrate Mastery!" : "🎉 Mastery Achieved!"
+        } else if nextLevel == currentLevel {
+            return "Try Again"
         } else {
-            return "Continue to Next Level"
+            return "Continue Learning Journey"
         }
     }
 }
@@ -401,15 +363,25 @@ struct WhatThisMeansView: View {
                 currentLevel: nil
             ),
             evaluationResult: EvaluationResult(
-                level: "L0",
+                level: "L1",
+                starScore: 2,
+                starDescription: "Solid Grasp",
+                pass: true,
+                insightCompass: WisdomFeedback(
+                    wisdomOpening: "Your understanding shows clear connection to the core concept.",
+                    rootCause: "You've identified the key principle behind Norman doors.",
+                    missingFoundation: "Consider exploring more examples to deepen understanding.",
+                    elevatedPerspective: "Think about how this applies to digital interfaces too.",
+                    nextLevelPrep: "Ready to explore when and where to apply this concept.",
+                    personalizedWisdom: "Your design background gives you unique insight here."
+                ),
                 score10: 7,
                 strengths: ["Good engagement with the concept", "Clear personal connection"],
                 improvements: ["Could explore practical applications more", "Consider deeper analysis"],
-                pass: true,
                 mastery: false
             ),
             userResponse: "This is my response about Norman Doors...",
-            level: 0,
+            level: 1,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }

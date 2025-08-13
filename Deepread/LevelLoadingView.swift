@@ -127,14 +127,12 @@ struct LevelLoadingView: View {
     
     private func getLevelTitle() -> String {
         switch level {
-        case 0:
-            return "Level 0: Thought Dump"
         case 1:
-            return "Level 1: Use"
+            return "Level 1: Why Care"
         case 2:
-            return "Level 2: Think With"
+            return "Level 2: When Use"
         case 3:
-            return "Level 3: Build With"
+            return "Level 3: How Wield"
         default:
             return "Level \(level): Advanced"
         }
@@ -142,29 +140,23 @@ struct LevelLoadingView: View {
     
     private func getLevelBullets() -> [String] {
         switch level {
-        case 0:
-            return [
-                "Think out loud and dump all your thoughts about \(idea.title)",
-                "Messy. Personal. Half-formed. Everything works.",
-                "Only write. Do not edit."
-            ]
         case 1:
             return [
-                "Apply \(idea.title) directly in practical situations.",
-                "Find real-world examples and use cases.",
-                "Focus on concrete applications and implementation."
+                "Explain why \(idea.title) matters in the real world.",
+                "Show its importance and significance.",
+                "Connect it to meaningful outcomes or impacts."
             ]
         case 2:
             return [
-                "Use \(idea.title) as a thinking tool to analyze problems.",
-                "Apply this concept to understand other ideas.",
-                "Explore how this idea connects to broader concepts."
+                "Identify when to recall and use \(idea.title).",
+                "Find triggers and situations where it applies.",
+                "Focus on practical recognition patterns."
             ]
         case 3:
             return [
-                "Use \(idea.title) as a foundation to create new concepts.",
-                "Build new systems or ideas based on this principle.",
-                "Synthesize this idea with other knowledge to create something new."
+                "Wield \(idea.title) creatively or critically to extend thinking.",
+                "Find its limitations, edge cases, or creative extensions.",
+                "Combine it with other ideas to generate new insights."
             ]
         default:
             return [
@@ -189,7 +181,7 @@ struct LevelLoadingView: View {
                 lastPracticed: nil,
                 currentLevel: nil
             ),
-            level: 0,
+            level: 1,
             openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey)
         )
     }

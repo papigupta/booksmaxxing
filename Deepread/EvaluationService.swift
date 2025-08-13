@@ -38,12 +38,17 @@ import Network
 // MARK: - Evaluation Models
 
 struct EvaluationResult: Codable {
-    let level: String        // e.g. "L0", "L3", "LN"
-    let score10: Int         // 0-10 integer
-    let strengths: [String]  // exactly two short bullets
-    let improvements: [String] // exactly two short bullets
-    let pass: Bool           // whether the response passes the level
-    let mastery: Bool        // whether mastery is achieved
+    let level: String        // e.g. "L1", "L2", "L3"
+    let starScore: Int       // 1-3 stars
+    let starDescription: String // "Getting There", "Solid Grasp", "Aha! Moment"
+    let pass: Bool           // starScore >= 2
+    let insightCompass: WisdomFeedback // Combined wisdom feedback
+    
+    // Backward compatibility - legacy properties
+    let score10: Int         // Legacy 0-10 score computed from starScore
+    let strengths: [String]  // Legacy strengths (derived from insight compass)
+    let improvements: [String] // Legacy improvements (derived from insight compass)
+    let mastery: Bool        // Legacy mastery indicator
 }
 
 // Structured author feedback for dense non-fiction (universal)
@@ -190,46 +195,181 @@ class EvaluationService {
         level: Int
     ) async throws -> EvaluationResult {
         
-        print("EVAL DEBUG: Starting evaluation for idea: \(idea.title), level: \(level)")
+        print("EVAL DEBUG: Starting star-based evaluation for idea: \(idea.title), level: \(level)")
         
-        // PATCH: inside EvaluationService.evaluate(...)
+        let levelName = getLevelName(level)
+        let levelCriteria = getLevelCriteria(level)
         
-        let prompt = EvaluationPrompts.feedbackPrompt(
-            ideaTitle: idea.title,
-            ideaDescription: idea.ideaDescription, // or whatever field you store the canonical idea text in
-            userResponse: userResponse,
-            level: mapLevel(level) // map your app's level enum to EvalLevel
-        )
+        let systemPrompt = """
+        You are evaluating a user's response using a 3-star system focused on insight discovery, not performance assessment.
         
-        // Models: use 4.1 for extraction elsewhere; here we use 4.1-mini for eval (fast/cheap)
-        let model = "gpt-4.1-mini"
+        CONTEXT:
+        - Book: \(idea.bookTitle) 
+        - Author: \(idea.book?.author ?? "the author")
+        - Idea: \(idea.title)
+        - Idea Description: \(idea.ideaDescription)
+        - Level: \(levelName)
+        - Level Focus: \(levelCriteria)
         
-        // Tuned knobs for better feedback
-        let temperature: Double = 0.2
-        let maxTokens: Int = 400
+        USER RESPONSE:
+        \(userResponse)
+        
+        STAR SCORING (robust criteria):
+        ⭐ (1) Getting There: 
+        - Basic engagement but significant gaps remain
+        - Missing key connections or understanding
+        - Needs substantial work before advancing
+        - Examples: vague responses, off-topic, surface-level only
+        
+        ⭐⭐ (2) Solid Grasp: 
+        - Good understanding with minor gaps
+        - Makes relevant connections
+        - Ready to advance to next level
+        - Examples: addresses the prompt well, shows comprehension, some insights
+        
+        ⭐⭐⭐ (3) Aha! Moment: 
+        - Deep insight achieved, breakthrough thinking
+        - Goes beyond requirements with original connections
+        - Demonstrates mastery-level understanding
+        - Examples: profound insights, creative applications, connects to bigger picture
+        
+        LEVEL-SPECIFIC CRITERIA:
+        Level 1 (Why Care): Must explain significance and real-world importance
+        Level 2 (When Use): Must identify triggers and application contexts
+        Level 3 (How Wield): Must demonstrate creative/critical extension of thinking
+        
+        COMBINED EVALUATION: Return ONLY this exact JSON structure:
+        {
+          "starScore": 1 | 2 | 3,
+          "starDescription": "Getting There" | "Solid Grasp" | "Aha! Moment",
+          "pass": boolean,
+          "insightCompass": {
+            "wisdomOpening": "20-35 words: Big picture insight or reframe",
+            "rootCause": "20-30 words: Logical gap or thinking error analysis", 
+            "missingFoundation": "25-40 words: Key knowledge they need to understand",
+            "elevatedPerspective": "25-40 words: Expert-level pattern or professional insight",
+            "nextLevelPrep": "20-35 words: Next learning step guidance",
+            "personalizedWisdom": "20-30 words: Tailored insight for their thinking style"
+          }
+        }
+        
+        IMPORTANT: 
+        - Use simple, clear language (8th grade level)
+        - Be specific to their actual response
+        - Focus on insight and discovery, not judgment
+        - Each wisdom field must stay within word limits
+        - Ensure JSON is valid and parseable
+        """
+        
+        let model = "gpt-4.1"  // Use full model for combined evaluation
+        let temperature: Double = 0.3
+        let maxTokens: Int = 800  // More tokens for combined response
         
         let raw = try await openAI.complete(
-            prompt: prompt,
+            prompt: systemPrompt,
             model: model,
             temperature: temperature,
             maxTokens: maxTokens
         )
         
-        // Strict JSON parsing with graceful fallback
-        let parsed = Self.parseEvalJSON(raw)
+        print("EVAL DEBUG: Raw API response: \(raw)")
         
-        // Map parsed → your existing EvaluationResult (DO NOT rename fields used elsewhere)
+        // Parse the combined JSON response
+        let parsed = try parseStarEvaluation(raw)
+        
+        // Compute legacy compatibility values
+        let legacyScore = convertStarToLegacyScore(starScore: parsed.starScore)
+        let legacyStrengths = extractStrengths(from: parsed.insightCompass)
+        let legacyImprovements = extractImprovements(from: parsed.insightCompass)
+        let legacyMastery = parsed.starScore == 3 // 3 stars = mastery
+        
         let result = EvaluationResult(
             level: "L\(level)",
-            score10: parsed.score,
-            strengths: parsed.strengths,
-            improvements: parsed.gaps, // map gaps to improvements
+            starScore: parsed.starScore,
+            starDescription: parsed.starDescription,
             pass: parsed.pass,
-            mastery: parsed.mastery
+            insightCompass: parsed.insightCompass,
+            score10: legacyScore,
+            strengths: legacyStrengths,
+            improvements: legacyImprovements,
+            mastery: legacyMastery
         )
         
-        print("EVAL DEBUG: Evaluation completed successfully")
+        print("EVAL DEBUG: Star evaluation completed - Score: \(parsed.starScore) stars, Pass: \(parsed.pass)")
         return result
+    }
+    
+    // MARK: - Helper Methods for Star System
+    
+    private func getLevelName(_ level: Int) -> String {
+        switch level {
+        case 1: return "Level 1: Why Care"
+        case 2: return "Level 2: When Use"  
+        case 3: return "Level 3: How Wield"
+        default: return "Level \(level): Advanced"
+        }
+    }
+    
+    private func getLevelCriteria(_ level: Int) -> String {
+        switch level {
+        case 1: return "Understand why this idea matters and its significance"
+        case 2: return "Identify when to recall and apply this idea effectively"
+        case 3: return "Wield this idea creatively or critically to extend thinking"
+        default: return "Advanced application and mastery"
+        }
+    }
+    
+    // MARK: - JSON Parsing for Star System
+    
+    private struct StarEvaluationResponse: Codable {
+        let starScore: Int
+        let starDescription: String
+        let pass: Bool
+        let insightCompass: WisdomFeedback
+    }
+    
+    private func parseStarEvaluation(_ rawResponse: String) throws -> StarEvaluationResponse {
+        // Clean and extract JSON
+        let jsonString = extractJSONFromResponse(rawResponse)
+        
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "EvaluationService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not convert response to data"]))
+        }
+        
+        do {
+            let response = try JSONDecoder().decode(StarEvaluationResponse.self, from: jsonData)
+            
+            // Validate star score is within bounds
+            guard response.starScore >= 1 && response.starScore <= 3 else {
+                throw EvaluationError.invalidEvaluationFormat(NSError(domain: "EvaluationService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid star score: \(response.starScore)"]))
+            }
+            
+            // Validate pass logic (starScore >= 2)
+            let expectedPass = response.starScore >= 2
+            if response.pass != expectedPass {
+                print("EVAL DEBUG: Pass logic inconsistency - correcting pass to \(expectedPass)")
+                return StarEvaluationResponse(
+                    starScore: response.starScore,
+                    starDescription: response.starDescription,
+                    pass: expectedPass,
+                    insightCompass: response.insightCompass
+                )
+            }
+            
+            return response
+        } catch {
+            print("EVAL DEBUG: JSON parsing failed: \(error)")
+            throw EvaluationError.decodingError(error)
+        }
+    }
+    
+    private func extractJSONFromResponse(_ response: String) -> String {
+        // Look for JSON object in the response
+        if let startIndex = response.firstIndex(of: "{"),
+           let endIndex = response.lastIndex(of: "}") {
+            return String(response[startIndex...endIndex])
+        }
+        return response.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     // MARK: - Robust Retry Logic
@@ -566,26 +706,6 @@ class EvaluationService {
     
     private func getLevelConfig(for level: Int) -> LevelConfig {
         switch level {
-        case 0:
-            return LevelConfig(
-                level: 0,
-                name: "Level 0: Thought Dump",
-                description: "Free-form, unfiltered thinking. Messy, personal, half-formed thoughts are welcome.",
-                evaluationCriteria: [
-                    "Engagement: How much did the learner engage with the idea?",
-                    "Honesty: How authentic and unfiltered was the response?",
-                    "Volume: Did they share enough thoughts to show genuine thinking?",
-                    "Personal Connection: Did they make any personal connections to the idea?"
-                ],
-                scoringGuide: """
-                10: Exceptional engagement with extensive, honest, unfiltered thoughts
-                8-9: Strong engagement with good volume and authenticity
-                6-7: Moderate engagement with some personal connection
-                4-5: Limited engagement or overly filtered response
-                2-3: Minimal engagement or very brief response
-                0-1: No meaningful engagement or response
-                """
-            )
             
         case 1:
             return LevelConfig(
@@ -914,23 +1034,13 @@ class EvaluationService {
         return wisdomFeedback
     }
     
-    private func extractJSONFromResponse(_ response: String) -> String {
-        // Look for JSON object in the response
-        if let startIndex = response.firstIndex(of: "{"),
-           let endIndex = response.lastIndex(of: "}") {
-            return String(response[startIndex...endIndex])
-        }
-        return response
-    }
-    
     // --- helpers (add privately in the same file) ---
     private func mapLevel(_ level: Int) -> EvalLevel {
         switch level {
-        case 0: return .L0
         case 1: return .L1
         case 2: return .L2
         case 3: return .L3
-        default: return .L0
+        default: return .L1  // Default to L1 instead of L0
         }
     }
     
@@ -978,6 +1088,58 @@ class EvaluationService {
             pass: false,
             mastery: false
         )
+    }
+    
+    // MARK: - Legacy Compatibility Helper Methods
+    
+    private func convertStarToLegacyScore(starScore: Int) -> Int {
+        switch starScore {
+        case 1: return 4 // ⭐ Getting There
+        case 2: return 7 // ⭐⭐ Solid Grasp  
+        case 3: return 9 // ⭐⭐⭐ Aha! Moment
+        default: return 0
+        }
+    }
+    
+    private func extractStrengths(from wisdom: WisdomFeedback) -> [String] {
+        // Extract positive elements from the wisdom feedback
+        var strengths: [String] = []
+        
+        // Look for positive phrases in the wisdom opening
+        let wisdomText = wisdom.wisdomOpening.lowercased()
+        if wisdomText.contains("good") || wisdomText.contains("strong") || wisdomText.contains("clear") {
+            strengths.append("Shows clear understanding of the core concept")
+        }
+        if wisdomText.contains("insight") || wisdomText.contains("grasp") {
+            strengths.append("Demonstrates thoughtful engagement with the material")
+        }
+        
+        // Default strengths if none detected
+        if strengths.isEmpty {
+            strengths = ["Engaged with the concept", "Provided thoughtful response"]
+        }
+        
+        return Array(strengths.prefix(2)) // Maximum 2 strengths
+    }
+    
+    private func extractImprovements(from wisdom: WisdomFeedback) -> [String] {
+        // Extract improvement areas from the wisdom feedback
+        var improvements: [String] = []
+        
+        // Look for improvement hints in missing foundation and next level prep
+        if !wisdom.missingFoundation.isEmpty {
+            improvements.append(wisdom.missingFoundation)
+        }
+        if !wisdom.nextLevelPrep.isEmpty && improvements.count < 2 {
+            improvements.append(wisdom.nextLevelPrep)
+        }
+        
+        // Default improvements if none detected
+        if improvements.isEmpty {
+            improvements = ["Consider exploring deeper applications", "Look for more specific examples"]
+        }
+        
+        return Array(improvements.prefix(2)) // Maximum 2 improvements
     }
 }
 
