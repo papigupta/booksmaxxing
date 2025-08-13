@@ -60,6 +60,16 @@ struct AuthorFeedback: Codable {
     let confidence: Double?
 }
 
+// Enhanced wisdom-centered feedback structure
+struct WisdomFeedback: Codable {
+    let wisdomOpening: String      // Philosophical reframing insight
+    let rootCause: String          // Fundamental mental model error
+    let missingFoundation: String  // Authoritative knowledge gap
+    let elevatedPerspective: String // Higher-order understanding
+    let nextLevelPrep: String      // Preparation for advanced mastery
+    let personalizedWisdom: String // Custom wisdom based on their patterns
+}
+
 struct LevelConfig {
     let level: Int
     let name: String
@@ -149,6 +159,23 @@ class EvaluationService {
     ) async throws -> AuthorFeedback {
         try await withRetry(maxAttempts: 2) {
             try await self.performStructuredFeedback(
+                idea: idea,
+                userResponse: userResponse,
+                level: level,
+                evaluationResult: evaluationResult
+            )
+        }
+    }
+    
+    // Enhanced wisdom-centered evaluation with Master Oogway + Author Knowledge
+    func generateWisdomFeedback(
+        idea: Idea,
+        userResponse: String,
+        level: Int,
+        evaluationResult: EvaluationResult
+    ) async throws -> WisdomFeedback {
+        try await withRetry(maxAttempts: 2) {
+            try await self.performWisdomFeedback(
                 idea: idea,
                 userResponse: userResponse,
                 level: level,
@@ -778,6 +805,113 @@ class EvaluationService {
             throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing oneBigThing"]))
         }
         return feedback
+    }
+    
+    // MARK: - Insight Compass Multi-Perspective Feedback Implementation
+    
+    private func performWisdomFeedback(
+        idea: Idea,
+        userResponse: String,
+        level: Int,
+        evaluationResult: EvaluationResult
+    ) async throws -> WisdomFeedback {
+        
+        let levelConfig = getLevelConfig(for: level)
+        let authorName = idea.book?.author ?? "the author"
+        
+        let systemPrompt = """
+        You are \(authorName), providing transformative feedback from multiple expert perspectives. Adapt your tone to be educational yet accessible - like explaining to bright students, not academic peers.
+        
+        CONTEXT:
+        - Your Book: \(idea.bookTitle)
+        - Your Idea: \(idea.title)
+        - Idea Description: \(idea.ideaDescription)
+        - Level: \(levelConfig.name)
+        - Reader's Score: \(evaluationResult.score10)/10
+        - Pass Status: \(evaluationResult.pass ? "Passed" : "Incomplete")
+        
+        READER'S RESPONSE:
+        \(userResponse)
+        
+        TASK: Create perspective-based feedback with 6 viewpoints. Adapt section tone based on score:
+        
+        FOR HIGH SCORES (8-10): Use encouraging, nuanced language ("refine", "enhance", "next level")
+        FOR MID SCORES (5-7): Use supportive, clarifying language ("clarify", "strengthen", "build on")
+        FOR LOW SCORES (0-4): Use gentle, foundational language ("start with", "key insight", "think of it as")
+        
+        1. WISE SAGE PERSPECTIVE - The Big Picture (20-35 words):
+        Share an insightful reframe or deeper truth. Simple language, profound insight. What are they really wrestling with?
+        
+        2. RATIONAL ANALYST PERSPECTIVE - The Logic (20-30 words):
+        Identify the logical gap or thinking error. Clear, systematic. What's the flaw in their reasoning process?
+        
+        3. CARING TEACHER PERSPECTIVE - The Foundation (25-40 words):
+        Provide the missing knowledge they need. Patient, educational. What core concept would unlock their understanding?
+        
+        4. MASTER CRAFTSPERSON PERSPECTIVE - The Craft (25-40 words):
+        Show the deeper pattern or professional insight. Practical wisdom. How do experts actually think about this?
+        
+        5. FUTURE COACH PERSPECTIVE - What's Next (20-35 words):
+        Guide them toward their next learning step. Forward-looking. What should they focus on to advance?
+        
+        6. PERSONAL MENTOR PERSPECTIVE - Just for You (20-30 words):
+        Tailored insight based on their specific approach. Individual. What would help THEIR particular thinking style?
+        
+        STYLE REQUIREMENTS:
+        - Simple, clear language (8th grade level)
+        - Use author's authentic voice but simplified
+        - Address them directly ("you")
+        - Be specific to their actual response
+        - Encouraging and constructive
+        - No jargon or complex terms
+        
+        OUTPUT: Return ONLY valid JSON:
+        {
+          "wisdomOpening": "...",
+          "rootCause": "...",
+          "missingFoundation": "...",
+          "elevatedPerspective": "...",
+          "nextLevelPrep": "...",
+          "personalizedWisdom": "..."
+        }
+        """
+        
+        let requestBody = ChatRequest(
+            model: "gpt-4.1",
+            messages: [
+                Message(role: "system", content: systemPrompt),
+                Message(role: "user", content: "Provide wisdom-centered feedback for this response.")
+            ],
+            max_tokens: 800,
+            temperature: 0.8  // Higher creativity for wisdom insights
+        )
+        
+        let (data, _) = try await makeAPIRequest(requestBody: requestBody)
+        
+        let chatResponse: ChatResponse
+        do {
+            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+        } catch {
+            throw EvaluationError.decodingError(error)
+        }
+        
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw EvaluationError.noResponse
+        }
+        
+        let jsonString = extractJSONFromResponse(content)
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON data"]))
+        }
+        
+        let wisdomFeedback: WisdomFeedback
+        do {
+            wisdomFeedback = try JSONDecoder().decode(WisdomFeedback.self, from: jsonData)
+        } catch {
+            throw EvaluationError.invalidEvaluationFormat(error)
+        }
+        
+        return wisdomFeedback
     }
     
     private func extractJSONFromResponse(_ response: String) -> String {

@@ -20,6 +20,9 @@ struct EvaluationResultsView: View {
     @State private var authorFeedback: AuthorFeedback? = nil
     @State private var isLoadingStructuredFeedback = false
     @State private var structuredFeedbackError: String? = nil
+    @State private var wisdomFeedback: WisdomFeedback? = nil
+    @State private var isLoadingWisdomFeedback = false
+    @State private var wisdomFeedbackError: String? = nil
     
     private var evaluationService: EvaluationService {
         EvaluationService(apiKey: Secrets.openAIAPIKey)
@@ -240,11 +243,18 @@ struct EvaluationResultsView: View {
                 // Response Section
                 responseSection
                 
-                // Feedback Section
+                // Wisdom Feedback Section (Primary)
+                if let wf = wisdomFeedback {
+                    wisdomFeedbackSection(wf)
+                } else if isLoadingWisdomFeedback {
+                    wisdomFeedbackLoadingSection
+                }
+                
+                // Traditional Feedback Section (Secondary)
                 if let fb = authorFeedback {
-                    feedbackSection(fb)
-                } else if isLoadingStructuredFeedback {
-                    feedbackLoadingSection
+                    traditionalFeedbackSection(fb)
+                } else if isLoadingStructuredFeedback && wisdomFeedback != nil {
+                    traditionalFeedbackLoadingSection
                 }
                 
                 // Action Section
@@ -411,16 +421,23 @@ struct EvaluationResultsView: View {
         .padding(.bottom, 24)
     }
     
-    // MARK: - Feedback Loading Section
-    private var feedbackLoadingSection: some View {
+    // MARK: - Wisdom Feedback Loading Section
+    private var wisdomFeedbackLoadingSection: some View {
         VStack(spacing: 16) {
             HStack(spacing: 12) {
                 ProgressView()
                     .scaleEffect(0.8)
                 
-                Text("Generating personalized feedback...")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Gathering insights from different perspectives...")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text("Your personal Insight Compass")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
@@ -431,20 +448,140 @@ struct EvaluationResultsView: View {
         .padding(.bottom, 24)
     }
     
-    // MARK: - Feedback Section
-    private func feedbackSection(_ feedback: AuthorFeedback) -> some View {
-        VStack(spacing: 24) {
-            // Section header
-            HStack {
-                Image(systemName: "lightbulb.fill")
-                    .font(.title2)
-                    .foregroundStyle(.yellow)
+    // MARK: - Traditional Feedback Loading Section
+    private var traditionalFeedbackLoadingSection: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                ProgressView()
+                    .scaleEffect(0.8)
                 
-                Text("Author's Insight")
+                Text("Loading detailed analysis...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
+            .background(cardBackground.opacity(0.5))
+            .cornerRadius(8)
+            .padding(.horizontal, 24)
+        }
+        .padding(.bottom, 16)
+    }
+    
+    // MARK: - Wisdom Feedback Section
+    private func wisdomFeedbackSection(_ wisdom: WisdomFeedback) -> some View {
+        VStack(spacing: 24) {
+            // Section header with Insight Compass vibe
+            HStack {
+                Image(systemName: "compass.drawing")
+                    .font(.title2)
+                    .foregroundStyle(.purple)
+                
+                Text("Insight Compass")
                     .font(.title2)
                     .fontWeight(.bold)
                 
                 Spacer()
+                
+                // Compass medallion
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(colors: [.purple, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 32, height: 32)
+                    
+                    Image(systemName: "compass.drawing")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(.horizontal, 24)
+            
+            // Wisdom cards with special styling
+            LazyVStack(spacing: 20) {
+                // Wise Sage Perspective - Most prominent
+                wisdomCard(
+                    title: "The Wise Sage",
+                    subtitle: "sees the big picture",
+                    content: wisdom.wisdomOpening,
+                    icon: "lightbulb.fill",
+                    gradient: LinearGradient(colors: [.purple, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    isHighlight: true
+                )
+                
+                // Rational Analyst Perspective
+                wisdomCard(
+                    title: "The Analyst",
+                    subtitle: "spots the logical gap",
+                    content: wisdom.rootCause,
+                    icon: "chart.line.uptrend.xyaxis.circle.fill",
+                    gradient: LinearGradient(colors: [.blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                
+                // Caring Teacher Perspective
+                wisdomCard(
+                    title: "The Teacher",
+                    subtitle: "shares what you need to know",
+                    content: wisdom.missingFoundation,
+                    icon: "book.circle.fill",
+                    gradient: LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                
+                // Master Craftsperson Perspective
+                wisdomCard(
+                    title: "The Expert",
+                    subtitle: "reveals the craft",
+                    content: wisdom.elevatedPerspective,
+                    icon: "hammer.circle.fill",
+                    gradient: LinearGradient(colors: [.orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                
+                // Future Coach Perspective
+                wisdomCard(
+                    title: "The Coach",
+                    subtitle: "guides your next step",
+                    content: wisdom.nextLevelPrep,
+                    icon: "arrow.up.forward.circle.fill",
+                    gradient: LinearGradient(colors: [.red, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                
+                // Personal Mentor Perspective - Special treatment
+                wisdomCard(
+                    title: "Your Mentor",
+                    subtitle: "knows your style",
+                    content: wisdom.personalizedWisdom,
+                    icon: "person.crop.circle.fill.badge.checkmark",
+                    gradient: LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    isPersonalized: true
+                )
+            }
+            .padding(.horizontal, 24)
+        }
+        .padding(.bottom, 32)
+    }
+    
+    // MARK: - Traditional Feedback Section (now secondary)
+    private func traditionalFeedbackSection(_ feedback: AuthorFeedback) -> some View {
+        VStack(spacing: 24) {
+            // Section header with collapsible style
+            HStack {
+                Image(systemName: "doc.text.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                
+                Text("Detailed Analysis")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+                
+                Text("Author's Breakdown")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(6)
             }
             .padding(.horizontal, 24)
             
@@ -529,6 +666,65 @@ struct EvaluationResultsView: View {
             .padding(.horizontal, 24)
         }
         .padding(.bottom, 24)
+    }
+    
+    // MARK: - Wisdom Card Helper
+    private func wisdomCard(
+        title: String,
+        subtitle: String = "",
+        content: String, 
+        icon: String, 
+        gradient: LinearGradient,
+        isHighlight: Bool = false,
+        isPersonalized: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(gradient)
+                        .frame(width: isHighlight ? 40 : 32, height: isHighlight ? 40 : 32)
+                    
+                    Image(systemName: icon)
+                        .font(isHighlight ? .title2 : .title3)
+                        .foregroundStyle(.white)
+                        .fontWeight(.semibold)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(isHighlight ? .title3 : .headline)
+                        .fontWeight(.bold)
+                    
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if isPersonalized {
+                        Text("tailored to your thinking")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Spacer()
+            }
+            
+            Text(content)
+                .font(isHighlight ? .body : .callout)
+                .foregroundStyle(.primary)
+                .lineLimit(nil)
+                .lineSpacing(isHighlight ? 4 : 2)
+        }
+        .padding(isHighlight ? 24 : 20)
+        .background(cardBackground)
+        .cornerRadius(isHighlight ? 20 : 16)
+        .overlay(
+            RoundedRectangle(cornerRadius: isHighlight ? 20 : 16)
+                .stroke(gradient, lineWidth: isHighlight ? 2 : 1)
+        )
+        .shadow(color: .black.opacity(0.1), radius: isHighlight ? 8 : 4, x: 0, y: 2)
+        .scaleEffect(isHighlight ? 1.02 : 1.0)
     }
     
     // MARK: - Feedback Card Helper
@@ -675,8 +871,11 @@ struct EvaluationResultsView: View {
                     self.isLoadingEvaluation = false
                 }
                 
-                // Load structured feedback after evaluation
-                await loadStructuredFeedback(result: result)
+                // Load both wisdom and structured feedback after evaluation
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await self.loadWisdomFeedback(result: result) }
+                    group.addTask { await self.loadStructuredFeedback(result: result) }
+                }
             } catch {
                 await MainActor.run {
                     let errorMessage = getErrorMessage(for: error)
@@ -687,8 +886,36 @@ struct EvaluationResultsView: View {
         }
     }
     
+    private func loadWisdomFeedback(result: EvaluationResult) async {
+        await MainActor.run {
+            self.isLoadingWisdomFeedback = true
+        }
+        
+        do {
+            let wisdom = try await evaluationService.generateWisdomFeedback(
+                idea: idea,
+                userResponse: userResponse,
+                level: level,
+                evaluationResult: result
+            )
+            await MainActor.run {
+                self.wisdomFeedback = wisdom
+                self.isLoadingWisdomFeedback = false
+            }
+        } catch {
+            await MainActor.run {
+                self.wisdomFeedbackError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.wisdomFeedback = nil
+                self.isLoadingWisdomFeedback = false
+            }
+        }
+    }
+    
     private func loadStructuredFeedback(result: EvaluationResult) async {
-        isLoadingStructuredFeedback = true
+        await MainActor.run {
+            self.isLoadingStructuredFeedback = true
+        }
+        
         do {
             let fb = try await evaluationService.generateStructuredFeedback(
                 idea: idea,
