@@ -23,6 +23,7 @@ struct EvaluationResultsView: View {
     @State private var wisdomFeedback: WisdomFeedback? = nil
     @State private var isLoadingWisdomFeedback = false
     @State private var wisdomFeedbackError: String? = nil
+    @State private var isPromptExpanded = false
     
     private var evaluationService: EvaluationService {
         EvaluationService(apiKey: Secrets.openAIAPIKey)
@@ -291,6 +292,63 @@ struct EvaluationResultsView: View {
             .padding(.vertical, 8)
             .background(cardBackground)
             .cornerRadius(20)
+            
+            // Prompt viewer (subtle and collapsible)
+            VStack(spacing: 8) {
+                Button(action: { 
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        isPromptExpanded.toggle()
+                    }
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Text("View Question")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                        
+                        Image(systemName: isPromptExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(12)
+                }
+                
+                if isPromptExpanded {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Question")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+                            Spacer()
+                        }
+                        
+                        Text(prompt)
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                            .lineLimit(nil)
+                            .multilineTextAlignment(.leading)
+                            .padding(12)
+                            .background(subtleBackground)
+                            .cornerRadius(8)
+                    }
+                    .padding(.horizontal, 4)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .move(edge: .top))
+                    ))
+                }
+            }
+            .padding(.top, 12)
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 24)
