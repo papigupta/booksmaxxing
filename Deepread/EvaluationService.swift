@@ -49,11 +49,8 @@ struct EvaluationResult: Codable {
     let keyGap: String?              // The fatal flaw explanation
     let hasRealityCheck: Bool        // UI flag for showing section
     
-    // Backward compatibility - legacy properties
-    let score10: Int         // Legacy 0-10 score computed from starScore
-    let strengths: [String]  // Legacy strengths (derived from insight compass)
-    let improvements: [String] // Legacy improvements (derived from insight compass)
-    let mastery: Bool        // Legacy mastery indicator
+    // Legacy compatibility
+    let mastery: Bool        // starScore == 3
 }
 
 // Structured author feedback for dense non-fiction (universal)
@@ -295,12 +292,6 @@ class EvaluationService {
         // Parse the combined JSON response
         let parsed = try parseStarEvaluation(raw)
         
-        // Compute legacy compatibility values
-        let legacyScore = convertStarToLegacyScore(starScore: parsed.starScore)
-        let legacyStrengths = extractStrengths(from: parsed.insightCompass)
-        let legacyImprovements = extractImprovements(from: parsed.insightCompass)
-        let legacyMastery = parsed.starScore == 3 // 3 stars = mastery
-        
         let result = EvaluationResult(
             level: "L\(level)",
             starScore: parsed.starScore,
@@ -310,10 +301,7 @@ class EvaluationService {
             idealAnswer: parsed.idealAnswer,
             keyGap: parsed.keyGap,
             hasRealityCheck: parsed.starScore < 3,
-            score10: legacyScore,
-            strengths: legacyStrengths,
-            improvements: legacyImprovements,
-            mastery: legacyMastery
+            mastery: parsed.starScore == 3
         )
         
         print("EVAL DEBUG: Star evaluation completed - Score: \(parsed.starScore) stars, Pass: \(parsed.pass)")
@@ -427,175 +415,6 @@ class EvaluationService {
         throw lastError ?? EvaluationError.networkError(NSError(domain: "EvaluationService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Max retry attempts exceeded"]))
     }
     
-    // MARK: - Prompt 1: Score Only with Robust Error Handling
-    
-    private func getScore(
-        idea: Idea,
-        userResponse: String,
-        level: Int,
-        levelConfig: LevelConfig
-    ) async throws -> Int {
-        
-        let systemPrompt = """
-        You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are personally evaluating a reader's response to one of your ideas.
-        
-        EVALUATION CONTEXT:
-        - Your Book: \(idea.bookTitle)
-        - Your Idea: \(idea.title)
-        - Idea Description: \(idea.ideaDescription)
-        - Level: \(levelConfig.name)
-        - Level Description: \(levelConfig.description)
-        
-        EVALUATION CRITERIA:
-        \(levelConfig.evaluationCriteria.enumerated().map { "\($0 + 1). \($1)" }.joined(separator: "\n"))
-        
-        SCORING GUIDE:
-        \(levelConfig.scoringGuide)
-        
-        READER'S RESPONSE TO YOUR IDEA:
-        \(userResponse)
-        
-        TASK:
-        As the author, assign a score from 0-10 based on how well this reader engaged with your idea.
-        
-        INSTRUCTIONS:
-        - Analyze their response against the level-specific criteria
-        - Use the scoring guide to determine the appropriate score
-        - Consider the level context and expectations
-        - Be fair but rigorous in your assessment
-        
-        Return ONLY the score as a single integer (0-10), nothing else.
-        """
-        
-        let userPrompt = """
-        Evaluate this reader's response to your idea and assign a score from 0-10.
-        """
-        
-        let requestBody = ChatRequest(
-            model: "gpt-4.1-mini",
-            messages: [
-                Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: userPrompt)
-            ],
-            max_tokens: 100,
-            temperature: 0.1
-        )
-        
-        let (data, _) = try await makeAPIRequest(requestBody: requestBody)
-        
-        let chatResponse: ChatResponse
-        do {
-            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-        } catch {
-            throw EvaluationError.decodingError(error)
-        }
-        
-        guard let content = chatResponse.choices.first?.message.content else {
-            throw EvaluationError.noResponse
-        }
-        
-        let scoreString = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let score = Int(scoreString), score >= 0 && score <= 10 else {
-            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid score format: \(scoreString)"]))
-        }
-        
-        return score
-    }
-    
-    // MARK: - Prompt 2: Strengths and Improvements with Robust Error Handling
-    
-    private func getStrengthsAndImprovements(
-        idea: Idea,
-        userResponse: String,
-        level: Int,
-        levelConfig: LevelConfig,
-        score: Int
-    ) async throws -> (strengths: [String], improvements: [String]) {
-        
-        let systemPrompt = """
-        You are \(idea.book?.author ?? "the author"), the author of "\(idea.bookTitle)". You are providing personalized feedback on a reader's response to one of your ideas.
-        
-        EVALUATION CONTEXT:
-        - Your Book: \(idea.bookTitle)
-        - Your Idea: \(idea.title)
-        - Idea Description: \(idea.ideaDescription)
-        - Level: \(levelConfig.name)
-        - Level Description: \(levelConfig.description)
-        - Score: \(score)/10
-        
-        READER'S RESPONSE TO YOUR IDEA:
-        \(userResponse)
-        
-        TASK:
-        Provide exactly 2 specific strengths and exactly 2 specific areas for improvement.
-        
-        GUIDELINES:
-        - Be specific and actionable
-        - Reference their actual response
-        - Consider the level context
-        - Be encouraging but honest
-        - Keep each point concise (1-2 sentences max)
-        
-        Return ONLY a valid JSON object with this exact structure:
-        {
-          "strengths": ["Strength 1", "Strength 2"],
-          "improvements": ["Improvement 1", "Improvement 2"]
-        }
-        """
-        
-        let userPrompt = """
-        Provide 2 strengths and 2 improvements for this reader's response.
-        """
-        
-        let requestBody = ChatRequest(
-            model: "gpt-4.1-mini",
-            messages: [
-                Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: userPrompt)
-            ],
-            max_tokens: 500,
-            temperature: 0.7
-        )
-        
-        let (data, _) = try await makeAPIRequest(requestBody: requestBody)
-        
-        let chatResponse: ChatResponse
-        do {
-            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-        } catch {
-            throw EvaluationError.decodingError(error)
-        }
-        
-        guard let content = chatResponse.choices.first?.message.content else {
-            throw EvaluationError.noResponse
-        }
-        
-        // Extract JSON from response
-        let jsonString = extractJSONFromResponse(content)
-        
-        struct FeedbackResponse: Codable {
-            let strengths: [String]
-            let improvements: [String]
-        }
-        
-        guard let jsonData = jsonString.data(using: .utf8) else {
-            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON data"]))
-        }
-        
-        let feedbackResponse: FeedbackResponse
-        do {
-            feedbackResponse = try JSONDecoder().decode(FeedbackResponse.self, from: jsonData)
-        } catch {
-            throw EvaluationError.invalidEvaluationFormat(error)
-        }
-        
-        // Validate the result
-        guard feedbackResponse.strengths.count == 2 && feedbackResponse.improvements.count == 2 else {
-            throw EvaluationError.invalidEvaluationFormat(NSError(domain: "Evaluation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid number of strengths or improvements"]))
-        }
-        
-        return (strengths: feedbackResponse.strengths, improvements: feedbackResponse.improvements)
-    }
     
     // MARK: - Robust API Request Method
     
@@ -679,7 +498,7 @@ class EvaluationService {
         - Your Idea: \(idea.title)
         - Idea Description: \(idea.ideaDescription)
         - Level: \(levelConfig.name)
-        - Reader's Score: \(evaluationResult.score10)/10
+        - Reader's Score: \(evaluationResult.starScore) stars
 
         READER'S RESPONSE TO YOUR IDEA:
         \(userResponse)
@@ -854,7 +673,7 @@ class EvaluationService {
             - Idea: \(idea.title)
             - Idea Description: \(idea.ideaDescription)
             - Level: \(levelConfig.name) — \(levelConfig.description)
-            - Reader Score: \(evaluationResult.score10)/10
+            - Reader Score: \(evaluationResult.starScore) stars
 
             READER RESPONSE
             \(userResponse)
@@ -972,7 +791,7 @@ class EvaluationService {
         - Your Idea: \(idea.title)
         - Idea Description: \(idea.ideaDescription)
         - Level: \(levelConfig.name)
-        - Reader's Score: \(evaluationResult.score10)/10
+        - Reader's Score: \(evaluationResult.starScore) stars
         - Pass Status: \(evaluationResult.pass ? "Passed" : "Incomplete")
         
         READER'S RESPONSE:
@@ -1115,57 +934,7 @@ class EvaluationService {
         )
     }
     
-    // MARK: - Legacy Compatibility Helper Methods
-    
-    private func convertStarToLegacyScore(starScore: Int) -> Int {
-        switch starScore {
-        case 1: return 4 // ⭐ Getting There
-        case 2: return 7 // ⭐⭐ Solid Grasp  
-        case 3: return 9 // ⭐⭐⭐ Aha! Moment
-        default: return 0
-        }
-    }
-    
-    private func extractStrengths(from wisdom: WisdomFeedback) -> [String] {
-        // Extract positive elements from the wisdom feedback
-        var strengths: [String] = []
-        
-        // Look for positive phrases in the wisdom opening
-        let wisdomText = wisdom.wisdomOpening.lowercased()
-        if wisdomText.contains("good") || wisdomText.contains("strong") || wisdomText.contains("clear") {
-            strengths.append("Shows clear understanding of the core concept")
-        }
-        if wisdomText.contains("insight") || wisdomText.contains("grasp") {
-            strengths.append("Demonstrates thoughtful engagement with the material")
-        }
-        
-        // Default strengths if none detected
-        if strengths.isEmpty {
-            strengths = ["Engaged with the concept", "Provided thoughtful response"]
-        }
-        
-        return Array(strengths.prefix(2)) // Maximum 2 strengths
-    }
-    
-    private func extractImprovements(from wisdom: WisdomFeedback) -> [String] {
-        // Extract improvement areas from the wisdom feedback
-        var improvements: [String] = []
-        
-        // Look for improvement hints in missing foundation and next level prep
-        if !wisdom.missingFoundation.isEmpty {
-            improvements.append(wisdom.missingFoundation)
-        }
-        if !wisdom.nextLevelPrep.isEmpty && improvements.count < 2 {
-            improvements.append(wisdom.nextLevelPrep)
-        }
-        
-        // Default improvements if none detected
-        if improvements.isEmpty {
-            improvements = ["Consider exploring deeper applications", "Look for more specific examples"]
-        }
-        
-        return Array(improvements.prefix(2)) // Maximum 2 improvements
-    }
+    // MARK: - Helper Methods
 }
 
  

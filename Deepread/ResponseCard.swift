@@ -22,15 +22,18 @@ struct ResponseCard: View {
                 
                 Spacer()
                 
-                if response.hasEvaluation, let score = response.score {
-                    Text("\(score)/10")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
+                if response.hasEvaluation, let starScore = response.starScore {
+                    HStack(spacing: 2) {
+                        ForEach(1...3, id: \.self) { star in
+                            Image(systemName: star <= starScore ? "star.fill" : "star")
+                                .foregroundColor(star <= starScore ? .yellow : .gray)
+                                .font(.caption)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.yellow.opacity(0.1))
+                    .cornerRadius(8)
                 }
             }
             
@@ -63,60 +66,27 @@ struct ResponseCard: View {
             // Evaluation Results (if available)
             if response.hasEvaluation {
                 VStack(alignment: .leading, spacing: 12) {
-                    // Score
-                    if let score = response.score {
+                    // Star Score
+                    if let starScore = response.starScore {
                         HStack {
-                            Text("Score: \(score)/10")
+                            Text("Rating:")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
+                            
+                            HStack(spacing: 4) {
+                                ForEach(1...3, id: \.self) { star in
+                                    Image(systemName: star <= starScore ? "star.fill" : "star")
+                                        .foregroundColor(star <= starScore ? .yellow : .gray)
+                                        .font(.subheadline)
+                                }
+                            }
+                            
+                            Text(getStarDescription(for: starScore))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .italic()
                             
                             Spacer()
-                            
-                            ProgressView(value: Double(score), total: 10.0)
-                                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                                .frame(width: 100)
-                        }
-                    }
-                    
-                    // Strengths
-                    if !response.strengths.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Strengths")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.green)
-                            
-                            ForEach(response.strengths, id: \.self) { strength in
-                                HStack(alignment: .top, spacing: 6) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption)
-                                    Text(strength)
-                                        .font(.caption)
-                                        .foregroundColor(.primary)
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Improvements
-                    if !response.improvements.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Areas for Improvement")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.orange)
-                            
-                            ForEach(response.improvements, id: \.self) { improvement in
-                                HStack(alignment: .top, spacing: 6) {
-                                    Image(systemName: "arrow.up.circle.fill")
-                                        .foregroundColor(.orange)
-                                        .font(.caption)
-                                    Text(improvement)
-                                        .font(.caption)
-                                        .foregroundColor(.primary)
-                                }
-                            }
                         }
                     }
                     
@@ -156,11 +126,14 @@ struct ResponseCard: View {
                                 
                                 Spacer()
                                 
-                                if let score = otherResponse.score {
-                                    Text("\(score)/10")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.blue)
+                                if let starScore = otherResponse.starScore {
+                                    HStack(spacing: 1) {
+                                        ForEach(1...3, id: \.self) { star in
+                                            Image(systemName: star <= starScore ? "star.fill" : "star")
+                                                .foregroundColor(star <= starScore ? .yellow : .gray)
+                                                .font(.system(size: 8))
+                                        }
+                                    }
                                 }
                             }
                             
@@ -233,5 +206,14 @@ struct ResponseCard: View {
         formatter.dateStyle = .short
         formatter.timeStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func getStarDescription(for starScore: Int) -> String {
+        switch starScore {
+        case 1: return "Getting There"
+        case 2: return "Solid Grasp"
+        case 3: return "Aha! Moment"
+        default: return ""
+        }
     }
 } 

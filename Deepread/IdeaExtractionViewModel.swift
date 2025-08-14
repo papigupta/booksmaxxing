@@ -139,15 +139,25 @@ class IdeaExtractionViewModel: ObservableObject {
 
                 let id = parts[0]
                 let fullTitleWithExplanation = parts[1]
-                let depthTarget = parts.count > 2 ? Int(parts[2]) ?? 1 : 1
+                let importanceString = parts.count >= 3 ? parts[2] : "Building Block"
+                let depthTarget = 1 // Default value since we removed this from AI output
                 
                 let titleDescriptionParts = fullTitleWithExplanation.split(separator: "—", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
                 let ideaTitle = titleDescriptionParts[0]
                 let description = titleDescriptionParts.count > 1 ? titleDescriptionParts[1] : ""
 
+                // Parse importance level
+                let importance: ImportanceLevel = {
+                    switch importanceString.lowercased() {
+                    case "foundation": return .foundation
+                    case "enhancement": return .enhancement
+                    default: return .buildingBlock
+                    }
+                }()
+
                 // Use the corrected book title from BookInfo instead of user input
                 let correctedBookTitle = bookInfo?.title ?? currentBookTitle
-                return Idea(id: id, title: ideaTitle, description: description, bookTitle: correctedBookTitle, depthTarget: depthTarget, masteryLevel: 0, lastPracticed: nil, currentLevel: nil)
+                return Idea(id: id, title: ideaTitle, description: description, bookTitle: correctedBookTitle, depthTarget: depthTarget, masteryLevel: 0, lastPracticed: nil, currentLevel: nil, importance: importance)
             }
             
             print("DEBUG: Parsed \(parsedIdeas.count) ideas")

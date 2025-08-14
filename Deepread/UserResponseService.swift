@@ -110,7 +110,7 @@ class UserResponseService: ObservableObject {
     func getBestScore(for ideaId: String, level: Int) throws -> Int? {
         let responses = try getUserResponses(for: ideaId)
         let levelResponses = responses.filter { $0.level == level }
-        return levelResponses.map { $0.score ?? 0 }.max()
+        return levelResponses.map { $0.starScore ?? 0 }.max()
     }
     
     func isLevelCompleted(for ideaId: String, level: Int) throws -> Bool {
@@ -136,7 +136,7 @@ class UserResponseService: ObservableObject {
         var bestResponses: [Int: UserResponse] = [:]
         
         for (level, responses) in groupedResponses {
-            if let bestResponse = responses.max(by: { ($0.score ?? 0) < ($1.score ?? 0) }) {
+            if let bestResponse = responses.max(by: { ($0.starScore ?? 0) < ($1.starScore ?? 0) }) {
                 bestResponses[level] = bestResponse
             }
         }

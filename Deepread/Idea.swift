@@ -1,6 +1,20 @@
 import Foundation
 import SwiftData
 
+enum ImportanceLevel: String, CaseIterable, Codable {
+    case foundation = "Foundation"
+    case buildingBlock = "Building Block" 
+    case enhancement = "Enhancement"
+    
+    var barCount: Int {
+        switch self {
+        case .foundation: return 3
+        case .buildingBlock: return 2
+        case .enhancement: return 1
+        }
+    }
+}
+
 /// Immutable concept wrapper with a book-specific ID (`b1i1`, `b2i1`, etc.).
 @Model
 final class Idea {
@@ -12,6 +26,7 @@ final class Idea {
     var masteryLevel: Int // 0 = not started, 1 = basic, 2 = intermediate, 3 = mastered
     var lastPracticed: Date?
     var currentLevel: Int? // The exact level user was on when they left
+    var importance: ImportanceLevel? // Foundation, Building Block, or Enhancement
     
     // Relationship back to Book
     @Relationship(deleteRule: .cascade) var book: Book?
@@ -20,7 +35,7 @@ final class Idea {
     @Relationship(deleteRule: .cascade) var responses: [UserResponse]
     @Relationship(deleteRule: .cascade) var progress: [Progress]
     
-    init(id: String, title: String, description: String, bookTitle: String, depthTarget: Int, masteryLevel: Int = 0, lastPracticed: Date? = nil, currentLevel: Int? = nil) {
+    init(id: String, title: String, description: String, bookTitle: String, depthTarget: Int, masteryLevel: Int = 0, lastPracticed: Date? = nil, currentLevel: Int? = nil, importance: ImportanceLevel? = .buildingBlock) {
         self.id = id
         self.title = title
         self.ideaDescription = description
@@ -29,6 +44,7 @@ final class Idea {
         self.masteryLevel = masteryLevel
         self.lastPracticed = lastPracticed
         self.currentLevel = currentLevel
+        self.importance = importance
         self.responses = []
         self.progress = []
         print("DEBUG: Created Idea with id: \(id), title: \(title), bookTitle: \(bookTitle)")

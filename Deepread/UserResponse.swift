@@ -3,11 +3,8 @@ import SwiftData
 
 // MARK: - Flexible Evaluation Data Structure
 struct EvaluationData: Codable {
-    let score: Int           // legacy 0-10 score for backward compatibility
-    let starScore: Int       // new 1-3 star score  
+    let starScore: Int       // 1-3 star score
     let level: String
-    let strengths: [String]
-    let improvements: [String]
     let silverBullet: String?
     let pass: Bool           // whether the response passes the level
     let mastery: Bool        // whether mastery is achieved
@@ -15,24 +12,18 @@ struct EvaluationData: Codable {
     let version: String
     
     init(from evaluation: EvaluationResult, silverBullet: String? = nil) {
-        self.score = evaluation.score10  // legacy compatibility
-        self.starScore = evaluation.starScore  // new star system
+        self.starScore = evaluation.starScore
         self.level = evaluation.level
-        self.strengths = evaluation.strengths
-        self.improvements = evaluation.improvements
         self.silverBullet = silverBullet
         self.pass = evaluation.pass
         self.mastery = evaluation.mastery
         self.metadata = [:]
-        self.version = "2.0"  // Updated version for star system
+        self.version = "3.0"  // Updated version - removed strengths/weaknesses
     }
     
-    init(score: Int, starScore: Int, level: String, strengths: [String], improvements: [String], silverBullet: String?, pass: Bool, mastery: Bool, metadata: [String: String], version: String) {
-        self.score = score
+    init(starScore: Int, level: String, silverBullet: String?, pass: Bool, mastery: Bool, metadata: [String: String], version: String) {
         self.starScore = starScore
         self.level = level
-        self.strengths = strengths
-        self.improvements = improvements
         self.silverBullet = silverBullet
         self.pass = pass
         self.mastery = mastery
@@ -69,36 +60,12 @@ final class UserResponse {
 
 // MARK: - Computed Properties for Easy Access
 extension UserResponse {
-    var score: Int? {
-        guard let data = evaluationData,
-              let evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
-            return nil
-        }
-        return evaluation.score
-    }
-    
     var starScore: Int? {
         guard let data = evaluationData,
               let evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
             return nil
         }
         return evaluation.starScore
-    }
-    
-    var strengths: [String] {
-        guard let data = evaluationData,
-              let evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
-            return []
-        }
-        return evaluation.strengths
-    }
-    
-    var improvements: [String] {
-        guard let data = evaluationData,
-              let evaluation = try? JSONDecoder().decode(EvaluationData.self, from: data) else {
-            return []
-        }
-        return evaluation.improvements
     }
     
     var silverBullet: String? {
@@ -160,11 +127,8 @@ extension UserResponse {
         
         // Create new evaluation data with updated silver bullet
         let updatedEvaluation = EvaluationData(
-            score: evaluation.score,
             starScore: evaluation.starScore,
             level: evaluation.level,
-            strengths: evaluation.strengths,
-            improvements: evaluation.improvements,
             silverBullet: silverBullet,
             pass: evaluation.pass,
             mastery: evaluation.mastery,

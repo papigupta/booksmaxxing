@@ -269,13 +269,16 @@ class OpenAIService {
             • Be comprehensive: Cover all ideas worth mastering, in the order they appear in the book. Aim for completeness, but if over 50, prioritize the most impactful.
             • Be consistent across runs: Prioritize the book's core narrative and key takeaways. Focus on explanatory power and applicability, not trivia or examples unless essential.
             • Avoid redundancy. For eg. Don't extract "Strange Loops" and "Strange Loops in Art and Music", instead use either of the two, and aim to teach both with one single idea.
-            • For each idea: Use format "iX | Title — Description" (Title: short and clear, 1 line max; Description: 1-2 sentences explaining essence, significance, and application).
+            • For each idea: Use format "iX | Title — Description | Importance" where:
+              - Title: short and clear, 1 line max
+              - Description: 1-2 sentences explaining essence, significance, and application  
+              - Importance: "Foundation" (enables understanding of most other concepts), "Building Block" (important, connects to several others), or "Enhancement" (valuable but specialized)
 
             Additional rules for this API call:
             • Titles must be unique. Do not output synonyms or sub-variants as separate items.  
             • Prepend each concept with an ID in the form **i1, i2, …** so the client can parse it.  
 
-            Example output element: "i1 | Anchoring Effect — Initial numbers bias judgments even if irrelevant, leading to flawed decisions in negotiations or estimates."
+            Example output element: "i1 | Anchoring Effect — Initial numbers bias judgments even if irrelevant, leading to flawed decisions in negotiations or estimates. | Foundation"
             
 
             Return a **JSON array of strings** (no objects, no extra text).

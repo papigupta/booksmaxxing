@@ -342,32 +342,21 @@ struct ActiveIdeaCard: View {
                             .lineLimit(3)
                     }
                     
-                    // Understanding Score
-                    HStack(spacing: 4) {
-                        Text("Understanding score:")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
-                        
-                        HStack(spacing: 2) {
-                            ForEach(0..<3) { index in
-                                Image(systemName: index < 2 ? "star.fill" : "star")
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
-                            }
-                        }
-                    }
                     
-                    // Important Idea
-                    HStack(spacing: 4) {
-                        Text("Importance:")
+                    // Importance with signal bars
+                    HStack(spacing: 8) {
+                        let importanceLevel = idea.importance ?? .buildingBlock
+                        Text(importanceLevel.rawValue)
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
+                            .fontWeight(.medium)
+                            .foregroundColor(.white.opacity(0.9))
                         
                         HStack(spacing: 2) {
-                            ForEach(0..<min(idea.depthTarget, 5), id: \.self) { index in
-                                Image(systemName: "staroflife.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.7))
+                            ForEach(0..<3, id: \.self) { index in
+                                Rectangle()
+                                    .fill(index < importanceLevel.barCount ? Color.white.opacity(0.9) : Color.white.opacity(0.3))
+                                    .frame(width: 3, height: index == 0 ? 8 : index == 1 ? 12 : 16)
+                                    .animation(.easeInOut(duration: 0.2), value: importanceLevel.barCount)
                             }
                         }
                     }
@@ -525,9 +514,16 @@ struct InactiveIdeaCard: View {
                             .foregroundColor(.secondary)
                         
                         if let bestScore = progressInfo.bestScore {
-                            Text("Best: \(bestScore)/10")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            HStack(spacing: 2) {
+                                Text("Best:")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                ForEach(1...3, id: \.self) { star in
+                                    Image(systemName: star <= bestScore ? "star.fill" : "star")
+                                        .foregroundColor(star <= bestScore ? .yellow : .gray)
+                                        .font(.system(size: 8))
+                                }
+                            }
                         }
                         
                         if let lastPracticed = idea.lastPracticed {
@@ -551,7 +547,7 @@ struct InactiveIdeaCard: View {
         Task {
             do {
                 let responses = try userResponseService.getUserResponses(for: idea.id)
-                let bestScore = responses.compactMap { $0.score }.max()
+                let bestScore = responses.compactMap { $0.starScore }.max()
                 
                 await MainActor.run {
                     self.progressInfo = (responses.count, bestScore)
