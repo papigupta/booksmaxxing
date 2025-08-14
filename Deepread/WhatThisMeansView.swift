@@ -70,9 +70,6 @@ struct WhatThisMeansView: View {
                 Button(getButtonText(starScore: evaluationResult.starScore, currentLevel: level)) {
                     let nextLevelResult = determineNextLevel(starScore: evaluationResult.starScore, currentLevel: level)
                     
-                    // Save intermediate progress before proceeding
-                    saveProgress(starScore: evaluationResult.starScore, currentLevel: level)
-                    
                     if nextLevelResult == -1 {
                         // Mastery achieved - show celebration
                         showingCelebration = true
@@ -155,25 +152,6 @@ struct WhatThisMeansView: View {
     
     // MARK: - Progress Saving
     
-    private func saveProgress(starScore: Int, currentLevel: Int) {
-        // Update mastery level based on current progress
-        let newMasteryLevel = calculateMasteryLevel(starScore: starScore, currentLevel: currentLevel)
-        
-        // Only update if the new level is higher than current
-        if newMasteryLevel > idea.masteryLevel {
-            idea.masteryLevel = newMasteryLevel
-            idea.lastPracticed = Date()
-            
-            // Save to database immediately
-            do {
-                try modelContext.save()
-                print("DEBUG: Saved intermediate progress - mastery level updated to \(newMasteryLevel) for idea: \(idea.title)")
-            } catch {
-                print("DEBUG: Failed to save intermediate progress: \(error)")
-            }
-        }
-    }
-    
     private func saveNextLevel(nextLevel: Int) {
         idea.currentLevel = nextLevel
         do {
@@ -184,34 +162,6 @@ struct WhatThisMeansView: View {
         }
     }
     
-    private func calculateMasteryLevel(starScore: Int, currentLevel: Int) -> Int {
-        // Calculate mastery level based on current level and star score
-        switch currentLevel {
-        case 1: // Why Care
-            switch starScore {
-            case 1: return 1 // Basic understanding
-            case 2: return 2 // Solid grasp
-            case 3: return 2 // Aha moment - ready for advanced
-            default: return 1
-            }
-        case 2: // When Use  
-            switch starScore {
-            case 1: return 1 // Still basic
-            case 2: return 2 // Solid understanding
-            case 3: return 2 // Aha moment - ready for mastery
-            default: return 2
-            }
-        case 3: // How Wield
-            switch starScore {
-            case 1: return 2 // Still intermediate
-            case 2: return 3 // Mastery achieved
-            case 3: return 3 // Master level achieved
-            default: return 2
-            }
-        default:
-            return idea.masteryLevel // Keep current level
-        }
-    }
     
     // MARK: - Level Progression Logic
     

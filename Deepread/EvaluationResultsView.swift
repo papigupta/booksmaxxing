@@ -12,7 +12,6 @@ struct EvaluationResultsView: View {
     @State private var evaluationResult: EvaluationResult?
     @State private var isLoadingEvaluation = true
     @State private var evaluationError: String?
-    @State private var isSavingResponse = false
     @State private var navigateToWhatThisMeans = false
     @State private var isResponseExpanded = false
     @State private var navigateToHome = false
@@ -976,18 +975,12 @@ struct EvaluationResultsView: View {
             
             // Continue button
             VStack(spacing: 12) {
-                Button(action: { saveResponseAndContinue() }) {
+                Button(action: { navigateToWhatThisMeans = true }) {
                     HStack(spacing: 8) {
-                        if isSavingResponse {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .foregroundStyle(.white)
-                        } else {
-                            Image(systemName: "arrow.right")
-                                .font(.title3)
-                        }
+                        Image(systemName: "arrow.right")
+                            .font(.title3)
                         
-                        Text(isSavingResponse ? "Saving..." : "Continue")
+                        Text("Continue")
                             .fontWeight(.semibold)
                     }
                     .frame(maxWidth: .infinity)
@@ -996,9 +989,8 @@ struct EvaluationResultsView: View {
                     .foregroundStyle(.white)
                     .cornerRadius(12)
                 }
-                .disabled(isSavingResponse)
                 
-                Text("Your response and evaluation will be saved")
+                Text("Your response and evaluation have been saved")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1041,6 +1033,21 @@ struct EvaluationResultsView: View {
                     level: level,
                     prompt: prompt
                 )
+                
+                // Save the response immediately when evaluation is complete
+                do {
+                    _ = try await userResponseService.saveUserResponseWithEvaluation(
+                        ideaId: idea.id,
+                        level: level,
+                        prompt: prompt,
+                        response: userResponse,
+                        evaluation: result
+                    )
+                } catch {
+                    print("DEBUG: Failed to save response when feedback loaded: \(error)")
+                    // Don't fail the whole flow if saving fails, just log the error
+                }
+                
                 await MainActor.run {
                     self.evaluationResult = result
                     self.isLoadingEvaluation = false
@@ -1106,34 +1113,6 @@ struct EvaluationResultsView: View {
         }
     }
     
-    private func saveResponseAndContinue() {
-        guard let result = evaluationResult else { return }
-        
-        isSavingResponse = true
-        
-        Task {
-            do {
-                // Save the user response with evaluation
-                _ = try await userResponseService.saveUserResponseWithEvaluation(
-                    ideaId: idea.id,
-                    level: level,
-                    prompt: prompt,
-                    response: userResponse,
-                    evaluation: result
-                )
-                
-                await MainActor.run {
-                    isSavingResponse = false
-                    navigateToWhatThisMeans = true
-                }
-            } catch {
-                await MainActor.run {
-                    isSavingResponse = false
-                    evaluationError = "Failed to save response: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
     
     // MARK: - Star System Helpers
     
