@@ -44,6 +44,11 @@ struct EvaluationResult: Codable {
     let pass: Bool           // starScore >= 2
     let insightCompass: WisdomFeedback // Combined wisdom feedback
     
+    // Reality Check fields (only populated when starScore < 3)
+    let idealAnswer: String?          // The 3-star reference answer
+    let keyGap: String?              // The fatal flaw explanation
+    let hasRealityCheck: Bool        // UI flag for showing section
+    
     // Backward compatibility - legacy properties
     let score10: Int         // Legacy 0-10 score computed from starScore
     let strengths: [String]  // Legacy strengths (derived from insight compass)
@@ -137,7 +142,8 @@ class EvaluationService {
     func evaluateSubmission(
         idea: Idea,
         userResponse: String,
-        level: Int
+        level: Int,
+        prompt: String
     ) async throws -> EvaluationResult {
         
         // Validate inputs
@@ -151,7 +157,7 @@ class EvaluationService {
         }
         
         return try await withRetry(maxAttempts: 3, operation: {
-            try await self.performEvaluation(idea: idea, userResponse: userResponse, level: level)
+            try await self.performEvaluation(idea: idea, userResponse: userResponse, level: level, prompt: prompt)
         })
     }
     
@@ -192,7 +198,8 @@ class EvaluationService {
     private func performEvaluation(
         idea: Idea,
         userResponse: String,
-        level: Int
+        level: Int,
+        prompt: String
     ) async throws -> EvaluationResult {
         
         print("EVAL DEBUG: Starting star-based evaluation for idea: \(idea.title), level: \(level)")
@@ -210,6 +217,9 @@ class EvaluationService {
         - Idea Description: \(idea.ideaDescription)
         - Level: \(levelName)
         - Level Focus: \(levelCriteria)
+        
+        THE SPECIFIC QUESTION USER WAS ASKED:
+        \(prompt)
         
         USER RESPONSE:
         \(userResponse)
@@ -234,9 +244,15 @@ class EvaluationService {
         - Examples: profound insights, creative applications, connects to bigger picture
         
         LEVEL-SPECIFIC CRITERIA:
-        Level 1 (Why Care): Must explain significance and real-world importance
-        Level 2 (When Use): Must identify triggers and application contexts
-        Level 3 (How Wield): Must demonstrate creative/critical extension of thinking
+        Level 1 (Why Care): Must explain significance and real-world importance with concrete examples
+        Level 2 (When Use): Must identify triggers and application contexts with specific scenarios  
+        Level 3 (How Wield): Must demonstrate creative/critical extension with original applications
+        
+        REALITY CHECK GENERATION:
+        - Ideal answer is standalone - no awareness of user's response
+        - Focus on deep consequences and stakes, not surface-level benefits
+        - Key gap should reveal what they're missing about why this truly matters
+        - Show the real-world impact of ignoring vs applying this concept
         
         COMBINED EVALUATION: Return ONLY this exact JSON structure:
         {
@@ -250,7 +266,9 @@ class EvaluationService {
             "elevatedPerspective": "25-40 words: Expert-level pattern or professional insight",
             "nextLevelPrep": "20-35 words: Next learning step guidance",
             "personalizedWisdom": "20-30 words: Tailored insight for their thinking style"
-          }
+          },
+          "idealAnswer": "IF starScore < 3: Write a standalone 3-star response to THE SPECIFIC QUESTION above. Answer exactly what was asked. No awareness of the user's answer. Focus on deep consequences, stakes, and real-world impact. Use concrete examples and human language. Sound like someone who truly understands. ELSE: null",
+          "keyGap": "IF starScore < 3: The specific deeper insight they're missing. Focus on consequences, stakes, or the underlying mechanism. What would make them go 'oh shit, now I see why this actually matters.' Not process, but impact. ELSE: null"
         }
         
         IMPORTANT: 
@@ -262,8 +280,8 @@ class EvaluationService {
         """
         
         let model = "gpt-4.1"  // Use full model for combined evaluation
-        let temperature: Double = 0.3
-        let maxTokens: Int = 800  // More tokens for combined response
+        let temperature: Double = 0.7  // Higher creativity for Reality Check generation
+        let maxTokens: Int = 1200  // More tokens for detailed Reality Check content
         
         let raw = try await openAI.complete(
             prompt: systemPrompt,
@@ -289,6 +307,9 @@ class EvaluationService {
             starDescription: parsed.starDescription,
             pass: parsed.pass,
             insightCompass: parsed.insightCompass,
+            idealAnswer: parsed.idealAnswer,
+            keyGap: parsed.keyGap,
+            hasRealityCheck: parsed.starScore < 3,
             score10: legacyScore,
             strengths: legacyStrengths,
             improvements: legacyImprovements,
@@ -326,6 +347,8 @@ class EvaluationService {
         let starDescription: String
         let pass: Bool
         let insightCompass: WisdomFeedback
+        let idealAnswer: String?
+        let keyGap: String?
     }
     
     private func parseStarEvaluation(_ rawResponse: String) throws -> StarEvaluationResponse {
@@ -352,7 +375,9 @@ class EvaluationService {
                     starScore: response.starScore,
                     starDescription: response.starDescription,
                     pass: expectedPass,
-                    insightCompass: response.insightCompass
+                    insightCompass: response.insightCompass,
+                    idealAnswer: response.idealAnswer,
+                    keyGap: response.keyGap
                 )
             }
             

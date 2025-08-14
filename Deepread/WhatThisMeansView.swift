@@ -375,6 +375,9 @@ struct WhatThisMeansView: View {
                     nextLevelPrep: "Ready to explore when and where to apply this concept.",
                     personalizedWisdom: "Your design background gives you unique insight here."
                 ),
+                idealAnswer: "Norman doors reveal a fundamental design principle: when an object's design suggests one action but requires another, confusion is inevitable. This matters because these design failures create cognitive friction in our daily lives. Every time we encounter a door that looks pushable but needs to be pulled, we experience a micro-failure of intuitive design. This principle extends beyond doors to all interfaces - digital buttons that don't look clickable, forms that hide required fields, or navigation that misleads users. The significance lies in recognizing that good design should guide behavior naturally, eliminating the need for instructions or trial-and-error.",
+                keyGap: "You missed the broader design principle - it's not just about doors, but about how design communicates intended actions to users.",
+                hasRealityCheck: true,
                 score10: 7,
                 strengths: ["Good engagement with the concept", "Clear personal connection"],
                 improvements: ["Could explore practical applications more", "Consider deeper analysis"],

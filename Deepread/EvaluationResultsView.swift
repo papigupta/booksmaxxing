@@ -240,8 +240,12 @@ struct EvaluationResultsView: View {
                 // Score Section
                 scoreSection(result)
                 
-                // Response Section
-                responseSection
+                // Reality Check Section (replaces response section for <3 star responses)
+                if result.hasRealityCheck {
+                    realityCheckSection(result)
+                } else {
+                    responseSection
+                }
                 
                 // Insight Compass Section (Now built into evaluation)
                 wisdomFeedbackSection(result.insightCompass)
@@ -403,6 +407,133 @@ struct EvaluationResultsView: View {
                 .animation(.easeInOut(duration: 0.3), value: isResponseExpanded)
         }
         .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+    }
+    
+    // MARK: - Reality Check Section
+    private func realityCheckSection(_ result: EvaluationResult) -> some View {
+        VStack(spacing: 24) {
+            // Section header
+            VStack(spacing: 8) {
+                Text("Reality Check™")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
+                
+                Text("See what mastery looks like")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 24)
+            
+            // Side-by-side comparison
+            VStack(spacing: 0) {
+                HStack {
+                    // Your Answer section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Your Answer")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                        
+                        ScrollView {
+                            Text(userResponse)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .lineLimit(nil)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 200)
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(cardBackground)
+                    .cornerRadius(16)
+                    
+                    // Ideal Answer section
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 6) {
+                            HStack(spacing: 2) {
+                                ForEach(1...3, id: \.self) { star in
+                                    Image(systemName: "star.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.yellow)
+                                }
+                            }
+                            
+                            Text("Ideal Answer")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.primary)
+                        }
+                        
+                        ScrollView {
+                            Text(result.idealAnswer ?? "")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .lineLimit(nil)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 200)
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.green.opacity(0.1), Color.green.opacity(0.05)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.green.opacity(0.3), Color.green.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                }
+                .padding(.horizontal, 16)
+                
+                // Key Gap callout
+                if let keyGap = result.keyGap, !keyGap.isEmpty {
+                    HStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.red)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("🚨 Key Gap")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.red)
+                            
+                            Text(keyGap)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .lineLimit(nil)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(20)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                }
+            }
+        }
         .padding(.bottom, 24)
     }
     
@@ -849,7 +980,8 @@ struct EvaluationResultsView: View {
                 let result = try await evaluationService.evaluateSubmission(
                     idea: idea,
                     userResponse: userResponse,
-                    level: level
+                    level: level,
+                    prompt: prompt
                 )
                 await MainActor.run {
                     self.evaluationResult = result
