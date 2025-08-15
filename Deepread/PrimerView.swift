@@ -111,7 +111,6 @@ struct PrimerView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 thesisSection(primer)
-                coreSection(primer)
                 storySection(primer)
                 useItWhenSection(primer)
                 howToApplySection(primer)
@@ -154,26 +153,6 @@ struct PrimerView: View {
         }
     }
     
-    @ViewBuilder
-    private func coreSection(_ primer: Primer) -> some View {
-        if !primer.core.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "doc.text.fill")
-                        .foregroundColor(.blue)
-                        .font(.title3)
-                    Text("Core")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                }
-                
-                Text(primer.core)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineSpacing(4)
-            }
-        }
-    }
     
     @ViewBuilder
     private func storySection(_ primer: Primer) -> some View {
@@ -385,7 +364,7 @@ struct PrimerView: View {
     @ViewBuilder
     private func legacyFallbackContent(_ primer: Primer) -> some View {
         // Fallback to legacy fields if new fields are empty
-        if primer.thesis.isEmpty && primer.core.isEmpty && !primer.overview.isEmpty {
+        if primer.thesis.isEmpty && !primer.overview.isEmpty {
             Group {
                 // Overview Section (Legacy)
                 VStack(alignment: .leading, spacing: 12) {

@@ -57,7 +57,6 @@ class PrimerService: ObservableObject {
         let primer = Primer(
             ideaId: idea.id,
             thesis: parsedPrimer.thesis,
-            core: parsedPrimer.core,
             story: parsedPrimer.story,
             useItWhen: parsedPrimer.useItWhen,
             howToApply: parsedPrimer.howToApply,
@@ -118,9 +117,6 @@ class PrimerService: ObservableObject {
 
         # Thesis (≤22 words)
         A single, sharp claim that captures the idea's essence.
-
-        # Core (110–150 words)
-        Explain what it is, how it works, and why it matters — strictly in the author's voice. Each sentence must add new information.
         
         # Story (80–120 words)
         Share a compelling narrative or example that illustrates this idea in action. Use concrete details and make it memorable.
@@ -143,15 +139,14 @@ class PrimerService: ObservableObject {
         - [Talk/lecture video]: https://youtube.com/results?search_query=<author+idea+book>
         - [Review/critique]: https://<quality-blog>/<book-or-idea-review>
 
-        Rules: No repetition across sections. No hedging. Don't invent examples; if the description includes one, compress it briefly in Story section. Total length ≤ 320 words.
+        Rules: No repetition across sections. No hedging. Don't invent examples; if the description includes one, compress it briefly in Story section. Total length ≤ 240 words.
         """
     }
     
-    private func parsePrimerResponse(_ response: String) throws -> (thesis: String, core: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
+    private func parsePrimerResponse(_ response: String) throws -> (thesis: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
         let lines = response.components(separatedBy: .newlines)
         
         var thesis = ""
-        var core = ""
         var story = ""
         var useItWhen: [String] = []
         var howToApply: [String] = []
@@ -167,9 +162,6 @@ class PrimerService: ObservableObject {
             // Check for section headers
             if trimmedLine.hasPrefix("# Thesis") {
                 currentSection = "thesis"
-                continue
-            } else if trimmedLine.hasPrefix("# Core") {
-                currentSection = "core"
                 continue
             } else if trimmedLine.hasPrefix("# Story") {
                 currentSection = "story"
@@ -196,10 +188,6 @@ class PrimerService: ObservableObject {
             case "thesis":
                 if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
                     thesis += trimmedLine + " "
-                }
-            case "core":
-                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
-                    core += trimmedLine + " "
                 }
             case "story":
                 if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
@@ -259,7 +247,6 @@ class PrimerService: ObservableObject {
         
         return (
             thesis: thesis.trimmingCharacters(in: .whitespaces),
-            core: core.trimmingCharacters(in: .whitespaces),
             story: story.trimmingCharacters(in: .whitespaces),
             useItWhen: useItWhen,
             howToApply: howToApply,

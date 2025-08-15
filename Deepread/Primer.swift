@@ -8,7 +8,6 @@ final class Primer {
     
     // New structure fields
     var thesis: String
-    var core: String
     var story: String = ""  // Default value for backward compatibility
     var useItWhen: [String]
     var howToApply: [String]
@@ -27,11 +26,10 @@ final class Primer {
     // Relationship back to Idea
     @Relationship(deleteRule: .cascade) var idea: Idea?
     
-    init(ideaId: String, thesis: String, core: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
+    init(ideaId: String, thesis: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
         self.id = UUID()
         self.ideaId = ideaId
         self.thesis = thesis
-        self.core = core
         self.story = story
         self.useItWhen = useItWhen
         self.howToApply = howToApply
@@ -40,7 +38,7 @@ final class Primer {
         self.furtherLearning = furtherLearning
         
         // Legacy fields for backward compatibility
-        self.overview = core
+        self.overview = thesis
         self.keyNuances = useItWhen + howToApply + edgesAndLimits
         self.digDeeperLinks = furtherLearning
         
@@ -56,8 +54,7 @@ final class Primer {
         self.digDeeperLinks = digDeeperLinks
         
         // Map to new structure
-        self.thesis = "Key insight from \(overview.prefix(50))..."
-        self.core = overview
+        self.thesis = overview.components(separatedBy: ".").first ?? overview
         self.story = ""
         self.useItWhen = Array(keyNuances.prefix(3))
         self.howToApply = Array(keyNuances.dropFirst(3).prefix(3))
