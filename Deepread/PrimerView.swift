@@ -22,7 +22,7 @@ struct PrimerView: View {
         NavigationView {
             VStack(spacing: 0) {
                 headerView
-                Divider()
+                DSDivider()
                 contentView
             }
         }
@@ -32,6 +32,7 @@ struct PrimerView: View {
                 Button("Done") {
                     dismiss()
                 }
+                .dsTertiaryButton()
             }
         }
         .onAppear {
@@ -44,22 +45,21 @@ struct PrimerView: View {
     // MARK: - View Components
     
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text(idea.bookTitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(DS.Typography.caption)
+                .foregroundStyle(DS.Colors.secondaryText)
                 .textCase(.uppercase)
                 .tracking(0.5)
             
             Text("Primer: \(idea.title)")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundStyle(.primary)
+                .font(DS.Typography.title)
+                .foregroundStyle(DS.Colors.primaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.top, DS.Spacing.lg)
+        .padding(.bottom, DS.Spacing.md)
     }
     
     @ViewBuilder
@@ -74,42 +74,20 @@ struct PrimerView: View {
     }
     
     private var loadingView: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            ProgressView()
-                .scaleEffect(1.2)
-            Text("Generating your primer...")
-                .font(.body)
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        DSLoadingView(message: "Generating your primer...")
     }
     
     private func errorView(_ error: String) -> some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
-                .foregroundColor(.orange)
-            Text("Error")
-                .font(.headline)
-            Text(error)
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Try Again") {
-                loadPrimer()
-            }
-            .buttonStyle(.borderedProminent)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        DSErrorView(
+            title: "Error",
+            message: error,
+            retryAction: { loadPrimer() }
+        )
     }
     
     private func primerContentView(_ primer: Primer) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                 thesisSection(primer)
                 storySection(primer)
                 useItWhenSection(primer)
@@ -120,35 +98,26 @@ struct PrimerView: View {
                 legacyFallbackContent(primer)
                 refreshButton
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.lg)
         }
     }
     
     @ViewBuilder
     private func thesisSection(_ primer: Primer) -> some View {
         if !primer.thesis.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 HStack {
-                    Image(systemName: "lightbulb.fill")
-                        .foregroundColor(.yellow)
-                        .font(.title3)
+                    DSIcon("lightbulb.fill")
                     Text("Thesis")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                 }
                 
                 Text(primer.thesis)
-                    .font(.title3)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.primary)
+                    .font(DS.Typography.body)
+                    .foregroundStyle(DS.Colors.primaryText)
                     .lineSpacing(4)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemBackground))
-                            .stroke(Color(.systemGray4), lineWidth: 1)
-                    )
+                    .dsCard()
             }
         }
     }
@@ -157,26 +126,18 @@ struct PrimerView: View {
     @ViewBuilder
     private func storySection(_ primer: Primer) -> some View {
         if !primer.story.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack {
-                    Image(systemName: "book.fill")
-                        .foregroundColor(.purple)
-                        .font(.title3)
+                    DSIcon("book.fill")
                     Text("Story")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                 }
                 
                 Text(primer.story)
-                    .font(.body)
-                    .foregroundStyle(.primary)
+                    .font(DS.Typography.body)
+                    .foregroundStyle(DS.Colors.primaryText)
                     .lineSpacing(4)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.purple.opacity(0.05))
-                            .stroke(Color.purple.opacity(0.2), lineWidth: 1)
-                    )
+                    .dsSubtleCard()
             }
         }
     }
@@ -184,35 +145,26 @@ struct PrimerView: View {
     @ViewBuilder
     private func useItWhenSection(_ primer: Primer) -> some View {
         if !primer.useItWhen.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack {
-                    Image(systemName: "clock.fill")
-                        .foregroundColor(.green)
-                        .font(.title3)
+                    DSIcon("clock.fill")
                     Text("Use it when...")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     ForEach(primer.useItWhen, id: \.self) { cue in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .font(.caption)
+                        HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                            DSIcon("checkmark.circle.fill", size: 14)
                                 .padding(.top, 2)
                             Text(cue)
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.primaryText)
                             Spacer()
                         }
                     }
                 }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.green.opacity(0.05))
-                )
+                .dsSubtleCard()
             }
         }
     }
@@ -220,40 +172,33 @@ struct PrimerView: View {
     @ViewBuilder
     private func howToApplySection(_ primer: Primer) -> some View {
         if !primer.howToApply.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack {
-                    Image(systemName: "gear.circle.fill")
-                        .foregroundColor(.orange)
-                        .font(.title3)
+                    DSIcon("gear.circle.fill")
                     Text("How to apply")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     ForEach(Array(primer.howToApply.enumerated()), id: \.offset) { index, step in
-                        HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: DS.Spacing.xs) {
                             ZStack {
-                                Circle()
-                                    .fill(Color.orange)
+                                Rectangle()
+                                    .fill(DS.Colors.black)
                                     .frame(width: 20, height: 20)
                                 Text("\(index + 1)")
-                                    .font(.caption)
+                                    .font(DS.Typography.small)
                                     .fontWeight(.bold)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(DS.Colors.white)
                             }
                             Text(step)
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.primaryText)
                             Spacer()
                         }
                     }
                 }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.orange.opacity(0.05))
-                )
+                .dsSubtleCard()
             }
         }
     }
@@ -261,35 +206,26 @@ struct PrimerView: View {
     @ViewBuilder
     private func edgesAndLimitsSection(_ primer: Primer) -> some View {
         if !primer.edgesAndLimits.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
-                        .font(.title3)
+                    DSIcon("exclamationmark.triangle.fill")
                     Text("Edges & Limits")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     ForEach(primer.edgesAndLimits, id: \.self) { limit in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "minus.circle.fill")
-                                .foregroundStyle(.red)
-                                .font(.caption)
+                        HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                            DSIcon("minus.circle.fill", size: 14)
                                 .padding(.top, 2)
                             Text(limit)
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.primaryText)
                             Spacer()
                         }
                     }
                 }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.red.opacity(0.05))
-                )
+                .dsSubtleCard()
             }
         }
     }
@@ -297,27 +233,19 @@ struct PrimerView: View {
     @ViewBuilder
     private func oneLineRecallSection(_ primer: Primer) -> some View {
         if !primer.oneLineRecall.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 HStack {
-                    Image(systemName: "quote.bubble.fill")
-                        .foregroundColor(.purple)
-                        .font(.title3)
+                    DSIcon("quote.bubble.fill")
                     Text("One-line Recall")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                 }
                 
                 Text("\"\(primer.oneLineRecall)\"")
-                    .font(.title3)
+                    .font(DS.Typography.body)
                     .italic()
-                    .foregroundColor(.primary)
+                    .foregroundColor(DS.Colors.primaryText)
                     .lineSpacing(4)
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.purple.opacity(0.05))
-                            .stroke(Color.purple.opacity(0.3), lineWidth: 1)
-                    )
+                    .dsCard(borderColor: DS.Colors.black)
             }
         }
     }
@@ -325,36 +253,30 @@ struct PrimerView: View {
     @ViewBuilder
     private func furtherLearningSection(_ primer: Primer) -> some View {
         if !primer.furtherLearning.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack {
-                    Image(systemName: "link.circle.fill")
-                        .foregroundColor(.blue)
-                        .font(.title3)
+                    DSIcon("link.circle.fill")
                     Text("Further Learning")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     ForEach(primer.furtherLearning, id: \.title) { link in
                         Button(action: {
                             openURL(link.url)
                         }) {
                             HStack {
-                                Image(systemName: "link")
-                                    .foregroundStyle(.blue)
-                                    .font(.caption)
+                                DSIcon("link", size: 14)
                                 Text(link.title)
-                                    .font(.body)
-                                    .foregroundStyle(.blue)
+                                    .font(DS.Typography.body)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                    .underline()
                                 Spacer()
-                                Image(systemName: "arrow.up.right")
-                                    .foregroundStyle(.blue)
-                                    .font(.caption)
+                                DSIcon("arrow.up.right", size: 14)
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, DS.Spacing.xxs)
                         }
-                        .buttonStyle(.plain)
+                        .dsTertiaryButton()
                     }
                 }
             }
@@ -367,34 +289,30 @@ struct PrimerView: View {
         if primer.thesis.isEmpty && !primer.overview.isEmpty {
             Group {
                 // Overview Section (Legacy)
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     Text("Overview")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(DS.Typography.headline)
                     
                     Text(primer.overview)
-                        .font(.body)
-                        .foregroundStyle(.primary)
+                        .font(DS.Typography.body)
+                        .foregroundStyle(DS.Colors.primaryText)
                         .lineSpacing(4)
                 }
                 
                 // Key Nuances Section (Legacy)
                 if !primer.keyNuances.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         Text("Key Nuances")
-                            .font(.headline)
-                            .fontWeight(.semibold)
+                            .font(DS.Typography.headline)
                         
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                             ForEach(primer.keyNuances, id: \.self) { nuance in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Image(systemName: "circle.fill")
-                                        .foregroundStyle(.blue)
-                                        .font(.caption)
-                                        .padding(.top, 4)
+                                HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                                    DSIcon("circle.fill", size: 8)
+                                        .padding(.top, 6)
                                     Text(nuance)
-                                        .font(.body)
-                                        .foregroundStyle(.primary)
+                                        .font(DS.Typography.body)
+                                        .foregroundStyle(DS.Colors.primaryText)
                                 }
                             }
                         }
@@ -403,27 +321,25 @@ struct PrimerView: View {
                 
                 // Dig Deeper Section (Legacy)
                 if !primer.digDeeperLinks.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         Text("Dig Deeper")
-                            .font(.headline)
-                            .fontWeight(.semibold)
+                            .font(DS.Typography.headline)
                         
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                             ForEach(primer.digDeeperLinks, id: \.title) { link in
                                 Button(action: {
                                     openURL(link.url)
                                 }) {
                                     HStack {
-                                        Image(systemName: "link")
-                                            .foregroundStyle(.blue)
-                                            .font(.caption)
+                                        DSIcon("link", size: 14)
                                         Text(link.title)
-                                            .font(.body)
-                                            .foregroundStyle(.blue)
+                                            .font(DS.Typography.body)
+                                            .foregroundStyle(DS.Colors.primaryText)
+                                            .underline()
                                         Spacer()
                                     }
                                 }
-                                .buttonStyle(.plain)
+                                .dsTertiaryButton()
                             }
                         }
                     }
@@ -439,20 +355,19 @@ struct PrimerView: View {
             HStack {
                 if isRefreshing {
                     ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
                         .scaleEffect(0.8)
-                        .foregroundStyle(.blue)
                 } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.caption)
+                    DSIcon("arrow.clockwise", size: 14)
                 }
                 Text("Refresh Primer")
-                    .font(.caption)
+                    .font(DS.Typography.caption)
             }
-            .foregroundStyle(.blue)
+            .foregroundStyle(DS.Colors.black)
         }
-        .buttonStyle(.plain)
+        .dsTertiaryButton()
         .disabled(isRefreshing)
-        .padding(.top, 16)
+        .padding(.top, DS.Spacing.md)
     }
     
     // MARK: - Methods

@@ -20,47 +20,38 @@ struct BookOverviewView: View {
             headerView
             
             if viewModel.isLoading {
-                ProgressView("Breaking book into core ideas…")
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 40)
+                DSLoadingView(message: "Breaking book into core ideas…")
+                    .padding(.top, DS.Spacing.xxl)
             } else if let errorMessage = viewModel.errorMessage {
-                VStack(spacing: 16) {
-                    Text("⚠️ Network Error")
-                        .font(.headline)
-                        .foregroundColor(.red)
-                    
-                    Text(errorMessage)
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    
-                    Button("Retry") {
+                DSErrorView(
+                    title: "Network Error",
+                    message: errorMessage,
+                    retryAction: {
                         Task {
                             await viewModel.loadOrExtractIdeas(from: bookTitle)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 40)
+                )
+                .padding(.top, DS.Spacing.xxl)
             } else if viewModel.extractedIdeas.isEmpty {
-                VStack(spacing: 16) {
+                VStack(spacing: DS.Spacing.md) {
                     Text("No ideas found")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
+                        .font(DS.Typography.headline)
+                        .foregroundColor(DS.Colors.secondaryText)
                     
                     Button("Extract Ideas") {
                         Task {
                             await viewModel.loadOrExtractIdeas(from: bookTitle)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .dsSecondaryButton()
+                    .frame(width: 200)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 40)
+                .padding(.top, DS.Spacing.xxl)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         ForEach(Array(viewModel.extractedIdeas.enumerated()), id: \.element.id) { index, idea in
                             if index == activeIdeaIndex {
                                 ActiveIdeaCard(idea: idea, openAIService: openAIService)
@@ -77,8 +68,8 @@ struct BookOverviewView: View {
                 }
             }
         }
-        .padding(.horizontal)
-        .padding(.top, 8)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.top, DS.Spacing.xs)
         .task {
             print("DEBUG: BookOverviewView task triggered")
             await viewModel.loadOrExtractIdeas(from: bookTitle)
@@ -131,21 +122,13 @@ struct BookOverviewView: View {
                 Button(action: {
                     navigateToOnboarding = true
                 }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "house.fill")
-                            .font(.system(size: 16, weight: .medium))
+                    HStack(spacing: DS.Spacing.xs) {
+                        DSIcon("house.fill", size: 16)
                         Text("Select Another Book")
-                            .font(.system(size: 15, weight: .medium))
+                            .font(DS.Typography.caption)
                     }
-                    .foregroundColor(.blue)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.blue.opacity(0.1))
-                    )
                 }
-                .buttonStyle(PlainButtonStyle())
+                .dsSmallButton()
                 
                 Spacer()
                 
@@ -157,31 +140,31 @@ struct BookOverviewView: View {
                 .foregroundColor(.secondary)
                 #endif
             }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 16)
+            .padding(.horizontal, DS.Spacing.xxs)
+            .padding(.bottom, DS.Spacing.md)
             
             // Book title and author
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text(viewModel.bookInfo?.title ?? bookTitle)
-                    .font(.system(size: 28, weight: .bold, design: .default))
+                    .font(DS.Typography.largeTitle)
                     .tracking(-0.03)
-                    .foregroundColor(.primary)
+                    .foregroundColor(DS.Colors.primaryText)
                     .lineLimit(2)
                 
                 if let author = viewModel.bookInfo?.author {
                     Text("by \(author)")
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundColor(.secondary)
+                        .font(DS.Typography.body)
+                        .foregroundColor(DS.Colors.secondaryText)
                 } else {
                     Text("Author not specified")
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundColor(.secondary)
+                        .font(DS.Typography.body)
+                        .foregroundColor(DS.Colors.tertiaryText)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, 24)
+            .padding(.bottom, DS.Spacing.lg)
         }
-        .background(Color(.systemBackground))
+        .background(DS.Colors.primaryBackground)
     }
 }
 
@@ -295,66 +278,65 @@ struct ActiveIdeaCard: View {
     @State private var showingHistory = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "apple.intelligence")
-                    .font(.title2)
-                    .foregroundColor(.white)
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(alignment: .top, spacing: DS.Spacing.sm) {
+                DSIcon("apple.intelligence", size: 24)
+                    .foregroundColor(DS.Colors.white)
                     .frame(width: 24)
                 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     HStack {
                         Text(idea.title)
-                            .font(.body)
-                            .fontWeight(.semibold)
+                            .font(DS.Typography.bodyBold)
                             .lineLimit(2)
-                            .foregroundColor(.white)
+                            .foregroundColor(DS.Colors.white)
                         
                         Spacer()
                         
                         // Show mastered badge when masteryLevel >= 3
                         if idea.masteryLevel >= 3 {
                             Text("MASTERED")
-                                .font(.caption2)
+                                .font(DS.Typography.small)
                                 .fontWeight(.bold)
-                                .foregroundColor(.yellow)
-                                .padding(.horizontal, 6)
+                                .foregroundColor(DS.Colors.white)
+                                .padding(.horizontal, DS.Spacing.xs)
                                 .padding(.vertical, 2)
-                                .background(Color.yellow.opacity(0.2))
-                                .cornerRadius(4)
+                                .background(DS.Colors.black)
+                                .overlay(
+                                    Rectangle()
+                                        .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
+                                )
                         } else if idea.masteryLevel > 0 {
                             Text("RESUME")
-                                .font(.caption2)
+                                .font(DS.Typography.small)
                                 .fontWeight(.bold)
-                                .foregroundColor(.blue)
-                                .padding(.horizontal, 6)
+                                .foregroundColor(DS.Colors.black)
+                                .padding(.horizontal, DS.Spacing.xs)
                                 .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.2))
-                                .cornerRadius(4)
+                                .background(DS.Colors.white)
                         }
                     }
                     
                     if !idea.ideaDescription.isEmpty {
                         Text(idea.ideaDescription)
-                            .font(.body)
-                            .fontWeight(.regular)
-                            .foregroundColor(.white.opacity(0.7))
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.white.opacity(0.7))
                             .lineLimit(3)
                     }
                     
                     
                     // Importance with signal bars
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Spacing.xs) {
                         let importanceLevel = idea.importance ?? .buildingBlock
                         Text(importanceLevel.rawValue)
-                            .font(.caption)
+                            .font(DS.Typography.caption)
                             .fontWeight(.medium)
-                            .foregroundColor(.white.opacity(0.9))
+                            .foregroundColor(DS.Colors.white.opacity(0.9))
                         
                         HStack(spacing: 2) {
                             ForEach(0..<3, id: \.self) { index in
                                 Rectangle()
-                                    .fill(index < importanceLevel.barCount ? Color.white.opacity(0.9) : Color.white.opacity(0.3))
+                                    .fill(index < importanceLevel.barCount ? DS.Colors.white.opacity(0.9) : DS.Colors.white.opacity(0.3))
                                     .frame(width: 3, height: index == 0 ? 8 : index == 1 ? 12 : 16)
                                     .animation(.easeInOut(duration: 0.2), value: importanceLevel.barCount)
                             }
@@ -362,52 +344,54 @@ struct ActiveIdeaCard: View {
                     }
                     
                     // CTA Buttons
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Spacing.xs) {
                         NavigationLink(destination: LevelLoadingView(idea: idea, level: getStartingLevel(), openAIService: openAIService)) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "play.fill")
-                                    .font(.caption)
+                            HStack(spacing: DS.Spacing.xxs) {
+                                DSIcon("play.fill", size: 12)
+                                    .foregroundColor(DS.Colors.black)
                                 Text(getButtonText())
-                                    .font(.caption)
+                                    .font(DS.Typography.caption)
                                     .fontWeight(.medium)
+                                    .foregroundColor(DS.Colors.black)
                             }
+                            .padding(.horizontal, DS.Spacing.sm)
+                            .padding(.vertical, DS.Spacing.xs)
+                            .background(DS.Colors.white)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .foregroundColor(.white)
                         
                         // History button for mastered ideas
                         if idea.masteryLevel >= 3 {
                             Button(action: {
                                 showingHistory = true
                             }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .font(.caption)
+                                HStack(spacing: DS.Spacing.xxs) {
+                                    DSIcon("clock.arrow.circlepath", size: 12)
+                                        .foregroundColor(DS.Colors.white)
                                     Text("History")
-                                        .font(.caption)
+                                        .font(DS.Typography.caption)
                                         .fontWeight(.medium)
+                                        .foregroundColor(DS.Colors.white)
                                 }
+                                .padding(.horizontal, DS.Spacing.sm)
+                                .padding(.vertical, DS.Spacing.xs)
+                                .overlay(
+                                    Rectangle()
+                                        .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
+                                )
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .foregroundColor(.white)
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, DS.Spacing.xxs)
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black)
-        )
+        .background(DS.Colors.black)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+            Rectangle()
+                .stroke(DS.Colors.white.opacity(0.2), lineWidth: DS.BorderWidth.thin)
         )
         .sheet(isPresented: $showingHistory) {
             ResponseHistoryView(idea: idea)
@@ -508,36 +492,40 @@ struct InactiveIdeaCard: View {
                 
                 // Show progress information
                 if progressInfo.responseCount > 0 {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Spacing.xs) {
                         Text("\(progressInfo.responseCount) responses")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.small)
+                            .foregroundColor(DS.Colors.tertiaryText)
                         
                         if let bestScore = progressInfo.bestScore {
                             HStack(spacing: 2) {
                                 Text("Best:")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(DS.Typography.small)
+                                    .foregroundColor(DS.Colors.tertiaryText)
                                 ForEach(1...3, id: \.self) { star in
-                                    Image(systemName: star <= bestScore ? "star.fill" : "star")
-                                        .foregroundColor(star <= bestScore ? .yellow : .gray)
-                                        .font(.system(size: 8))
+                                    DSIcon(star <= bestScore ? "star.fill" : "star", size: 8)
+                                        .foregroundColor(star <= bestScore ? DS.Colors.black : DS.Colors.gray300)
                                 }
                             }
                         }
                         
                         if let lastPracticed = idea.lastPracticed {
                             Text("Last: \(formatDate(lastPracticed))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(DS.Typography.small)
+                                .foregroundColor(DS.Colors.tertiaryText)
                         }
                     }
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.Colors.gray50)
+        .overlay(
+            Rectangle()
+                .stroke(DS.Colors.gray300, lineWidth: DS.BorderWidth.thin)
+        )
         .onAppear {
             loadProgressInfo()
         }

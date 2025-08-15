@@ -18,7 +18,7 @@ struct OnboardingView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 32) {
+                VStack(spacing: DS.Spacing.xl) {
                     // Header Section
                     headerSection
                     
@@ -28,8 +28,8 @@ struct OnboardingView: View {
                     // Continue with Saved Book Section
                     savedBooksSection
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.top, DS.Spacing.lg)
             }
             .navigationTitle("Deepread")
             .navigationBarTitleDisplayMode(.large)
@@ -56,48 +56,37 @@ struct OnboardingView: View {
     
     // MARK: - Header Section
     private var headerSection: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DS.Spacing.xs) {
             Text("Which book do you want to master?")
-                .font(.title2)
-                .fontWeight(.medium)
+                .font(DS.Typography.title)
                 .multilineTextAlignment(.center)
-                .foregroundColor(.primary)
+                .foregroundColor(DS.Colors.primaryText)
         }
     }
     
     // MARK: - Add New Book Section
     private var addNewBookSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             // Section Header
             HStack {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.blue)
-                    .font(.title2)
+                DSIcon("plus.circle.fill", size: 24)
                 Text("Add New Book")
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(DS.Typography.headline)
             }
             
             // Input Field
             TextField("Book title and author name", text: $bookTitle)
-                .textFieldStyle(.roundedBorder)
-                .font(.body)
+                .dsTextField()
             
             // Add Button
             Button(action: addNewBook) {
                 HStack {
                     Text("Add Book")
-                        .fontWeight(.medium)
                     Spacer()
-                    Image(systemName: "arrow.right")
-                        .font(.caption)
+                    DSIcon("arrow.right", size: 14)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(bookTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.3) : Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(10)
             }
+            .dsPrimaryButton()
             .disabled(bookTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .animation(.easeInOut(duration: 0.2), value: bookTitle)
         }
@@ -105,15 +94,12 @@ struct OnboardingView: View {
     
     // MARK: - Saved Books Section
     private var savedBooksSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             // Section Header
             HStack {
-                Image(systemName: "book.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.title2)
+                DSIcon("book.circle.fill", size: 24)
                 Text("Continue with Saved Book")
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(DS.Typography.headline)
             }
             
             // Books List
@@ -131,33 +117,32 @@ struct OnboardingView: View {
     private var loadingView: some View {
         HStack {
             ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
                 .scaleEffect(0.8)
             Text("Loading your books...")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(DS.Typography.caption)
+                .foregroundColor(DS.Colors.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 8)
+        .padding(.vertical, DS.Spacing.xs)
     }
     
     private var emptyStateView: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "book.closed")
-                .font(.title)
-                .foregroundColor(.secondary)
+        VStack(spacing: DS.Spacing.xs) {
+            DSIcon("book.closed", size: 32)
             Text("No saved books yet")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+                .font(DS.Typography.body)
+                .foregroundColor(DS.Colors.secondaryText)
             Text("Add your first book above to get started")
-                .font(.caption)
-                .foregroundColor(.secondary)
+                .font(DS.Typography.caption)
+                .foregroundColor(DS.Colors.tertiaryText)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
+        .padding(.vertical, DS.Spacing.lg)
     }
     
     private var savedBooksList: some View {
-        LazyVStack(spacing: 12) {
+        LazyVStack(spacing: DS.Spacing.sm) {
             ForEach(savedBooks.sorted(by: { $0.lastAccessed > $1.lastAccessed })) { book in
                 SavedBookCard(book: book) {
                     selectSavedBook(book)
@@ -213,45 +198,40 @@ struct SavedBookCard: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: DS.Spacing.sm) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text(book.title)
-                        .font(.headline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                        .font(DS.Typography.bodyBold)
+                        .foregroundColor(DS.Colors.primaryText)
                         .lineLimit(2)
                     
                     if let author = book.author {
                         Text(author)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.caption)
+                            .foregroundColor(DS.Colors.secondaryText)
                             .lineLimit(1)
                     }
                     
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Spacing.xs) {
                         Text("\(book.ideas.count) ideas")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.small)
+                            .foregroundColor(DS.Colors.tertiaryText)
                         
                         Text("•")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.small)
+                            .foregroundColor(DS.Colors.tertiaryText)
                         
                         Text(book.lastAccessed.timeAgoDisplay())
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.small)
+                            .foregroundColor(DS.Colors.tertiaryText)
                     }
                 }
                 
                 Spacer()
                 
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                DSIcon("chevron.right", size: 12)
             }
-            .padding(16)
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
+            .dsCard()
         }
         .buttonStyle(PlainButtonStyle())
     }
