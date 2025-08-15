@@ -137,7 +137,7 @@ struct BookOverviewView: View {
                     showingDebugInfo = true
                 }
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(DS.Colors.secondaryText)
                 #endif
             }
             .padding(.horizontal, DS.Spacing.xxs)
@@ -188,7 +188,7 @@ struct DebugInfoView: View {
                         
                         Text("Original Input: '\(bookTitle)'")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(DS.Colors.secondaryText)
                         
                         if let author = viewModel.bookInfo?.author {
                             Text("Author: '\(author)'")
@@ -212,7 +212,7 @@ struct DebugInfoView: View {
                             ForEach(viewModel.extractedIdeas, id: \.id) { idea in
                                 Text("• \(idea.id): \(idea.title)")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(DS.Colors.secondaryText)
                             }
                         }
                     }
@@ -228,20 +228,20 @@ struct DebugInfoView: View {
                                 await viewModel.refreshIdeas()
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .dsSecondaryButton()
                         
                         Button("Reload from Database") {
                             Task {
                                 await viewModel.loadOrExtractIdeas(from: bookTitle)
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .dsSecondaryButton()
                         
                         #if DEBUG
                         NavigationLink("Persistence Debug") {
                             PersistenceDebugView()
                         }
-                        .buttonStyle(.bordered)
+                        .dsSecondaryButton()
                         
                         Button("Clear All Data") {
                             do {
@@ -251,8 +251,8 @@ struct DebugInfoView: View {
                                 print("DEBUG: Failed to clear data: \(error)")
                             }
                         }
-                        .buttonStyle(.bordered)
-                        .foregroundColor(.red)
+                        .dsSecondaryButton()
+                        .foregroundColor(DS.Colors.black)
                         #endif
                     }
                 }
@@ -346,14 +346,10 @@ struct ActiveIdeaCard: View {
                     // CTA Buttons
                     HStack(spacing: DS.Spacing.xs) {
                         NavigationLink(destination: LevelLoadingView(idea: idea, level: getStartingLevel(), openAIService: openAIService)) {
-                            HStack(spacing: DS.Spacing.xxs) {
-                                DSIcon("play.fill", size: 12)
-                                    .foregroundColor(DS.Colors.black)
-                                Text(getButtonText())
-                                    .font(DS.Typography.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(DS.Colors.black)
-                            }
+                            Text(getButtonText())
+                                .font(DS.Typography.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(DS.Colors.black)
                             .padding(.horizontal, DS.Spacing.sm)
                             .padding(.vertical, DS.Spacing.xs)
                             .background(DS.Colors.white)
@@ -366,7 +362,7 @@ struct ActiveIdeaCard: View {
                             }) {
                                 HStack(spacing: DS.Spacing.xxs) {
                                     DSIcon("clock.arrow.circlepath", size: 12)
-                                        .foregroundColor(DS.Colors.white)
+                                        .foregroundStyle(DS.Colors.white)
                                     Text("History")
                                         .font(DS.Typography.caption)
                                         .fontWeight(.medium)
@@ -445,7 +441,7 @@ struct InactiveIdeaCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Image(systemName: "apple.intelligence")
                 .font(.caption)
-                .foregroundColor(.gray)
+                .foregroundColor(DS.Colors.secondaryText)
                 .frame(width: 16)
                 .opacity(0.6)
             
@@ -455,29 +451,35 @@ struct InactiveIdeaCard: View {
                         .font(.body)
                         .fontWeight(.semibold)
                         .lineLimit(2)
-                        .foregroundColor(.gray)
+                        .foregroundColor(DS.Colors.secondaryText)
                     
                     Spacer()
                     
                     // Show appropriate badge based on progress
                     if idea.masteryLevel >= 3 {
                         Text("MASTERED")
-                            .font(.caption2)
+                            .font(DS.Typography.small)
                             .fontWeight(.bold)
-                            .foregroundColor(.yellow)
-                            .padding(.horizontal, 6)
+                            .foregroundColor(DS.Colors.white)
+                            .padding(.horizontal, DS.Spacing.xs)
                             .padding(.vertical, 2)
-                            .background(Color.yellow.opacity(0.2))
-                            .cornerRadius(4)
+                            .background(DS.Colors.black)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DS.Colors.gray300, lineWidth: DS.BorderWidth.thin)
+                            )
                     } else if idea.masteryLevel > 0 {
                         Text("RESUME")
-                            .font(.caption2)
+                            .font(DS.Typography.small)
                             .fontWeight(.bold)
-                            .foregroundColor(.blue)
-                            .padding(.horizontal, 6)
+                            .foregroundColor(DS.Colors.black)
+                            .padding(.horizontal, DS.Spacing.xs)
                             .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.2))
-                            .cornerRadius(4)
+                            .background(DS.Colors.white)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DS.Colors.gray300, lineWidth: DS.BorderWidth.thin)
+                            )
                     }
                 }
                 
@@ -485,7 +487,7 @@ struct InactiveIdeaCard: View {
                     Text(idea.ideaDescription)
                         .font(.body)
                         .fontWeight(.regular)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(DS.Colors.secondaryText)
                         .lineLimit(3)
                         .opacity(0.6)
                 }

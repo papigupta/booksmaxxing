@@ -209,22 +209,22 @@ struct PersistenceDebugView: View {
                     Button("Run Health Check") {
                         runHealthCheck()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .dsPrimaryButton()
                 }
                 
                 if report?.isHealthy == false {
                     Button("Repair Data Integrity") {
                         repairData()
                     }
-                    .buttonStyle(.bordered)
+                    .dsSecondaryButton()
                     .disabled(isRunningRepair)
                 }
                 
                 Button("Reset Database") {
                     resetDatabase()
                 }
-                .buttonStyle(.bordered)
-                .foregroundStyle(.red)
+                .dsSecondaryButton()
+                .foregroundStyle(DS.Colors.black)
                 .disabled(isResetting)
                 
                 Spacer()
@@ -252,10 +252,10 @@ struct PersistenceDebugView: View {
             
             Text("Status: \(report.isHealthy ? "✅ Healthy" : "⚠️ Needs Attention")")
                 .font(.headline)
-                .foregroundStyle(report.isHealthy ? .green : .orange)
+                .foregroundStyle(report.isHealthy ? DS.Colors.black : DS.Colors.black)
         }
         .padding()
-        .background(.quaternary)
+        .background(DS.Colors.gray100)
         .cornerRadius(8)
     }
     

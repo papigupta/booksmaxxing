@@ -16,54 +16,42 @@ struct WhatThisMeansView: View {
     
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                 // Book title - subtle at top
                 Text(idea.bookTitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.caption)
+                    .foregroundColor(DS.Colors.secondaryText)
                     .textCase(.uppercase)
                     .tracking(0.5)
                 
                 // Idea title
                 Text(idea.title)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.primary)
+                    .font(DS.Typography.title)
+                    .foregroundColor(DS.Colors.primaryText)
                 
                 // Level Progression Explanation
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     Text("What This Means")
-                        .font(.headline)
-                        .fontWeight(.bold)
+                        .font(DS.Typography.headline)
+                        .foregroundColor(DS.Colors.primaryText)
                     
                     let progressionInfo = getLevelProgressionInfo(starScore: evaluationResult.starScore, currentLevel: level)
                     
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                         Text(progressionInfo.explanation)
-                            .font(.body)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.primaryText)
                         
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.right.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.blue)
+                        HStack(spacing: DS.Spacing.xs) {
+                            DSIcon("arrow.right.circle.fill", size: 24)
                             
                             Text("Next: \(progressionInfo.nextLevelName)")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.blue)
+                                .font(DS.Typography.headline)
+                                .foregroundColor(DS.Colors.primaryText)
                         }
-                        .padding(.top, 4)
+                        .padding(.top, DS.Spacing.xxs)
                     }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(.blue.opacity(0.1))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(.blue.opacity(0.3), lineWidth: 1)
-                            )
-                    )
+                    .dsCard(padding: DS.Spacing.md, borderColor: DS.Colors.border, backgroundColor: DS.Colors.secondaryBackground)
                 }
                 
                 // Continue Button
@@ -80,37 +68,35 @@ struct WhatThisMeansView: View {
                         showingNextLevel = true
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 16)
+                .dsPrimaryButton()
+                .padding(.top, DS.Spacing.md)
                 
                 // Primer suggestion for low scores
                 if evaluationResult.starScore == 1 {
-                    VStack(spacing: 8) {
+                    VStack(spacing: DS.Spacing.xs) {
                         Text("Need a refresher?")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(DS.Typography.caption)
+                            .foregroundColor(DS.Colors.secondaryText)
                         
                         Button(action: {
                             showingPrimer = true
                         }) {
                             HStack {
-                                Image(systemName: "lightbulb")
-                                    .font(.title3)
+                                DSIcon("lightbulb", size: 16)
                                 Text("View Primer")
-                                    .font(.body)
+                                    .font(DS.Typography.body)
                             }
-                            .foregroundStyle(.primary)
+                            .foregroundColor(DS.Colors.primaryText)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .dsSmallButton()
                     }
-                    .padding(.top, 8)
+                    .padding(.top, DS.Spacing.xs)
                 }
                 
-                Spacer(minLength: 32)
+                Spacer(minLength: DS.Spacing.xl)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .padding(.horizontal, DS.Spacing.md + DS.Spacing.xxs) // 20pt equivalent
+            .padding(.top, DS.Spacing.md)
         }
         .navigationTitle("What This Means")
         .navigationBarTitleDisplayMode(.inline)
@@ -120,9 +106,7 @@ struct WhatThisMeansView: View {
                 Button(action: {
                     navigateToHome = true
                 }) {
-                    Image(systemName: "text.book.closed")
-                        .font(.title3)
-                        .foregroundStyle(.primary)
+                    DSIcon("text.book.closed", size: 18)
                 }
                 .accessibilityLabel("Go to home")
                 .accessibilityHint("Return to all extracted ideas")

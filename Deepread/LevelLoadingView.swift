@@ -12,46 +12,39 @@ struct LevelLoadingView: View {
     @Environment(\.modelContext) private var modelContext
     
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Spacing.lg) {
             Spacer()
             
             // Level Title
             Text(getLevelTitle())
-                .font(.title)
-                .fontWeight(.bold)
+                .font(DS.Typography.title)
+                .foregroundColor(DS.Colors.primaryText)
                 .multilineTextAlignment(.center)
             
             // Bullet Points
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 ForEach(getLevelBullets(), id: \.self) { bullet in
-                    HStack(alignment: .top, spacing: 8) {
+                    HStack(alignment: .top, spacing: DS.Spacing.xs) {
                         Text("•")
-                            .font(.title2)
-                            .foregroundColor(.primary)
+                            .font(DS.Typography.headline)
+                            .foregroundColor(DS.Colors.primaryText)
                         
                         Text(bullet)
-                            .font(.body)
-                            .foregroundColor(.primary)
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.primaryText)
                     }
                 }
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, DS.Spacing.xl)
             
             if showContinueButton {
                 Button(action: {
                     navigateToPrompt = true
                 }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.fill")
-                            .font(.caption)
-                        Text("Continue")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                    }
+                    Text("Continue")
+                        .font(DS.Typography.captionBold)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .foregroundColor(.primary)
+                .dsSmallButton()
                 .transition(.opacity)
                 .opacity(showContinueButton ? 1 : 0)
                 .animation(.easeIn(duration: 0.4), value: showContinueButton)
@@ -59,7 +52,7 @@ struct LevelLoadingView: View {
             
             Spacer()
         }
-        .padding()
+        .padding(DS.Spacing.md)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true) // Hide the back button
@@ -68,9 +61,8 @@ struct LevelLoadingView: View {
                 Button(action: {
                     navigateToHome = true
                 }) {
-                    Image(systemName: "text.book.closed")
-                        .font(.title3)
-                        .foregroundStyle(.primary)
+                    DSIcon("text.book.closed", size: 18)
+                        .foregroundStyle(DS.Colors.primaryText)
                 }
                 .accessibilityLabel("Go to home")
                 .accessibilityHint("Return to all extracted ideas")
@@ -80,9 +72,8 @@ struct LevelLoadingView: View {
                 Button(action: {
                     showingPrimer = true
                 }) {
-                    Image(systemName: "lightbulb")
-                        .font(.title3)
-                        .foregroundStyle(.primary)
+                    DSIcon("lightbulb", size: 18)
+                        .foregroundStyle(DS.Colors.primaryText)
                 }
                 .accessibilityLabel("View Primer")
                 .accessibilityHint("Open primer for this idea")

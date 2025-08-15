@@ -13,86 +13,74 @@ struct CelebrationView: View {
     @State private var navigateToBookOverview = false
     
     var body: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: DS.Spacing.xl) {
             Spacer()
             
             // Celebration Icon
-            VStack(spacing: 16) {
-                Image(systemName: "star.circle.fill")
-                    .font(.system(size: 80))
-                    .foregroundStyle(.yellow)
+            VStack(spacing: DS.Spacing.md) {
+                DSIcon("star.circle.fill", size: 80)
                     .scaleEffect(showConfetti ? 1.2 : 1.0)
                     .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: showConfetti)
                 
                 Text("🎉 Mastery Achieved! 🎉")
-                    .font(.title)
-                    .fontWeight(.bold)
+                    .font(DS.Typography.title)
+                    .foregroundColor(DS.Colors.primaryText)
                     .multilineTextAlignment(.center)
             }
             
             // Achievement Details
-            VStack(spacing: 16) {
+            VStack(spacing: DS.Spacing.md) {
                 Text("You've mastered")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.headline)
+                    .foregroundColor(DS.Colors.secondaryText)
                 
                 Text(idea.title)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(DS.Typography.title)
+                    .foregroundColor(DS.Colors.primaryText)
                     .multilineTextAlignment(.center)
                 
                 Text("from \(idea.bookTitle)")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.body)
+                    .foregroundColor(DS.Colors.secondaryText)
                 
                 // Star Display
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Spacing.xs) {
                     Text("Achievement Level:")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+                        .font(DS.Typography.body)
+                        .foregroundColor(DS.Colors.secondaryText)
                     
                     HStack(spacing: 2) {
                         ForEach(1...3, id: \.self) { star in
-                            Image(systemName: star <= starScore ? "star.fill" : "star")
-                                .font(.title3)
-                                .foregroundStyle(star <= starScore ? .yellow : .secondary)
+                            DSIcon(star <= starScore ? "star.fill" : "star", size: 18)
+                                .foregroundColor(star <= starScore ? DS.Colors.black : DS.Colors.tertiaryText)
                         }
                     }
                 }
-                .padding(.top, 8)
+                .padding(.top, DS.Spacing.xs)
             }
-            .padding(24)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.blue.opacity(0.1))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(.blue.opacity(0.3), lineWidth: 1)
-                    )
-            )
+            .dsSubtleCard(padding: DS.Spacing.lg)
             
             // Achievement Message
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Spacing.sm) {
                 Text("Congratulations!")
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(DS.Typography.headline)
+                    .foregroundColor(DS.Colors.primaryText)
                 
                 Text("You've demonstrated exceptional understanding and creative synthesis of this idea. You can now apply this knowledge to build new concepts and solve complex problems.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.body)
+                    .foregroundColor(DS.Colors.secondaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, DS.Spacing.xl)
             }
             
             Spacer()
             
             // Action Buttons
-            VStack(spacing: 16) {
+            VStack(spacing: DS.Spacing.md) {
                 Button("Master Another Idea") {
                     navigateToBookOverview = true
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .dsPrimaryButton()
                 
                 Button("Share Achievement") {
                     // Share achievement
@@ -104,11 +92,11 @@ struct CelebrationView: View {
                         window.rootViewController?.present(activityVC, animated: true)
                     }
                 }
-                .buttonStyle(.bordered)
+                .dsSecondaryButton()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, DS.Spacing.md)
         }
-        .padding()
+        .padding(DS.Spacing.md)
         .navigationTitle("Celebration")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -117,9 +105,7 @@ struct CelebrationView: View {
                 Button(action: {
                     navigateToBookOverview = true
                 }) {
-                    Image(systemName: "text.book.closed")
-                        .font(.title3)
-                        .foregroundStyle(.primary)
+                    DSIcon("text.book.closed", size: 18)
                 }
                 .accessibilityLabel("Go to home")
                 .accessibilityHint("Return to all extracted ideas")

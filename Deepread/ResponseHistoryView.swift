@@ -16,47 +16,49 @@ struct ResponseHistoryView: View {
         NavigationView {
             VStack(spacing: 0) {
                 if isLoading {
-                    VStack(spacing: 16) {
+                    VStack(spacing: DS.Spacing.md) {
                         ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
                             .scaleEffect(1.2)
                         Text("Loading your learning history...")
-                            .font(.body)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.secondaryText)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
+                    VStack(spacing: DS.Spacing.lg) {
+                        DSIcon("exclamationmark.triangle", size: 48)
                         Text("Error")
-                            .font(.headline)
+                            .font(DS.Typography.headline)
+                            .foregroundColor(DS.Colors.primaryText)
                         Text(error)
-                            .font(.body)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.secondaryText)
                             .multilineTextAlignment(.center)
                         Button("Try Again") {
                             loadResponseHistory()
                         }
-                        .buttonStyle(.borderedProminent)
+                        .dsSecondaryButton()
+                        .frame(width: 160)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(DS.Spacing.xl)
                 } else if bestResponses.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "text.book.closed")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
+                    VStack(spacing: DS.Spacing.lg) {
+                        DSIcon("text.book.closed", size: 48)
                         Text("No Responses Yet")
-                            .font(.headline)
+                            .font(DS.Typography.headline)
+                            .foregroundColor(DS.Colors.primaryText)
                         Text("You haven't completed any levels for this idea yet.")
-                            .font(.body)
-                            .foregroundColor(.secondary)
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(DS.Spacing.xl)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 16) {
+                        LazyVStack(spacing: DS.Spacing.md) {
                             // Sort levels (L1, L2, L3, etc.)
                             let sortedLevels = bestResponses.keys.sorted()
                             
@@ -69,7 +71,7 @@ struct ResponseHistoryView: View {
                                 }
                             }
                         }
-                        .padding(16)
+                        .padding(DS.Spacing.md)
                     }
                 }
             }
@@ -80,6 +82,7 @@ struct ResponseHistoryView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .dsTertiaryButton()
                 }
             }
         }

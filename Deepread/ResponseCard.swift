@@ -13,78 +13,76 @@ struct ResponseCard: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             // Header
             HStack {
                 Text("Level \(response.level): \(levelName)")
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(DS.Typography.headline)
+                    .foregroundColor(DS.Colors.primaryText)
                 
                 Spacer()
                 
                 if response.hasEvaluation, let starScore = response.starScore {
-                    HStack(spacing: 2) {
+                    HStack(spacing: DS.Spacing.xxs) {
                         ForEach(1...3, id: \.self) { star in
-                            Image(systemName: star <= starScore ? "star.fill" : "star")
-                                .foregroundColor(star <= starScore ? .yellow : .gray)
-                                .font(.caption)
+                            DSIcon(star <= starScore ? "star.fill" : "star", size: 12)
+                                .foregroundColor(star <= starScore ? DS.Colors.black : DS.Colors.gray300)
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.yellow.opacity(0.1))
-                    .cornerRadius(8)
+                    .padding(.horizontal, DS.Spacing.xs)
+                    .padding(.vertical, DS.Spacing.xxs)
+                    .background(DS.Colors.gray50)
+                    .overlay(
+                        Rectangle()
+                            .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+                    )
                 }
             }
             
             // Prompt
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Prompt")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
+                    .font(DS.Typography.captionBold)
+                    .foregroundColor(DS.Colors.secondaryText)
                 
                 Text(response.prompt)
-                    .font(.body)
-                    .foregroundColor(.primary)
+                    .font(DS.Typography.body)
+                    .foregroundColor(DS.Colors.primaryText)
             }
             
             // Response
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Your Response")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.secondary)
+                    .font(DS.Typography.captionBold)
+                    .foregroundColor(DS.Colors.secondaryText)
                 
                 Text(response.response)
-                    .font(.body)
-                    .foregroundColor(.primary)
+                    .font(DS.Typography.body)
+                    .foregroundColor(DS.Colors.primaryText)
                     .lineLimit(isExpanded ? nil : 3)
                     .animation(.easeInOut(duration: 0.3), value: isExpanded)
             }
             
             // Evaluation Results (if available)
             if response.hasEvaluation {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     // Star Score
                     if let starScore = response.starScore {
                         HStack {
                             Text("Rating:")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
+                                .font(DS.Typography.captionBold)
+                                .foregroundColor(DS.Colors.primaryText)
                             
-                            HStack(spacing: 4) {
+                            HStack(spacing: DS.Spacing.xxs) {
                                 ForEach(1...3, id: \.self) { star in
-                                    Image(systemName: star <= starScore ? "star.fill" : "star")
-                                        .foregroundColor(star <= starScore ? .yellow : .gray)
-                                        .font(.subheadline)
+                                    DSIcon(star <= starScore ? "star.fill" : "star", size: 14)
+                                        .foregroundColor(star <= starScore ? DS.Colors.black : DS.Colors.gray300)
                                 }
                             }
                             
                             Text(getStarDescription(for: starScore))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .italic()
+                                .font(DS.Typography.small)
+                                .foregroundColor(DS.Colors.secondaryText)
                             
                             Spacer()
                         }
@@ -92,18 +90,20 @@ struct ResponseCard: View {
                     
                     // Silver Bullet
                     if let silverBullet = response.silverBullet {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                             Text("Author's Insight")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.purple)
+                                .font(DS.Typography.captionBold)
+                                .foregroundColor(DS.Colors.black)
                             
                             Text(silverBullet)
-                                .font(.caption)
-                                .foregroundColor(.primary)
-                                .padding(8)
-                                .background(Color.purple.opacity(0.1))
-                                .cornerRadius(6)
+                                .font(DS.Typography.caption)
+                                .foregroundColor(DS.Colors.primaryText)
+                                .padding(DS.Spacing.xs)
+                                .background(DS.Colors.gray50)
+                                .overlay(
+                                    Rectangle()
+                                        .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+                                )
                         }
                     }
                 }
@@ -111,43 +111,41 @@ struct ResponseCard: View {
             
             // Show Other Responses Button (if there are multiple responses for this level)
             if showAllResponses && !allResponses.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text("Other Attempts")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
+                        .font(DS.Typography.captionBold)
+                        .foregroundColor(DS.Colors.secondaryText)
                     
                     ForEach(allResponses.filter { $0.id != response.id }, id: \.id) { otherResponse in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                             HStack {
                                 Text("Attempt on \(formatDate(otherResponse.timestamp))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(DS.Typography.small)
+                                    .foregroundColor(DS.Colors.secondaryText)
                                 
                                 Spacer()
                                 
                                 if let starScore = otherResponse.starScore {
                                     HStack(spacing: 1) {
                                         ForEach(1...3, id: \.self) { star in
-                                            Image(systemName: star <= starScore ? "star.fill" : "star")
-                                                .foregroundColor(star <= starScore ? .yellow : .gray)
-                                                .font(.system(size: 8))
+                                            DSIcon(star <= starScore ? "star.fill" : "star", size: 8)
+                                                .foregroundColor(star <= starScore ? DS.Colors.black : DS.Colors.gray300)
                                         }
                                     }
                                 }
                             }
                             
                             Text(otherResponse.response)
-                                .font(.caption)
-                                .foregroundColor(.primary)
+                                .font(DS.Typography.small)
+                                .foregroundColor(DS.Colors.primaryText)
                                 .lineLimit(2)
                         }
-                        .padding(8)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(6)
+                        .dsSubtleCard(padding: DS.Spacing.xs)
                     }
                 }
             }
+            
+            DSDivider()
             
             // Action Buttons
             HStack {
@@ -157,9 +155,8 @@ struct ResponseCard: View {
                     }
                 }) {
                     Text(isExpanded ? "Show Less" : "Show More")
-                        .font(.caption)
-                        .foregroundColor(.blue)
                 }
+                .dsTertiaryButton()
                 
                 Spacer()
                 
@@ -171,16 +168,12 @@ struct ResponseCard: View {
                         }
                     }) {
                         Text(showAllResponses ? "Hide Others" : "Show \(allResponses.count - 1) Other\(allResponses.count > 2 ? "s" : "")")
-                            .font(.caption)
-                            .foregroundColor(.blue)
                     }
+                    .dsTertiaryButton()
                 }
             }
         }
-        .padding(16)
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .dsCard()
         .frame(minHeight: isExpanded ? nil : 320)
         .clipped()
         .onAppear {
@@ -216,4 +209,4 @@ struct ResponseCard: View {
         default: return ""
         }
     }
-} 
+}

@@ -51,106 +51,101 @@ struct IdeaPromptView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Main content area
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     // Book title - subtle at top
                     Text(idea.bookTitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Colors.secondaryText)
                         .textCase(.uppercase)
                         .tracking(0.5)
                     
                     // Idea title and description with 8px spacing
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                         // Idea title - prominent but not overwhelming
                         Text(idea.title)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.title)
+                            .foregroundStyle(DS.Colors.primaryText)
                         
                         // Idea description - clear and readable
                         Text(idea.ideaDescription)
-                            .font(.body)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.body)
+                            .foregroundStyle(DS.Colors.primaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     
                     // Generated prompt - MAIN FOCUS
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                         Text("Question")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.captionBold)
+                            .foregroundStyle(DS.Colors.primaryText)
                         
-                        VStack(alignment: .leading, spacing: 32) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                             if isLoadingPrompt {
                                 HStack {
                                     ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.white))
                                         .scaleEffect(0.8)
-                                        .foregroundStyle(.white)
                                     Text("Generating your prompt...")
-                                        .font(.body)
-                                        .foregroundStyle(.white.opacity(0.7))
+                                        .font(DS.Typography.body)
+                                        .foregroundStyle(DS.Colors.white.opacity(0.7))
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
                                 Text(LocalizedStringKey(generatedPrompt))
-                                    .font(.body)
-                                    .foregroundStyle(.white)
+                                    .font(DS.Typography.body)
+                                    .foregroundStyle(DS.Colors.white)
                                     .fixedSize(horizontal: false, vertical: true)
                                 
                                 if let error = promptError {
-                                    VStack(alignment: .leading, spacing: 4) {
+                                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                                         Text(error)
-                                            .font(.caption)
-                                            .foregroundStyle(.red)
+                                            .font(DS.Typography.caption)
+                                            .foregroundStyle(DS.Colors.white)
                                         
                                         Button("Retry") {
                                             generatePrompt()
                                         }
-                                        .font(.caption)
-                                        .foregroundStyle(.blue)
+                                        .font(DS.Typography.caption)
+                                        .foregroundStyle(DS.Colors.white)
+                                        .underline()
                                     }
                                 }
                             }
                         }
-                        .padding(20)
+                        .padding(DS.Spacing.lg)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(.black)
-                        )
+                        .background(DS.Colors.black)
                     }
                     
                     // Response section - SECONDARY FOCUS
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                         Text("Your Response")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.captionBold)
+                            .foregroundStyle(DS.Colors.primaryText)
                         
                         TextEditor(text: $userResponse)
-                            .font(.body)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.body)
+                            .foregroundStyle(DS.Colors.primaryText)
                             .scrollContentBackground(.hidden)
                             .background(.clear)
                             .frame(minHeight: 320)
-                            .padding(16)
+                            .padding(DS.Spacing.md)
                             .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(.quaternary.opacity(0.3))
+                                Rectangle()
+                                    .fill(DS.Colors.tertiaryBackground)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(.quaternary.opacity(0.5), lineWidth: 1)
+                                        Rectangle()
+                                            .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
                                     )
                             )
                             .overlay(
                                 Group {
                                     if userResponse.isEmpty {
                                         Text("My answer")
-                                            .font(.body)
-                                            .foregroundStyle(.tertiary)
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 20)
+                                            .font(DS.Typography.body)
+                                            .foregroundStyle(DS.Colors.tertiaryText)
+                                            .padding(.horizontal, DS.Spacing.lg)
+                                            .padding(.vertical, DS.Spacing.lg)
                                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                             .allowsHitTesting(false)
                                     }
@@ -160,41 +155,36 @@ struct IdeaPromptView: View {
                             .accessibilityHint("Type your thoughts about the idea here")
                     }
                     
-                    Spacer(minLength: 32)
+                    Spacer(minLength: DS.Spacing.xl)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.top, DS.Spacing.md)
             }
             
             // Submit button at bottom
             if showSubmitButton {
                 VStack {
-                    Divider()
+                    DSDivider()
                     
                     Button(action: submitResponse) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Spacing.xs) {
                             if isSubmitting {
                                 ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.white))
                                     .scaleEffect(0.8)
-                                    .foregroundStyle(.primary)
-                            } else {
-                                Image(systemName: "play.fill")
-                                    .font(.caption)
                             }
                             Text(isSubmitting ? "Submitting..." : "Submit answer")
-                                .font(.caption)
-                                .fontWeight(.medium)
+                                .font(DS.Typography.captionBold)
+                                .foregroundColor(DS.Colors.white)
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .foregroundColor(.primary)
+                    .dsPrimaryButton()
                     .disabled(isSubmitting)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 16)
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.vertical, DS.Spacing.md)
                     .accessibilityLabel("Submit your response")
                 }
-                .background(.ultraThinMaterial)
+                .background(DS.Colors.secondaryBackground)
             }
             
             NavigationLink(value: "evaluation") {
@@ -219,9 +209,8 @@ struct IdeaPromptView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: handleBookButtonTap) {
-                    Image(systemName: "text.book.closed")
-                        .font(.title3)
-                        .foregroundStyle(.primary)
+                    DSIcon("text.book.closed", size: 18)
+                        .foregroundStyle(DS.Colors.primaryText)
                 }
                 .accessibilityLabel("Go to home")
                 .accessibilityHint("Return to all extracted ideas")
@@ -231,9 +220,8 @@ struct IdeaPromptView: View {
                 Button(action: {
                     showingPrimer = true
                 }) {
-                    Image(systemName: "lightbulb")
-                        .font(.title3)
-                        .foregroundStyle(.primary)
+                    DSIcon("lightbulb", size: 18)
+                        .foregroundStyle(DS.Colors.primaryText)
                 }
                 .accessibilityLabel("View Primer")
                 .accessibilityHint("Open primer for this idea")

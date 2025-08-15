@@ -41,49 +41,21 @@ struct EvaluationResultsView: View {
         return truncated + "..."
     }
     
-    // MARK: - Color Scheme
-    private var primaryGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color.blue, Color.blue.opacity(0.8)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-    
-    private var successGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color.green, Color.green.opacity(0.8)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-    
-    private var orangeGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color.orange, Color.orange.opacity(0.8)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-    
-    private var cardBackground: Color {
-        colorScheme == .dark ? Color(.systemGray6) : Color(.systemBackground)
-    }
-    
-    private var subtleBackground: Color {
-        colorScheme == .dark ? Color(.systemGray5) : Color(.systemGray6)
-    }
     
     var body: some View {
         ZStack {
             // Background
-            subtleBackground
+            DS.Colors.secondaryBackground
                 .ignoresSafeArea()
             
             if isLoadingEvaluation {
                 loadingView
             } else if let error = evaluationError {
-                errorView(error)
+                DSErrorView(
+                    title: "Evaluation Error",
+                    message: error,
+                    retryAction: { loadEvaluation() }
+                )
             } else if let result = evaluationResult {
                 evaluationContentView(result)
             }
@@ -122,113 +94,64 @@ struct EvaluationResultsView: View {
     
     // MARK: - Loading View
     private var loadingView: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: DS.Spacing.xxl) {
             Spacer()
             
             // Animated loading icon
             ZStack {
                 Circle()
-                    .stroke(Color.blue.opacity(0.2), lineWidth: 4)
+                    .stroke(DS.Colors.gray300, lineWidth: 4)
                     .frame(width: 80, height: 80)
                 
                 Circle()
                     .trim(from: 0, to: 0.7)
-                    .stroke(primaryGradient, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .stroke(DS.Colors.black, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .frame(width: 80, height: 80)
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 1).repeatForever(autoreverses: false), value: isLoadingEvaluation)
             }
             
-            VStack(spacing: 24) {
+            VStack(spacing: DS.Spacing.lg) {
                 Text("Analyzing Your Response")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(DS.Typography.title)
                     .multilineTextAlignment(.center)
+                    .foregroundColor(DS.Colors.primaryText)
                 
-                VStack(spacing: 20) {
+                VStack(spacing: DS.Spacing.lg) {
                     let loadingSteps = [
-                        ("Scouting for hidden insights", "🔍"),
-                        ("Weighing depth vs. detail", "⚖️"),
-                        ("Sorting you onto the mastery ladder", "🪜")
+                        "Scouting for hidden insights",
+                        "Weighing depth vs. detail", 
+                        "Sorting you onto the mastery ladder"
                     ]
                     
                     ForEach(0..<loadingSteps.count, id: \.self) { index in
-                        HStack(spacing: 16) {
-                            Circle()
-                                .fill(Color.blue)
+                        HStack(spacing: DS.Spacing.md) {
+                            Rectangle()
+                                .fill(DS.Colors.black)
                                 .frame(width: 8, height: 8)
                             
-                            Text(loadingSteps[index].0)
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                            Text(loadingSteps[index])
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.primaryText)
                             
                             Spacer()
-                            
-                            Text(loadingSteps[index].1)
-                                .font(.title2)
                         }
-                        .padding(.horizontal, 32)
+                        .padding(.horizontal, DS.Spacing.xl)
                     }
                 }
                 
                 Text("Almost there—loading challenges that match your power-ups")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.Colors.secondaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, DS.Spacing.xl)
             }
             
             Spacer()
         }
-        .padding()
+        .padding(DS.Spacing.lg)
     }
     
-    // MARK: - Error View
-    private func errorView(_ error: String) -> some View {
-        VStack(spacing: 32) {
-            Spacer()
-            
-            VStack(spacing: 24) {
-                ZStack {
-                    Circle()
-                        .fill(Color.orange.opacity(0.1))
-                        .frame(width: 80, height: 80)
-                    
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.orange)
-                }
-                
-                VStack(spacing: 16) {
-                    Text("Evaluation Error")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text(error)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
-                
-                Button(action: { loadEvaluation() }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Try Again")
-                    }
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 16)
-                    .background(primaryGradient)
-                    .cornerRadius(12)
-                }
-            }
-            
-            Spacer()
-        }
-        .padding()
-    }
     
     // MARK: - Main Evaluation Content
     private func evaluationContentView(_ result: EvaluationResult) -> some View {
@@ -254,430 +177,364 @@ struct EvaluationResultsView: View {
                 actionSection(result)
             }
         }
-        .background(subtleBackground)
+        .background(DS.Colors.secondaryBackground)
     }
     
     // MARK: - Header Section
     private func headerSection(_ result: EvaluationResult) -> some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Spacing.lg) {
             // Book title
             Text(idea.bookTitle)
-                .font(.caption)
+                .font(DS.Typography.caption)
                 .fontWeight(.medium)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.Colors.secondaryText)
                 .textCase(.uppercase)
                 .tracking(0.5)
-                .padding(.top, 24)
+                .padding(.top, DS.Spacing.lg)
             
             // Idea title
             Text(idea.title)
-                .font(.title)
-                .fontWeight(.bold)
+                .font(DS.Typography.title)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
+                .foregroundColor(DS.Colors.primaryText)
+                .padding(.horizontal, DS.Spacing.lg)
             
             // Level indicator
-            HStack(spacing: 8) {
-                Image(systemName: "star.fill")
-                    .font(.caption)
-                    .foregroundStyle(.yellow)
+            HStack(spacing: DS.Spacing.xs) {
+                DSIcon(getLevelIcon(for: level), size: 14)
                 
                 Text("Level \(level)")
-                    .font(.subheadline)
+                    .font(DS.Typography.body)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Colors.secondaryText)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(cardBackground)
-            .cornerRadius(20)
+            .dsCard(padding: DS.Spacing.sm)
             
             // Prompt viewer (subtle and collapsible)
-            VStack(spacing: 8) {
+            VStack(spacing: DS.Spacing.xs) {
                 Button(action: { 
                     withAnimation(.easeInOut(duration: 0.3)) {
                         isPromptExpanded.toggle()
                     }
                 }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "questionmark.circle")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: DS.Spacing.xs) {
+                        DSIcon("questionmark.circle", size: 14)
                         
                         Text("View Question")
-                            .font(.caption)
+                            .font(DS.Typography.caption)
                             .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DS.Colors.secondaryText)
                         
-                        Image(systemName: isPromptExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        DSIcon(isPromptExpanded ? "chevron.up" : "chevron.down", size: 12)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(12)
                 }
+                .dsSmallButton()
                 
                 if isPromptExpanded {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                         HStack {
                             Text("Question")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(DS.Colors.secondaryText)
                                 .textCase(.uppercase)
                                 .tracking(0.5)
                             Spacer()
                         }
                         
                         Text(prompt)
-                            .font(.callout)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.body)
+                            .foregroundStyle(DS.Colors.primaryText)
                             .lineLimit(nil)
                             .multilineTextAlignment(.leading)
-                            .padding(12)
-                            .background(subtleBackground)
-                            .cornerRadius(8)
+                            .dsSubtleCard()
                     }
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, DS.Spacing.xxs)
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .move(edge: .top)),
                         removal: .opacity.combined(with: .move(edge: .top))
                     ))
                 }
             }
-            .padding(.top, 12)
+            .padding(.top, DS.Spacing.sm)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 24)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.bottom, DS.Spacing.lg)
     }
     
     // MARK: - Score Section
     private func scoreSection(_ result: EvaluationResult) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Spacing.lg) {
             // Star score display
-            VStack(spacing: 16) {
+            VStack(spacing: DS.Spacing.md) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Your Insight Level")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                        HStack(spacing: DS.Spacing.xs) {
+                            DSIcon(getInsightIcon(for: result.starScore), size: 16)
+                            Text("Your Insight Level")
+                                .font(DS.Typography.headline)
+                                .foregroundStyle(DS.Colors.secondaryText)
+                        }
                         
                         Text(result.starDescription)
                             .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(getStarColor(result.starScore))
+                            .foregroundStyle(DS.Colors.black)
                     }
                     
                     Spacer()
                     
                     // Star badge
                     ZStack {
-                        Circle()
-                            .fill(getStarGradient(result.starScore))
+                        Rectangle()
+                            .fill(DS.Colors.black)
                             .frame(width: 80, height: 80)
                         
                         HStack(spacing: 2) {
                             ForEach(1...3, id: \.self) { star in
-                                Image(systemName: star <= result.starScore ? "star.fill" : "star")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.white)
+                                DSIcon(star <= result.starScore ? "star.fill" : "star", size: 12)
+                                    .foregroundStyle(DS.Colors.white)
                             }
                         }
                     }
                 }
                 
                 // Star progress display
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Spacing.xs) {
                     Text("Insight Progress")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Colors.secondaryText)
                     
                     Spacer()
                     
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Spacing.xxs) {
                         ForEach(1...3, id: \.self) { star in
-                            Image(systemName: star <= result.starScore ? "star.fill" : "star")
-                                .font(.caption)
-                                .foregroundStyle(star <= result.starScore ? getStarColor(result.starScore) : .secondary)
+                            DSIcon(star <= result.starScore ? "star.fill" : "star", size: 14)
+                                .foregroundStyle(star <= result.starScore ? DS.Colors.black : DS.Colors.gray300)
                         }
                     }
                 }
             }
             
             // Completion status
-            HStack(spacing: 12) {
-                Image(systemName: result.pass ? "lightbulb.fill" : "arrow.clockwise")
-                    .font(.title2)
-                    .foregroundStyle(getStarColor(result.starScore))
+            HStack(spacing: DS.Spacing.sm) {
+                DSIcon(result.pass ? "lightbulb.fill" : "arrow.clockwise", size: 24)
                 
                 Text(result.pass ? getCompletionText(result.starScore) : "Keep Exploring!")
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(getStarColor(result.starScore))
+                    .font(DS.Typography.headline)
+                    .foregroundStyle(DS.Colors.primaryText)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(
-                getStarColor(result.starScore).opacity(0.1)
-            )
-            .cornerRadius(12)
+            .dsCard()
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 24)
-        .background(cardBackground)
-        .cornerRadius(16)
-        .padding(.horizontal, 24)
-        .padding(.bottom, 24)
+        .dsCard()
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.bottom, DS.Spacing.lg)
     }
     
     // MARK: - Response Section
     private var responseSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
             HStack {
                 Text("Your Response")
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(DS.Typography.headline)
                 
                 Spacer()
                 
                 Button(action: { isResponseExpanded.toggle() }) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Spacing.xxs) {
                         Text(isResponseExpanded ? "Show Less" : "Show More")
-                            .font(.caption)
+                            .font(DS.Typography.caption)
                             .fontWeight(.medium)
                         
-                        Image(systemName: isResponseExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption)
+                        DSIcon(isResponseExpanded ? "chevron.up" : "chevron.down", size: 12)
                     }
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(DS.Colors.primaryText)
                 }
+                .dsTertiaryButton()
             }
             
             Text(isResponseExpanded ? userResponse : truncatedResponse)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .padding(20)
-                .background(subtleBackground)
-                .cornerRadius(12)
+                .font(DS.Typography.body)
+                .foregroundStyle(DS.Colors.primaryText)
+                .dsSubtleCard()
                 .animation(.easeInOut(duration: 0.3), value: isResponseExpanded)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 24)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.bottom, DS.Spacing.lg)
     }
     
     // MARK: - Reality Check Section
     private func realityCheckSection(_ result: EvaluationResult) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Spacing.lg) {
             // Section header
-            VStack(spacing: 8) {
+            VStack(spacing: DS.Spacing.xs) {
                 Text("Reality Check™")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(DS.Typography.title)
                     .multilineTextAlignment(.center)
+                    .foregroundColor(DS.Colors.primaryText)
                 
                 Text("See what mastery looks like")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.body)
+                    .foregroundStyle(DS.Colors.secondaryText)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, DS.Spacing.lg)
             
             // Side-by-side comparison
             VStack(spacing: 0) {
                 HStack {
                     // Your Answer section
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         Text("Your Answer")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.primary)
+                            .font(DS.Typography.headline)
+                            .foregroundStyle(DS.Colors.primaryText)
                         
                         ScrollView {
                             Text(userResponse)
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.primaryText)
                                 .lineLimit(nil)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .frame(maxHeight: 200)
                     }
-                    .padding(20)
+                    .dsCard()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(cardBackground)
-                    .cornerRadius(16)
                     
                     // Ideal Answer section
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 6) {
-                            HStack(spacing: 2) {
-                                ForEach(1...3, id: \.self) { star in
-                                    Image(systemName: "star.fill")
-                                        .font(.caption)
-                                        .foregroundStyle(.yellow)
-                                }
-                            }
-                            
-                            Text("Ideal Answer")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.primary)
-                        }
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                        Text("Ideal Answer")
+                            .font(DS.Typography.headline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(DS.Colors.primaryText)
                         
                         ScrollView {
                             Text(result.idealAnswer ?? "")
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.primaryText)
                                 .lineLimit(nil)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .frame(maxHeight: 200)
                     }
-                    .padding(20)
+                    .dsCard(backgroundColor: DS.Colors.secondaryBackground)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.green.opacity(0.1), Color.green.opacity(0.05)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .cornerRadius(16)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [Color.green.opacity(0.3), Color.green.opacity(0.1)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1
-                            )
+                        Rectangle()
+                            .stroke(DS.Colors.black, lineWidth: DS.BorderWidth.medium)
                     )
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, DS.Spacing.lg)
                 
                 // Key Gap callout
                 if let keyGap = result.keyGap, !keyGap.isEmpty {
-                    HStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.red)
+                    HStack(spacing: DS.Spacing.sm) {
+                        DSIcon("exclamationmark.triangle.fill", size: 20)
+                            .foregroundStyle(DS.Colors.black)
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("🚨 Key Gap")
-                                .font(.headline)
+                        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                            Text("Key Gap")
+                                .font(DS.Typography.headline)
                                 .fontWeight(.bold)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(DS.Colors.black)
                             
                             Text(keyGap)
-                                .font(.body)
-                                .foregroundStyle(.primary)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.primaryText)
                                 .lineLimit(nil)
                         }
                         
                         Spacer()
                     }
-                    .padding(20)
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(12)
+                    .dsCard(backgroundColor: DS.Colors.tertiaryBackground)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                        Rectangle()
+                            .stroke(DS.Colors.black, lineWidth: DS.BorderWidth.medium)
                     )
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.top, DS.Spacing.lg)
                 }
             }
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, DS.Spacing.lg)
     }
     
     // MARK: - Wisdom Feedback Loading Section
     private var wisdomFeedbackLoadingSection: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(spacing: DS.Spacing.md) {
+            HStack(spacing: DS.Spacing.sm) {
                 ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
                     .scaleEffect(0.8)
                 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text("Gathering insights from different perspectives...")
-                        .font(.subheadline)
+                        .font(DS.Typography.body)
                         .fontWeight(.medium)
                     Text("Your personal Insight Compass")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(DS.Colors.secondaryText)
                 }
                 
                 Spacer()
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(cardBackground)
-            .cornerRadius(12)
-            .padding(.horizontal, 24)
+            .dsCard()
         }
-        .padding(.bottom, 24)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.bottom, DS.Spacing.lg)
     }
     
     // MARK: - Traditional Feedback Loading Section
     private var traditionalFeedbackLoadingSection: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(spacing: DS.Spacing.md) {
+            HStack(spacing: DS.Spacing.sm) {
                 ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
                     .scaleEffect(0.8)
                 
                 Text("Loading detailed analysis...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.Colors.secondaryText)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 12)
-            .background(cardBackground.opacity(0.5))
-            .cornerRadius(8)
-            .padding(.horizontal, 24)
+            .dsSubtleCard()
         }
-        .padding(.bottom, 16)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.bottom, DS.Spacing.md)
     }
     
     // MARK: - Wisdom Feedback Section
     private func wisdomFeedbackSection(_ wisdom: WisdomFeedback) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Spacing.lg) {
             // Section header with Insight Compass vibe
             HStack {
-                Image(systemName: "compass.drawing")
-                    .font(.title2)
-                    .foregroundStyle(.purple)
+                DSIcon("compass.drawing", size: 20)
+                    .foregroundStyle(DS.Colors.black)
                 
                 Text("Insight Compass")
-                    .font(.title2)
+                    .font(DS.Typography.title)
                     .fontWeight(.bold)
+                    .foregroundStyle(DS.Colors.primaryText)
                 
                 Spacer()
                 
                 // Compass medallion
                 ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: [.purple, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    Rectangle()
+                        .fill(DS.Colors.black)
                         .frame(width: 32, height: 32)
                     
-                    Image(systemName: "compass.drawing")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white)
+                    DSIcon("compass.drawing", size: 12)
+                        .foregroundStyle(DS.Colors.white)
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, DS.Spacing.lg)
             
             // Wisdom cards with special styling
-            LazyVStack(spacing: 20) {
+            LazyVStack(spacing: DS.Spacing.lg) {
                 // Wise Sage Perspective - Most prominent
                 wisdomCard(
                     title: "The Wise Sage",
                     subtitle: "sees the big picture",
                     content: wisdom.wisdomOpening,
                     icon: "lightbulb.fill",
-                    gradient: LinearGradient(colors: [.purple, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing),
                     isHighlight: true
                 )
                 
@@ -686,8 +543,7 @@ struct EvaluationResultsView: View {
                     title: "The Analyst",
                     subtitle: "spots the logical gap",
                     content: wisdom.rootCause,
-                    icon: "chart.line.uptrend.xyaxis.circle.fill",
-                    gradient: LinearGradient(colors: [.blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    icon: "chart.line.uptrend.xyaxis.circle.fill"
                 )
                 
                 // Caring Teacher Perspective
@@ -695,8 +551,7 @@ struct EvaluationResultsView: View {
                     title: "The Teacher",
                     subtitle: "shares what you need to know",
                     content: wisdom.missingFoundation,
-                    icon: "book.circle.fill",
-                    gradient: LinearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    icon: "book.circle.fill"
                 )
                 
                 // Master Craftsperson Perspective
@@ -704,8 +559,7 @@ struct EvaluationResultsView: View {
                     title: "The Expert",
                     subtitle: "reveals the craft",
                     content: wisdom.elevatedPerspective,
-                    icon: "hammer.circle.fill",
-                    gradient: LinearGradient(colors: [.orange, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    icon: "hammer.circle.fill"
                 )
                 
                 // Future Coach Perspective
@@ -713,8 +567,7 @@ struct EvaluationResultsView: View {
                     title: "The Coach",
                     subtitle: "guides your next step",
                     content: wisdom.nextLevelPrep,
-                    icon: "arrow.up.forward.circle.fill",
-                    gradient: LinearGradient(colors: [.red, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    icon: "arrow.up.forward.circle.fill"
                 )
                 
                 // Personal Mentor Perspective - Special treatment
@@ -723,57 +576,50 @@ struct EvaluationResultsView: View {
                     subtitle: "knows your style",
                     content: wisdom.personalizedWisdom,
                     icon: "person.crop.circle.fill.badge.checkmark",
-                    gradient: LinearGradient(colors: [.purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing),
                     isPersonalized: true
                 )
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, DS.Spacing.lg)
         }
-        .padding(.bottom, 32)
+        .padding(.bottom, DS.Spacing.xl)
     }
     
     // MARK: - Traditional Feedback Section (now secondary)
     private func traditionalFeedbackSection(_ feedback: AuthorFeedback) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Spacing.lg) {
             // Section header with collapsible style
             HStack {
-                Image(systemName: "doc.text.fill")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+                DSIcon("doc.text.fill", size: 18)
+                    .foregroundStyle(DS.Colors.secondaryText)
                 
                 Text("Detailed Analysis")
-                    .font(.headline)
+                    .font(DS.Typography.headline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DS.Colors.secondaryText)
                 
                 Spacer()
                 
                 Text("Author's Breakdown")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.Colors.tertiaryText)
+                    .dsSubtleCard(padding: DS.Spacing.xs)
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, DS.Spacing.lg)
             
             // Feedback cards
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: DS.Spacing.md) {
                 // Verdict card
                 feedbackCard(
                     title: "Verdict",
                     content: feedback.verdict,
-                    icon: "checkmark.shield.fill",
-                    color: .blue
+                    icon: "checkmark.shield.fill"
                 )
                 
                 // One Big Thing card
                 feedbackCard(
                     title: "One Big Thing",
                     content: feedback.oneBigThing,
-                    icon: "star.fill",
-                    color: .yellow
+                    icon: "star.fill"
                 )
                 
                 // Evidence card
@@ -781,8 +627,7 @@ struct EvaluationResultsView: View {
                     feedbackCard(
                         title: "Evidence",
                         content: feedback.evidence.joined(separator: "\n\n"),
-                        icon: "doc.text.fill",
-                        color: .green
+                        icon: "doc.text.fill"
                     )
                 }
                 
@@ -791,8 +636,7 @@ struct EvaluationResultsView: View {
                     feedbackCard(
                         title: "Upgrade Suggestion",
                         content: feedback.upgrade,
-                        icon: "arrow.up.circle.fill",
-                        color: .purple
+                        icon: "arrow.up.circle.fill"
                     )
                 }
                 
@@ -801,8 +645,7 @@ struct EvaluationResultsView: View {
                     feedbackCard(
                         title: "Transfer Cue",
                         content: feedback.transferCue,
-                        icon: "arrow.triangle.branch",
-                        color: .orange
+                        icon: "arrow.triangle.branch"
                     )
                 }
                 
@@ -811,8 +654,7 @@ struct EvaluationResultsView: View {
                     feedbackCard(
                         title: "60-Second Drill",
                         content: feedback.microDrill,
-                        icon: "timer",
-                        color: .red
+                        icon: "timer"
                     )
                 }
                 
@@ -821,8 +663,7 @@ struct EvaluationResultsView: View {
                     feedbackCard(
                         title: "Memory Hook",
                         content: feedback.memoryHook,
-                        icon: "brain.head.profile",
-                        color: .indigo
+                        icon: "brain.head.profile"
                     )
                 }
                 
@@ -831,14 +672,13 @@ struct EvaluationResultsView: View {
                     feedbackCard(
                         title: "Edge Case / Trap",
                         content: trap,
-                        icon: "exclamationmark.triangle.fill",
-                        color: .orange
+                        icon: "exclamationmark.triangle.fill"
                     )
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, DS.Spacing.lg)
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, DS.Spacing.lg)
     }
     
     // MARK: - Wisdom Card Helper
@@ -847,36 +687,34 @@ struct EvaluationResultsView: View {
         subtitle: String = "",
         content: String, 
         icon: String, 
-        gradient: LinearGradient,
         isHighlight: Bool = false,
         isPersonalized: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            HStack(spacing: DS.Spacing.sm) {
                 ZStack {
-                    Circle()
-                        .fill(gradient)
+                    Rectangle()
+                        .fill(DS.Colors.black)
                         .frame(width: isHighlight ? 40 : 32, height: isHighlight ? 40 : 32)
                     
-                    Image(systemName: icon)
-                        .font(isHighlight ? .title2 : .title3)
-                        .foregroundStyle(.white)
-                        .fontWeight(.semibold)
+                    DSIcon(icon, size: isHighlight ? 20 : 16)
+                        .foregroundStyle(DS.Colors.white)
                 }
                 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     Text(title)
-                        .font(isHighlight ? .title3 : .headline)
+                        .font(isHighlight ? DS.Typography.title : DS.Typography.headline)
                         .fontWeight(.bold)
+                        .foregroundStyle(DS.Colors.primaryText)
                     
                     if !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.Colors.secondaryText)
                     } else if isPersonalized {
                         Text("tailored to your thinking")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.Colors.secondaryText)
                     }
                 }
                 
@@ -884,127 +722,105 @@ struct EvaluationResultsView: View {
             }
             
             Text(content)
-                .font(isHighlight ? .body : .callout)
-                .foregroundStyle(.primary)
+                .font(isHighlight ? DS.Typography.body : DS.Typography.body)
+                .foregroundStyle(DS.Colors.primaryText)
                 .lineLimit(nil)
-                .lineSpacing(isHighlight ? 4 : 2)
         }
-        .padding(isHighlight ? 24 : 20)
-        .background(cardBackground)
-        .cornerRadius(isHighlight ? 20 : 16)
-        .overlay(
-            RoundedRectangle(cornerRadius: isHighlight ? 20 : 16)
-                .stroke(gradient, lineWidth: isHighlight ? 2 : 1)
+        .dsCard(
+            padding: isHighlight ? DS.Spacing.lg : DS.Spacing.md,
+            borderColor: DS.Colors.black,
+            backgroundColor: DS.Colors.white
         )
-        .shadow(color: .black.opacity(0.1), radius: isHighlight ? 8 : 4, x: 0, y: 2)
-        .scaleEffect(isHighlight ? 1.02 : 1.0)
+        .overlay(
+            Rectangle()
+                .stroke(DS.Colors.black, lineWidth: isHighlight ? DS.BorderWidth.medium : DS.BorderWidth.thin)
+        )
     }
     
     // MARK: - Feedback Card Helper
-    private func feedbackCard(title: String, content: String, icon: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(color)
+    private func feedbackCard(title: String, content: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.xs) {
+                DSIcon(icon, size: 18)
+                    .foregroundStyle(DS.Colors.black)
                 
                 Text(title)
-                    .font(.headline)
+                    .font(DS.Typography.headline)
                     .fontWeight(.semibold)
+                    .foregroundStyle(DS.Colors.primaryText)
                 
                 Spacer()
             }
             
             Text(content)
-                .font(.body)
-                .foregroundStyle(.primary)
+                .font(DS.Typography.body)
+                .foregroundStyle(DS.Colors.primaryText)
                 .lineLimit(nil)
         }
-        .padding(20)
-        .background(cardBackground)
-        .cornerRadius(16)
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(color.opacity(0.2), lineWidth: 1)
-        )
+        .dsCard()
     }
     
     // MARK: - Action Section
     private func actionSection(_ result: EvaluationResult) -> some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Spacing.lg) {
             // Primer CTA for failed responses
             if !result.pass {
-                VStack(spacing: 16) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "lightbulb.fill")
-                            .font(.title2)
-                            .foregroundStyle(.orange)
+                VStack(spacing: DS.Spacing.md) {
+                    HStack(spacing: DS.Spacing.sm) {
+                        DSIcon("lightbulb.fill", size: 20)
+                            .foregroundStyle(DS.Colors.black)
                         
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                             Text("Need a refresher?")
-                                .font(.headline)
+                                .font(DS.Typography.headline)
                                 .fontWeight(.semibold)
+                                .foregroundStyle(DS.Colors.primaryText)
                             
                             Text("Review the core concepts before continuing")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.Colors.secondaryText)
                         }
                         
                         Spacer()
                     }
                     
                     Button(action: { onOpenPrimer() }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "lightbulb")
-                                .font(.title3)
+                        HStack(spacing: DS.Spacing.xs) {
+                            DSIcon("lightbulb", size: 18)
                             Text("Open Primer")
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.orange.gradient)
-                        .foregroundStyle(.white)
-                        .cornerRadius(12)
                     }
+                    .dsSecondaryButton()
                 }
-                .padding(20)
-                .background(Color.orange.opacity(0.1))
-                .cornerRadius(16)
-                .padding(.horizontal, 24)
+                .dsCard(backgroundColor: DS.Colors.tertiaryBackground)
+                .padding(.horizontal, DS.Spacing.lg)
             }
             
             // Continue button
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Spacing.sm) {
                 Button(action: { navigateToWhatThisMeans = true }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.right")
-                            .font(.title3)
-                        
-                        Text("Continue")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(primaryGradient)
-                    .foregroundStyle(.white)
-                    .cornerRadius(12)
+                    Text("Continue")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
                 }
+                .dsPrimaryButton()
                 
                 Text("Your response and evaluation have been saved")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(DS.Colors.secondaryText)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.xl)
         }
     }
     
     // MARK: - Toolbar Buttons
     private var homeButton: some View {
         Button(action: { navigateToHome = true }) {
-            Image(systemName: "text.book.closed")
-                .font(.title3)
-                .foregroundStyle(.primary)
+            DSIcon("text.book.closed", size: 18)
+                .foregroundStyle(DS.Colors.primaryText)
         }
         .accessibilityLabel("Go to home")
         .accessibilityHint("Return to all extracted ideas")
@@ -1012,9 +828,8 @@ struct EvaluationResultsView: View {
     
     private var primerButton: some View {
         Button(action: { showingPrimer = true }) {
-            Image(systemName: "lightbulb")
-                .font(.title3)
-                .foregroundStyle(.primary)
+            DSIcon("lightbulb", size: 18)
+                .foregroundStyle(DS.Colors.primaryText)
         }
         .accessibilityLabel("View Primer")
         .accessibilityHint("Open primer for this idea")
@@ -1118,19 +933,10 @@ struct EvaluationResultsView: View {
     
     private func getStarColor(_ starScore: Int) -> Color {
         switch starScore {
-        case 1: return .orange
-        case 2: return .blue  
-        case 3: return .green
-        default: return .gray
-        }
-    }
-    
-    private func getStarGradient(_ starScore: Int) -> LinearGradient {
-        switch starScore {
-        case 1: return orangeGradient
-        case 2: return primaryGradient
-        case 3: return successGradient
-        default: return primaryGradient
+        case 1: return DS.Colors.black
+        case 2: return DS.Colors.black
+        case 3: return DS.Colors.black
+        default: return DS.Colors.gray500
         }
     }
     
@@ -1140,6 +946,26 @@ struct EvaluationResultsView: View {
         case 2: return "Well Done!"
         case 3: return "Aha! Moment!"
         default: return "Complete!"
+        }
+    }
+    
+    // MARK: - Icon Helpers
+    
+    private func getLevelIcon(for level: Int) -> String {
+        switch level {
+        case 1: return "1.circle.fill"
+        case 2: return "2.circle.fill" 
+        case 3: return "3.circle.fill"
+        default: return "circle.fill"
+        }
+    }
+    
+    private func getInsightIcon(for starScore: Int) -> String {
+        switch starScore {
+        case 1: return "lightbulb"
+        case 2: return "lightbulb.fill"
+        case 3: return "brain.head.profile"
+        default: return "lightbulb"
         }
     }
     
@@ -1191,4 +1017,4 @@ struct EvaluationResultsView: View {
             onOpenPrimer: {}
         )
     }
-} 
+}
