@@ -53,8 +53,84 @@ class BookService: ObservableObject {
             
             modelContext.insert(newBook)
             try modelContext.save()
+            
+            // Fetch Google Books metadata asynchronously
+            Task {
+                print("DEBUG: Starting Google Books metadata fetch for new book")
+                await fetchAndUpdateBookMetadata(for: newBook)
+            }
+            
             return newBook
         }
+    }
+    
+    // MARK: - Google Books Integration
+    
+    /// Fetches metadata from Google Books API and updates the book
+    func fetchAndUpdateBookMetadata(for book: Book) async {
+        print("DEBUG: Fetching Google Books metadata for '\(book.title)'")
+        
+        // Skip if we already have Google Books metadata
+        if book.googleBooksId != nil {
+            print("DEBUG: Book already has Google Books metadata, skipping")
+            return
+        }
+        
+        do {
+            guard let metadata = try await GoogleBooksService.shared.searchBook(
+                title: book.title,
+                author: book.author
+            ) else {
+                print("DEBUG: No Google Books results found for '\(book.title)'")
+                return
+            }
+            
+            // Update book with metadata
+            await MainActor.run {
+                book.googleBooksId = metadata.googleBooksId
+                book.subtitle = metadata.subtitle
+                book.publisher = metadata.publisher
+                book.language = metadata.language
+                book.categories = metadata.categories.joined(separator: ", ")
+                book.thumbnailUrl = metadata.thumbnailUrl
+                book.coverImageUrl = metadata.coverImageUrl
+                book.averageRating = metadata.averageRating
+                book.ratingsCount = metadata.ratingsCount
+                book.previewLink = metadata.previewLink
+                book.infoLink = metadata.infoLink
+                
+                // If we didn't have an author, use the one from Google Books
+                if book.author == nil || book.author?.isEmpty == true {
+                    book.author = metadata.authors.first
+                }
+                
+                do {
+                    try modelContext.save()
+                    print("DEBUG: Successfully updated book with Google Books metadata")
+                    print("DEBUG: - Cover URL: \(book.coverImageUrl ?? "none")")
+                    print("DEBUG: - Thumbnail URL: \(book.thumbnailUrl ?? "none")")
+                    print("DEBUG: - Rating: \(book.averageRating ?? 0) (\(book.ratingsCount ?? 0) ratings)")
+                } catch {
+                    print("DEBUG: Failed to save Google Books metadata: \(error)")
+                }
+            }
+        } catch {
+            print("DEBUG: Error fetching Google Books metadata: \(error)")
+        }
+    }
+    
+    /// Refreshes Google Books metadata for all books (useful for migration)
+    func refreshAllBooksMetadata() async throws {
+        let books = try getAllBooks()
+        print("DEBUG: Refreshing metadata for \(books.count) books")
+        
+        for book in books {
+            await fetchAndUpdateBookMetadata(for: book)
+            // Add small delay to avoid rate limiting
+            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        }
+        
+        print("DEBUG: Finished refreshing metadata for all books")
     }
     
     // MARK: - Helper Methods

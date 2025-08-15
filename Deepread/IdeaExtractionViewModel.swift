@@ -7,6 +7,7 @@ class IdeaExtractionViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var bookInfo: BookInfo?
+    @Published var currentBook: Book?
     
     private let openAIService: OpenAIService
     private let bookService: BookService
@@ -66,6 +67,7 @@ class IdeaExtractionViewModel: ObservableObject {
                             self.currentBookTitle = existingBook.title
                             // Set book info from existing book
                             self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
+                            self.currentBook = existingBook
                         }
                         return
                     }
@@ -96,6 +98,7 @@ class IdeaExtractionViewModel: ObservableObject {
                             self.updateExtractedIdeas(existingBook.ideas, source: "corrected title match")
                             self.isLoading = false
                             self.errorMessage = nil
+                            self.currentBook = existingBook
                         }
                         return
                     }
@@ -168,6 +171,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 try bookService.saveIdeas(parsedIdeas, for: book)
                 await MainActor.run {
                     self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")
+                    self.currentBook = book
                 }
                 print("DEBUG: Successfully saved ideas to database")
             } catch {

@@ -59,18 +59,12 @@ struct IdeaPromptView: View {
                         .textCase(.uppercase)
                         .tracking(0.5)
                     
-                    // Idea title and description with 8px spacing
+                    // Idea title
                     VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                         // Idea title - prominent but not overwhelming
                         Text(idea.title)
                             .font(DS.Typography.title)
                             .foregroundStyle(DS.Colors.primaryText)
-                        
-                        // Idea description - clear and readable
-                        Text(idea.ideaDescription)
-                            .font(DS.Typography.body)
-                            .foregroundStyle(DS.Colors.primaryText)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                     
                     // Generated prompt - MAIN FOCUS

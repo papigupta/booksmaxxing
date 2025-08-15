@@ -143,25 +143,58 @@ struct BookOverviewView: View {
             .padding(.horizontal, DS.Spacing.xxs)
             .padding(.bottom, DS.Spacing.md)
             
-            // Book title and author
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text(viewModel.bookInfo?.title ?? bookTitle)
-                    .font(DS.Typography.largeTitle)
-                    .tracking(-0.03)
-                    .foregroundColor(DS.Colors.primaryText)
-                    .lineLimit(2)
-                
-                if let author = viewModel.bookInfo?.author {
-                    Text("by \(author)")
-                        .font(DS.Typography.body)
-                        .foregroundColor(DS.Colors.secondaryText)
-                } else {
-                    Text("Author not specified")
-                        .font(DS.Typography.body)
-                        .foregroundColor(DS.Colors.tertiaryText)
+            // Book cover, title and author
+            HStack(alignment: .top, spacing: DS.Spacing.md) {
+                // Book Cover
+                if viewModel.currentBook?.coverImageUrl != nil || viewModel.currentBook?.thumbnailUrl != nil {
+                    BookCoverView(
+                        thumbnailUrl: viewModel.currentBook?.thumbnailUrl,
+                        coverUrl: viewModel.currentBook?.coverImageUrl,
+                        isLargeView: false
+                    )
+                    .frame(width: 80, height: 120)
+                    .cornerRadius(8)
+                    .shadow(radius: 4)
                 }
+                
+                // Book title and author
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    Text(viewModel.bookInfo?.title ?? bookTitle)
+                        .font(DS.Typography.largeTitle)
+                        .tracking(-0.03)
+                        .foregroundColor(DS.Colors.primaryText)
+                        .lineLimit(2)
+                    
+                    if let author = viewModel.bookInfo?.author {
+                        Text("by \(author)")
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.secondaryText)
+                    } else {
+                        Text("Author not specified")
+                            .font(DS.Typography.body)
+                            .foregroundColor(DS.Colors.tertiaryText)
+                    }
+                    
+                    // Show rating if available
+                    if let rating = viewModel.currentBook?.averageRating,
+                       let ratingsCount = viewModel.currentBook?.ratingsCount {
+                        HStack(spacing: DS.Spacing.xxs) {
+                            ForEach(0..<5) { index in
+                                Image(systemName: index < Int(rating) ? "star.fill" : "star")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.yellow)
+                            }
+                            Text("(\(ratingsCount))")
+                                .font(DS.Typography.caption)
+                                .foregroundColor(DS.Colors.tertiaryText)
+                        }
+                        .padding(.top, DS.Spacing.xxs)
+                    }
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, DS.Spacing.lg)
         }
         .background(DS.Colors.primaryBackground)
@@ -317,12 +350,6 @@ struct ActiveIdeaCard: View {
                         }
                     }
                     
-                    if !idea.ideaDescription.isEmpty {
-                        Text(idea.ideaDescription)
-                            .font(DS.Typography.body)
-                            .foregroundColor(DS.Colors.white.opacity(0.7))
-                            .lineLimit(3)
-                    }
                     
                     
                     // Importance with signal bars
@@ -483,14 +510,6 @@ struct InactiveIdeaCard: View {
                     }
                 }
                 
-                if !idea.ideaDescription.isEmpty {
-                    Text(idea.ideaDescription)
-                        .font(.body)
-                        .fontWeight(.regular)
-                        .foregroundColor(DS.Colors.secondaryText)
-                        .lineLimit(3)
-                        .opacity(0.6)
-                }
                 
                 // Show progress information
                 if progressInfo.responseCount > 0 {
