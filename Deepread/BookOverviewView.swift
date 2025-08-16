@@ -51,7 +51,7 @@ struct BookOverviewView: View {
                 .padding(.top, DS.Spacing.xxl)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                         ForEach(Array(viewModel.extractedIdeas.enumerated()), id: \.element.id) { index, idea in
                             if index == activeIdeaIndex {
                                 ActiveIdeaCard(idea: idea, openAIService: openAIService)
@@ -190,12 +190,10 @@ struct BookOverviewView: View {
                         }
                         .padding(.top, DS.Spacing.xxs)
                     }
-                    
-                    Spacer()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.bottom, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.sm)
         }
         .background(DS.Colors.primaryBackground)
     }
@@ -312,12 +310,7 @@ struct ActiveIdeaCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            HStack(alignment: .top, spacing: DS.Spacing.sm) {
-                DSIcon("apple.intelligence", size: 24)
-                    .foregroundColor(DS.Colors.white)
-                    .frame(width: 24)
-                
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     HStack {
                         Text(idea.title)
                             .font(DS.Typography.bodyBold)
@@ -404,12 +397,11 @@ struct ActiveIdeaCard: View {
                             }
                         }
                     }
-                    .padding(.top, DS.Spacing.xxs)
-                }
+                .padding(.top, DS.Spacing.xxs)
             }
         }
-        .padding(.horizontal, DS.Spacing.md)
-        .padding(.vertical, DS.Spacing.sm)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DS.Colors.black)
         .overlay(
@@ -465,14 +457,7 @@ struct InactiveIdeaCard: View {
     }
     
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Image(systemName: "apple.intelligence")
-                .font(.caption)
-                .foregroundColor(DS.Colors.secondaryText)
-                .frame(width: 16)
-                .opacity(0.6)
-            
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(idea.title)
                         .font(.body)
@@ -534,13 +519,12 @@ struct InactiveIdeaCard: View {
                             Text("Last: \(formatDate(lastPracticed))")
                                 .font(DS.Typography.small)
                                 .foregroundColor(DS.Colors.tertiaryText)
-                        }
                     }
                 }
             }
         }
-        .padding(.horizontal, DS.Spacing.md)
-        .padding(.vertical, DS.Spacing.sm)
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DS.Colors.gray50)
         .overlay(
