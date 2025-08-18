@@ -307,6 +307,12 @@ struct ActiveIdeaCard: View {
     let idea: Idea
     let openAIService: OpenAIService
     @State private var showingHistory = false
+    @State private var showingTest = false
+    @State private var currentTest: Test?
+    @State private var isGeneratingTest = false
+    @State private var showingPrimer = false
+    @State private var loadingMessage = "Preparing your test..."
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -365,14 +371,44 @@ struct ActiveIdeaCard: View {
                     
                     // CTA Buttons
                     HStack(spacing: DS.Spacing.xs) {
-                        NavigationLink(destination: LevelLoadingView(idea: idea, level: getStartingLevel(), openAIService: openAIService)) {
-                            Text(getButtonText())
-                                .font(DS.Typography.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(DS.Colors.black)
+                        // Start Test Button
+                        Button(action: startTest) {
+                            HStack(spacing: DS.Spacing.xs) {
+                                if isGeneratingTest {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                                        .scaleEffect(0.7)
+                                } else {
+                                    Text(getButtonText())
+                                        .font(DS.Typography.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(DS.Colors.black)
+                                }
+                            }
                             .padding(.horizontal, DS.Spacing.sm)
                             .padding(.vertical, DS.Spacing.xs)
                             .background(DS.Colors.white)
+                        }
+                        .disabled(isGeneratingTest)
+                        
+                        // Primer Button
+                        Button(action: {
+                            showingPrimer = true
+                        }) {
+                            HStack(spacing: DS.Spacing.xxs) {
+                                DSIcon("lightbulb", size: 12)
+                                    .foregroundStyle(DS.Colors.white)
+                                Text("Primer")
+                                    .font(DS.Typography.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(DS.Colors.white)
+                            }
+                            .padding(.horizontal, DS.Spacing.sm)
+                            .padding(.vertical, DS.Spacing.xs)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
+                            )
                         }
                         
                         // History button for mastered ideas
@@ -411,16 +447,107 @@ struct ActiveIdeaCard: View {
         .sheet(isPresented: $showingHistory) {
             ResponseHistoryView(idea: idea)
         }
+        .sheet(isPresented: $showingPrimer) {
+            PrimerView(idea: idea, openAIService: openAIService)
+        }
+        .sheet(isPresented: $showingTest) {
+            if let test = currentTest {
+                TestView(
+                    idea: idea,
+                    test: test,
+                    openAIService: openAIService,
+                    onCompletion: { attempt in
+                        showingTest = false
+                        // Test completed, mastery will be updated by TestResultsView
+                    }
+                )
+            }
+        }
+        .fullScreenCover(isPresented: $isGeneratingTest) {
+            TestLoadingView(message: $loadingMessage)
+        }
     }
     
     private func getButtonText() -> String {
-        if idea.masteryLevel >= 3 {
-            return "Remaster this idea"
+        if isGeneratingTest {
+            return "Preparing test..."
+        } else if idea.masteryLevel >= 3 {
+            return "Take test again"
         } else if idea.masteryLevel > 0 {
-            return "Continue mastering"
+            return "Continue test"
         } else {
-            return "Master this idea"
+            return "Start test"
         }
+    }
+    
+    private func startTest() {
+        isGeneratingTest = true
+        loadingMessage = "Preparing your test..."
+        
+        Task {
+            do {
+                // Update loading message progressively
+                await updateLoadingMessage("Creating questions based on \(idea.title)...")
+                
+                let testGenerationService = TestGenerationService(
+                    openAI: openAIService,
+                    modelContext: modelContext
+                )
+                
+                // Determine test type based on mastery and timing
+                let testType = determineTestType()
+                
+                await updateLoadingMessage("Generating \(testType == "review" ? "review" : "initial") questions...")
+                
+                // Add slight delays between questions for better UX
+                await updateLoadingMessage("Creating easy questions...")
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
+                await updateLoadingMessage("Creating medium questions...")
+                
+                let test = try await testGenerationService.generateTest(
+                    for: idea,
+                    testType: testType
+                )
+                
+                await updateLoadingMessage("Finalizing your test...")
+                try await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+                
+                await MainActor.run {
+                    self.currentTest = test
+                    self.isGeneratingTest = false
+                    self.showingTest = true
+                }
+            } catch {
+                print("Error generating test: \(error)")
+                await MainActor.run {
+                    self.loadingMessage = "Failed to generate test. Please try again."
+                    // Delay before dismissing
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                        self.isGeneratingTest = false
+                    }
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func updateLoadingMessage(_ message: String) async {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            self.loadingMessage = message
+        }
+    }
+    
+    private func determineTestType() -> String {
+        let spacedRepetitionService = SpacedRepetitionService(modelContext: modelContext)
+        
+        // Check if this idea needs a review test
+        if spacedRepetitionService.isReviewDue(for: idea) {
+            return "review"
+        }
+        
+        return "initial"
     }
     
     private func getStartingLevel() -> Int {
