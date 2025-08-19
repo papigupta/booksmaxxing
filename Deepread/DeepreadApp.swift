@@ -22,7 +22,13 @@ struct DeepreadApp: App {
             Idea.self,
             UserResponse.self,
             Progress.self,
-            Primer.self
+            Primer.self,
+            // Test system models
+            Question.self,
+            Test.self,
+            TestAttempt.self,
+            QuestionResponse.self,
+            TestProgress.self
         ])
         
         do {
@@ -34,15 +40,20 @@ struct DeepreadApp: App {
         } catch {
             print("⚠️  Failed to create persistent ModelContainer: \(error)")
             
-            // For migration issues, try to reset the data store
-            if error.localizedDescription.contains("migration") || error.localizedDescription.contains("schema") || error.localizedDescription.contains("model") {
-                print("🔄 Detected schema migration issue - attempting to reset data store")
+            // Only reset for actual incompatible schema changes, not for generic errors
+            // Check for specific CoreData/SwiftData migration errors
+            let errorString = String(describing: error)
+            if errorString.contains("The model used to open the store is incompatible") ||
+               errorString.contains("Failed to find a unique match for an NSEntityDescription") ||
+               errorString.contains("Cannot migrate store in-place") ||
+               errorString.contains("loadIssueModelContainer") {
+                print("🔄 Detected incompatible schema change - attempting controlled migration")
                 
                 // Try to get the default store location and delete it
                 let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
                 if let storeDirectory = appSupportURL?.appendingPathComponent("default.store") {
                     try? FileManager.default.removeItem(at: storeDirectory)
-                    print("🗑️  Attempted to delete existing data store")
+                    print("🗑️  Deleted existing incompatible data store")
                 }
                 
                 // Also try deleting common SwiftData store locations
@@ -55,23 +66,18 @@ struct DeepreadApp: App {
                 do {
                     let freshConfig = ModelConfiguration(isStoredInMemoryOnly: false)
                     let freshContainer = try ModelContainer(for: schema, configurations: freshConfig)
-                    print("✅ Successfully created fresh ModelContainer after reset")
+                    print("✅ Successfully created fresh persistent ModelContainer after migration")
                     return freshContainer
                 } catch {
-                    print("❌ Failed to create container even after reset: \(error)")
+                    print("❌ Failed to create container even after migration: \(error)")
+                    // Fall through to fatal error - don't use in-memory as fallback
+                    fatalError("CRITICAL: Cannot create ModelContainer after migration: \(error)")
                 }
             }
             
-            // Final fallback to in-memory storage
-            print("⚠️  Falling back to in-memory storage - data will not persist between app launches")
-            do {
-                let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
-                let inMemoryContainer = try ModelContainer(for: schema, configurations: inMemoryConfig)
-                print("ℹ️  Successfully created in-memory ModelContainer")
-                return inMemoryContainer
-            } catch {
-                fatalError("CRITICAL: Cannot create even in-memory ModelContainer: \(error)")
-            }
+            // For other errors, don't fall back to in-memory - fail fast
+            // This ensures we catch persistence issues during development
+            fatalError("CRITICAL: Cannot create ModelContainer: \(error)")
         }
     }()
 
