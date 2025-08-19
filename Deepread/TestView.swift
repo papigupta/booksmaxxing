@@ -71,6 +71,7 @@ struct TestView: View {
                     if showingFeedback, let feedback = currentFeedback {
                         FeedbackOverlay(feedback: feedback)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(1)
                     }
                 }
                 
@@ -147,6 +148,7 @@ struct TestView: View {
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.vertical, DS.Spacing.md)
             }
+            .background(DS.Colors.primaryBackground)
             .navigationTitle("Test: \(idea.title)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -619,75 +621,81 @@ struct FeedbackOverlay: View {
     let feedback: QuestionFeedback
     
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            
-            VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                // Result Header
-                HStack(spacing: DS.Spacing.md) {
-                    // Icon
-                    DSIcon(
-                        feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill",
-                        size: 32
-                    )
-                    .foregroundStyle(feedback.isCorrect ? .green : .red)
-                    
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text(feedback.isCorrect ? "Correct!" : "Incorrect")
-                            .font(DS.Typography.bodyBold)
-                            .foregroundStyle(DS.Colors.primaryText)
-                        
-                        Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(DS.Colors.secondaryText)
-                    }
-                    
+        GeometryReader { geometry in
+            ZStack {
+                // Semi-transparent background
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture { }  // Prevent taps from going through
+                
+                // Feedback content positioned at bottom
+                VStack {
                     Spacer()
-                }
-                
-                // Explanation
-                if !feedback.explanation.isEmpty {
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text("Explanation")
-                            .font(DS.Typography.captionBold)
-                            .foregroundStyle(DS.Colors.primaryText)
+                    
+                    VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                        // Result Header
+                        HStack(spacing: DS.Spacing.md) {
+                            // Icon
+                            DSIcon(
+                                feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill",
+                                size: 32
+                            )
+                            .foregroundStyle(feedback.isCorrect ? .green : .red)
+                            
+                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                Text(feedback.isCorrect ? "Correct!" : "Incorrect")
+                                    .font(DS.Typography.bodyBold)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                
+                                Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
+                                    .font(DS.Typography.caption)
+                                    .foregroundStyle(DS.Colors.secondaryText)
+                            }
+                            
+                            Spacer()
+                        }
                         
-                        Text(feedback.explanation)
-                            .font(DS.Typography.body)
-                            .foregroundStyle(DS.Colors.secondaryText)
-                    }
-                }
-                
-                // Correct Answer (if incorrect)
-                if !feedback.isCorrect, let correctAnswer = feedback.correctAnswer {
-                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                        Text("Correct Answer")
-                            .font(DS.Typography.captionBold)
-                            .foregroundStyle(DS.Colors.primaryText)
+                        // Explanation
+                        if !feedback.explanation.isEmpty {
+                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                Text("Explanation")
+                                    .font(DS.Typography.captionBold)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                
+                                Text(feedback.explanation)
+                                    .font(DS.Typography.body)
+                                    .foregroundStyle(DS.Colors.secondaryText)
+                            }
+                        }
                         
-                        Text(correctAnswer)
-                            .font(DS.Typography.body)
-                            .foregroundStyle(DS.Colors.secondaryText)
+                        // Correct Answer (if incorrect)
+                        if !feedback.isCorrect, let correctAnswer = feedback.correctAnswer {
+                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                Text("Correct Answer")
+                                    .font(DS.Typography.captionBold)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                
+                                Text(correctAnswer)
+                                    .font(DS.Typography.body)
+                                    .foregroundStyle(DS.Colors.secondaryText)
+                            }
+                        }
                     }
+                    .padding(DS.Spacing.lg)
+                    .background(
+                        Rectangle()
+                            .fill(feedback.isCorrect ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                            .overlay(
+                                Rectangle()
+                                    .stroke(feedback.isCorrect ? Color.green.opacity(0.3) : Color.red.opacity(0.3), lineWidth: DS.BorderWidth.medium)
+                            )
+                    )
+                    .cornerRadius(12)
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.bottom, DS.Spacing.xl)
                 }
             }
-            .padding(DS.Spacing.lg)
-            .background(
-                Rectangle()
-                    .fill(feedback.isCorrect ? .green.opacity(0.1) : .red.opacity(0.1))
-                    .overlay(
-                        Rectangle()
-                            .stroke(feedback.isCorrect ? .green.opacity(0.3) : .red.opacity(0.3), lineWidth: DS.BorderWidth.medium)
-                    )
-            )
-            .cornerRadius(12)
-            .padding(.horizontal, DS.Spacing.lg)
-            .padding(.bottom, DS.Spacing.xl)
         }
-        .background(
-            Color.black.opacity(0.3)
-                .ignoresSafeArea()
-        )
     }
 }
 

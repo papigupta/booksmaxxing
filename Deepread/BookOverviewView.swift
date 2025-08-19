@@ -450,7 +450,7 @@ struct ActiveIdeaCard: View {
         .sheet(isPresented: $showingPrimer) {
             PrimerView(idea: idea, openAIService: openAIService)
         }
-        .sheet(isPresented: $showingTest) {
+        .fullScreenCover(isPresented: $showingTest) {
             if let test = currentTest {
                 TestView(
                     idea: idea,
@@ -461,6 +461,7 @@ struct ActiveIdeaCard: View {
                         // Test completed, mastery will be updated by TestResultsView
                     }
                 )
+                .ignoresSafeArea()
             }
         }
         .fullScreenCover(isPresented: $isGeneratingTest) {

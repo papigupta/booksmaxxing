@@ -112,7 +112,7 @@ class TestEvaluationService {
             isCorrect: isCorrect,
             pointsEarned: points,
             feedback: feedback,
-            correctAnswer: String(correctIndex)
+            correctAnswer: String(correctIndex + 1)
         )
     }
     
@@ -172,7 +172,7 @@ class TestEvaluationService {
             isCorrect: isCorrect,
             pointsEarned: points,
             feedback: feedback,
-            correctAnswer: correctAnswers.map(String.init).joined(separator: ",")
+            correctAnswer: correctAnswers.map { String($0 + 1) }.joined(separator: ",")
         )
     }
     
