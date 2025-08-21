@@ -221,6 +221,8 @@ struct TestView: View {
         } else {
             // Create new attempt
             let attempt = TestAttempt(testId: test.id)
+            attempt.test = test  // Set the relationship
+            test.attempts.append(attempt)  // Add to test's attempts array
             modelContext.insert(attempt)
             currentAttempt = attempt
         }

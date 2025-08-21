@@ -621,8 +621,11 @@ struct ActiveIdeaCard: View {
                     return
                 }
             }
+            // No incomplete test found
+            currentIncompleteAttempt = nil
         } catch {
             print("Error checking for incomplete tests: \(error)")
+            currentIncompleteAttempt = nil
         }
     }
 }
