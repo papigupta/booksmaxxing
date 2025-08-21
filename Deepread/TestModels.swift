@@ -151,6 +151,7 @@ final class TestAttempt {
     var isComplete: Bool
     var masteryAchieved: MasteryType
     var retryCount: Int  // Number of retry loops completed
+    var currentQuestionIndex: Int  // Track where user left off
     
     // Relationships
     @Relationship(deleteRule: .cascade) var responses: [QuestionResponse]
@@ -164,6 +165,7 @@ final class TestAttempt {
         self.isComplete = false
         self.masteryAchieved = .none
         self.retryCount = 0
+        self.currentQuestionIndex = 0
         self.responses = []
     }
     

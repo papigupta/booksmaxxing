@@ -16,6 +16,7 @@ struct TestView: View {
     let test: Test
     let openAIService: OpenAIService
     let onCompletion: (TestAttempt) -> Void
+    var existingAttempt: TestAttempt? = nil  // Allow resuming from existing attempt
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -154,6 +155,12 @@ struct TestView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Exit") {
+                        // Save progress before exiting
+                        if let attempt = currentAttempt, !attempt.isComplete {
+                            saveCurrentResponse()
+                            attempt.currentQuestionIndex = currentQuestionIndex
+                            try? modelContext.save()
+                        }
                         dismiss()
                     }
                     .font(DS.Typography.caption)
@@ -183,9 +190,40 @@ struct TestView: View {
     // MARK: - Helper Methods
     
     private func initializeAttempt() {
-        let attempt = TestAttempt(testId: test.id)
-        modelContext.insert(attempt)
-        currentAttempt = attempt
+        if let existing = existingAttempt {
+            // Resume from existing attempt
+            currentAttempt = existing
+            currentQuestionIndex = existing.currentQuestionIndex
+            
+            // Restore previous responses
+            for response in existing.responses {
+                switch response.questionType {
+                case .mcq:
+                    if let index = Int(response.userAnswer) {
+                        selectedOptions[response.questionId] = [index]
+                    }
+                case .msq:
+                    if let data = response.userAnswer.data(using: .utf8),
+                       let indices = try? JSONDecoder().decode([Int].self, from: data) {
+                        selectedOptions[response.questionId] = Set(indices)
+                    }
+                case .openEnded:
+                    responses[response.questionId] = response.userAnswer
+                }
+                
+                // Restore evaluations if available
+                if response.isCorrect || response.pointsEarned > 0,
+                   let evaluationData = response.evaluationData,
+                   let evaluation = try? JSONDecoder().decode(QuestionEvaluation.self, from: evaluationData) {
+                    questionEvaluations[response.questionId] = evaluation
+                }
+            }
+        } else {
+            // Create new attempt
+            let attempt = TestAttempt(testId: test.id)
+            modelContext.insert(attempt)
+            currentAttempt = attempt
+        }
     }
     
     private func binding(for question: Question) -> Binding<String> {
@@ -269,6 +307,11 @@ struct TestView: View {
             showingFeedback = false
             currentFeedback = nil
             currentQuestionIndex = min(currentQuestionIndex + 1, test.questions.count - 1)
+            // Save progress
+            if let attempt = currentAttempt {
+                attempt.currentQuestionIndex = currentQuestionIndex
+                try? modelContext.save()
+            }
         }
     }
     
@@ -276,6 +319,11 @@ struct TestView: View {
         saveCurrentResponse()
         withAnimation {
             currentQuestionIndex = max(currentQuestionIndex - 1, 0)
+            // Save progress
+            if let attempt = currentAttempt {
+                attempt.currentQuestionIndex = currentQuestionIndex
+                try? modelContext.save()
+            }
         }
     }
     
@@ -291,6 +339,9 @@ struct TestView: View {
             // Create new response
             createResponse(for: question, attempt: attempt)
         }
+        
+        // Save to persistent storage
+        try? modelContext.save()
     }
     
     private func updateResponse(_ response: QuestionResponse, for question: Question) {

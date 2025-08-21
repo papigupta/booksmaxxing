@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct BookOverviewView: View {
     let bookTitle: String
@@ -309,6 +310,7 @@ struct ActiveIdeaCard: View {
     @State private var showingHistory = false
     @State private var showingTest = false
     @State private var currentTest: Test?
+    @State private var currentIncompleteAttempt: TestAttempt?
     @State private var isGeneratingTest = false
     @State private var showingPrimer = false
     @State private var loadingMessage = "Preparing your test..."
@@ -325,8 +327,16 @@ struct ActiveIdeaCard: View {
                         
                         Spacer()
                         
-                        // Show mastered badge when masteryLevel >= 3
-                        if idea.masteryLevel >= 3 {
+                        // Show appropriate badge
+                        if currentIncompleteAttempt != nil {
+                            Text("RESUME TEST")
+                                .font(DS.Typography.small)
+                                .fontWeight(.bold)
+                                .foregroundColor(DS.Colors.white)
+                                .padding(.horizontal, DS.Spacing.xs)
+                                .padding(.vertical, 2)
+                                .background(Color.orange)
+                        } else if idea.masteryLevel >= 3 {
                             Text("MASTERED")
                                 .font(DS.Typography.small)
                                 .fontWeight(.bold)
@@ -458,8 +468,10 @@ struct ActiveIdeaCard: View {
                     openAIService: openAIService,
                     onCompletion: { attempt in
                         showingTest = false
+                        currentIncompleteAttempt = nil  // Clear the incomplete attempt reference
                         // Test completed, mastery will be updated by TestResultsView
-                    }
+                    },
+                    existingAttempt: currentIncompleteAttempt
                 )
                 .ignoresSafeArea()
             }
@@ -467,11 +479,16 @@ struct ActiveIdeaCard: View {
         .fullScreenCover(isPresented: $isGeneratingTest) {
             TestLoadingView(message: $loadingMessage)
         }
+        .onAppear {
+            checkForIncompleteTest()
+        }
     }
     
     private func getButtonText() -> String {
         if isGeneratingTest {
             return "Preparing test..."
+        } else if currentIncompleteAttempt != nil {
+            return "Resume test"
         } else if idea.masteryLevel >= 3 {
             return "Take test again"
         } else if idea.masteryLevel > 0 {
@@ -482,6 +499,16 @@ struct ActiveIdeaCard: View {
     }
     
     private func startTest() {
+        // First check if there's an incomplete test attempt to resume
+        checkForIncompleteTest()
+        
+        if currentIncompleteAttempt != nil {
+            // Resume the existing test
+            showingTest = true
+            return
+        }
+        
+        // Otherwise, generate a new test
         isGeneratingTest = true
         loadingMessage = "Preparing your test..."
         
@@ -572,6 +599,32 @@ struct ActiveIdeaCard: View {
             return 1
         }
     }
+    
+    private func checkForIncompleteTest() {
+        // Query for incomplete test attempts for this idea
+        let ideaId = idea.id
+        let descriptor = FetchDescriptor<Test>(
+            predicate: #Predicate<Test> { test in
+                test.ideaId == ideaId
+            },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        
+        do {
+            let tests = try modelContext.fetch(descriptor)
+            
+            // Find the most recent test with an incomplete attempt
+            for test in tests {
+                if let lastAttempt = test.attempts.last(where: { !$0.isComplete }) {
+                    currentTest = test
+                    currentIncompleteAttempt = lastAttempt
+                    return
+                }
+            }
+        } catch {
+            print("Error checking for incomplete tests: \(error)")
+        }
+    }
 }
 
 // MARK: - Inactive Idea Card
@@ -579,6 +632,7 @@ struct InactiveIdeaCard: View {
     let idea: Idea
     @Environment(\.modelContext) private var modelContext
     @State private var progressInfo: (responseCount: Int, bestScore: Int?) = (0, nil)
+    @State private var hasIncompleteTest = false
     
     private var userResponseService: UserResponseService {
         UserResponseService(modelContext: modelContext)
@@ -596,7 +650,15 @@ struct InactiveIdeaCard: View {
                     Spacer()
                     
                     // Show appropriate badge based on progress
-                    if idea.masteryLevel >= 3 {
+                    if hasIncompleteTest {
+                        Text("RESUME TEST")
+                            .font(DS.Typography.small)
+                            .fontWeight(.bold)
+                            .foregroundColor(DS.Colors.white)
+                            .padding(.horizontal, DS.Spacing.xs)
+                            .padding(.vertical, 2)
+                            .background(Color.orange)
+                    } else if idea.masteryLevel >= 3 {
                         Text("MASTERED")
                             .font(DS.Typography.small)
                             .fontWeight(.bold)
@@ -661,6 +723,7 @@ struct InactiveIdeaCard: View {
         )
         .onAppear {
             loadProgressInfo()
+            checkForIncompleteTest()
         }
     }
     
@@ -683,5 +746,32 @@ struct InactiveIdeaCard: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func checkForIncompleteTest() {
+        // Query for incomplete test attempts for this idea
+        let ideaId = idea.id
+        let descriptor = FetchDescriptor<Test>(
+            predicate: #Predicate<Test> { test in
+                test.ideaId == ideaId
+            },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        
+        do {
+            let tests = try modelContext.fetch(descriptor)
+            
+            // Check if there's any incomplete attempt
+            for test in tests {
+                if test.attempts.contains(where: { !$0.isComplete }) {
+                    hasIncompleteTest = true
+                    return
+                }
+            }
+            hasIncompleteTest = false
+        } catch {
+            print("Error checking for incomplete tests: \(error)")
+            hasIncompleteTest = false
+        }
     }
 }
