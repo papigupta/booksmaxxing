@@ -124,12 +124,16 @@ struct BookOverviewView: View {
                     navigateToOnboarding = true
                 }) {
                     HStack(spacing: DS.Spacing.xs) {
-                        DSIcon("house.fill", size: 16)
-                        Text("Select Another Book")
-                            .font(DS.Typography.caption)
+                        DSIcon("chevron.left", size: 14)
+                        Text("Library")
+                            .font(DS.Typography.captionEmphasized)
                     }
                 }
-                .dsSmallButton()
+                .foregroundColor(DS.Colors.secondaryText)
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(DS.Colors.gray100)
+                .clipShape(Capsule())
                 
                 Spacer()
                 
@@ -138,65 +142,148 @@ struct BookOverviewView: View {
                     showingDebugInfo = true
                 }
                 .font(.caption)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(DS.Colors.tertiaryText)
                 #endif
             }
             .padding(.horizontal, DS.Spacing.xxs)
-            .padding(.bottom, DS.Spacing.md)
+            .padding(.bottom, DS.Spacing.xl)
             
-            // Book cover, title and author
-            HStack(alignment: .top, spacing: DS.Spacing.md) {
-                // Book Cover
-                if viewModel.currentBook?.coverImageUrl != nil || viewModel.currentBook?.thumbnailUrl != nil {
-                    BookCoverView(
-                        thumbnailUrl: viewModel.currentBook?.thumbnailUrl,
-                        coverUrl: viewModel.currentBook?.coverImageUrl,
-                        isLargeView: false
-                    )
-                    .frame(width: 80, height: 120)
-                    .cornerRadius(8)
-                    .shadow(radius: 4)
+            // Book cover, title and author - Enhanced design
+            HStack(alignment: .top, spacing: DS.Spacing.lg) {
+                // Book Cover with enhanced shadow and styling
+                ZStack {
+                    // Shadow layer
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.black.opacity(0.2))
+                        .frame(width: 90, height: 135)
+                        .offset(x: 2, y: 3)
+                        .blur(radius: 8)
+                    
+                    // Book Cover
+                    if viewModel.currentBook?.coverImageUrl != nil || viewModel.currentBook?.thumbnailUrl != nil {
+                        BookCoverView(
+                            thumbnailUrl: viewModel.currentBook?.thumbnailUrl,
+                            coverUrl: viewModel.currentBook?.coverImageUrl,
+                            isLargeView: false
+                        )
+                        .frame(width: 90, height: 135)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(DS.Colors.gray200, lineWidth: 0.5)
+                        )
+                    } else {
+                        // Enhanced placeholder
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(
+                                LinearGradient(
+                                    colors: [DS.Colors.gray100, DS.Colors.gray200],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 90, height: 135)
+                            .overlay(
+                                VStack(spacing: DS.Spacing.xs) {
+                                    Image(systemName: "book.closed.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(DS.Colors.gray400)
+                                    Text("Cover")
+                                        .font(DS.Typography.micro)
+                                        .foregroundColor(DS.Colors.gray400)
+                                }
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(DS.Colors.gray300, lineWidth: 0.5)
+                            )
+                    }
                 }
                 
-                // Book title and author
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    Text(viewModel.bookInfo?.title ?? bookTitle)
-                        .font(DS.Typography.largeTitle)
-                        .tracking(-0.03)
-                        .foregroundColor(DS.Colors.primaryText)
-                        .lineLimit(2)
-                    
-                    if let author = viewModel.bookInfo?.author {
-                        Text("by \(author)")
-                            .font(DS.Typography.body)
-                            .foregroundColor(DS.Colors.secondaryText)
-                    } else {
-                        Text("Author not specified")
-                            .font(DS.Typography.body)
-                            .foregroundColor(DS.Colors.tertiaryText)
+                // Book title and author with enhanced typography
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    // Title with better typography
+                    VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                        Text(viewModel.bookInfo?.title ?? bookTitle)
+                            .font(DS.Typography.title2)
+                            .fontWeight(.bold)
+                            .tracking(-0.02)
+                            .foregroundColor(DS.Colors.black)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        
+                        // Author with refined styling
+                        if let author = viewModel.bookInfo?.author {
+                            Text(author)
+                                .font(DS.Typography.callout)
+                                .fontWeight(.medium)
+                                .foregroundColor(DS.Colors.gray600)
+                                .lineLimit(1)
+                        } else {
+                            Text("Unknown Author")
+                                .font(DS.Typography.callout)
+                                .italic()
+                                .foregroundColor(DS.Colors.gray400)
+                        }
                     }
                     
-                    // Show rating if available
+                    // Rating section with improved visual hierarchy
                     if let rating = viewModel.currentBook?.averageRating,
                        let ratingsCount = viewModel.currentBook?.ratingsCount {
-                        HStack(spacing: DS.Spacing.xxs) {
-                            ForEach(0..<5) { index in
-                                Image(systemName: index < Int(rating) ? "star.fill" : "star")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.yellow)
+                        HStack(spacing: DS.Spacing.xs) {
+                            // Star rating
+                            HStack(spacing: 2) {
+                                ForEach(0..<5) { index in
+                                    Image(systemName: index < Int(rating.rounded()) ? "star.fill" : "star")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(
+                                            index < Int(rating.rounded()) ? 
+                                            Color(hex: "FFB800") : DS.Colors.gray300
+                                        )
+                                }
                             }
-                            Text("(\(ratingsCount))")
+                            
+                            // Rating number and count
+                            Text("\(String(format: "%.1f", rating))")
+                                .font(DS.Typography.captionBold)
+                                .foregroundColor(DS.Colors.gray700)
+                            
+                            Text("•")
                                 .font(DS.Typography.caption)
-                                .foregroundColor(DS.Colors.tertiaryText)
+                                .foregroundColor(DS.Colors.gray400)
+                            
+                            Text("\(formatRatingsCount(ratingsCount)) ratings")
+                                .font(DS.Typography.caption)
+                                .foregroundColor(DS.Colors.gray500)
                         }
                         .padding(.top, DS.Spacing.xxs)
                     }
+                    
+                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.bottom, DS.Spacing.sm)
+            .padding(.horizontal, DS.Spacing.xs)
+            .padding(.bottom, DS.Spacing.lg)
+            
+            // Subtle divider
+            Rectangle()
+                .fill(DS.Colors.gray200)
+                .frame(height: 1)
+                .padding(.horizontal, -DS.Spacing.lg)
         }
         .background(DS.Colors.primaryBackground)
+    }
+    
+    // Helper function to format ratings count
+    private func formatRatingsCount(_ count: Int) -> String {
+        if count >= 1000000 {
+            return String(format: "%.1fM", Double(count) / 1000000.0)
+        } else if count >= 1000 {
+            return String(format: "%.1fK", Double(count) / 1000.0)
+        } else {
+            return "\(count)"
+        }
     }
 }
 
