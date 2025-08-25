@@ -29,9 +29,22 @@
 		9501EA832E2949EB00E66525 /* DeepreadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeepreadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		95A408AA2E5CBDDA0058135C /* Exceptions for "Deepread" folder in "Deepread" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 9501EA652E2949EA00E66525 /* Deepread */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		9501EA682E2949EA00E66525 /* Deepread */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				95A408AA2E5CBDDA0058135C /* Exceptions for "Deepread" folder in "Deepread" target */,
+			);
 			path = Deepread;
 			sourceTree = "<group>";
 		};
@@ -396,6 +409,7 @@
 				DEVELOPMENT_TEAM = GH6PX3XGAP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Deepread/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -436,6 +450,7 @@
 				DEVELOPMENT_TEAM = GH6PX3XGAP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Deepread/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
