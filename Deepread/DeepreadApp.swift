@@ -20,7 +20,6 @@ struct DeepreadApp: App {
         let schema = Schema([
             Book.self,
             Idea.self,
-            UserResponse.self,
             Progress.self,
             Primer.self,
             // Test system models

@@ -27,11 +27,6 @@ class PersistenceDiagnostic {
             report.ideaCount = ideas.count
             report.ideasWithValidIds = ideas.filter { $0.id.hasPrefix("b") }.count
             
-            // Check UserResponses
-            let responses = try modelContext.fetch(FetchDescriptor<UserResponse>())
-            report.responseCount = responses.count
-            report.responsesLinkedToIdeas = responses.filter { $0.idea != nil }.count
-            
             // Check Progress
             let progress = try modelContext.fetch(FetchDescriptor<Progress>())
             report.progressCount = progress.count
@@ -41,24 +36,17 @@ class PersistenceDiagnostic {
             report.primerCount = primers.count
             
             // Check for orphaned data
-            let orphanedResponses = responses.filter { $0.idea == nil }
             let orphanedProgress = progress.filter { $0.idea == nil }
-            
-            report.orphanedResponseCount = orphanedResponses.count
             report.orphanedProgressCount = orphanedProgress.count
             
             // Overall health
-            report.isHealthy = report.orphanedResponseCount == 0 && 
-                             report.orphanedProgressCount == 0 &&
-                             report.responsesLinkedToIdeas == report.responseCount
+            report.isHealthy = report.orphanedProgressCount == 0
             
             print("📊 PERSISTENCE HEALTH REPORT:")
             print("   Books: \(report.bookCount) (\(report.booksWithIdeas) with ideas)")
             print("   Ideas: \(report.ideaCount) (\(report.ideasWithValidIds) with valid IDs)")
-            print("   Responses: \(report.responseCount) (\(report.responsesLinkedToIdeas) linked)")
             print("   Progress: \(report.progressCount)")
             print("   Primers: \(report.primerCount)")
-            print("   Orphaned Responses: \(report.orphanedResponseCount)")
             print("   Orphaned Progress: \(report.orphanedProgressCount)")
             print("   Overall Health: \(report.isHealthy ? "✅ HEALTHY" : "⚠️ NEEDS ATTENTION")")
             
@@ -76,30 +64,7 @@ class PersistenceDiagnostic {
         print("🔧 Starting data integrity repair...")
         
         // 1. Fix orphaned responses
-        let orphanedResponses = try modelContext.fetch(FetchDescriptor<UserResponse>(
-            predicate: #Predicate { $0.idea == nil }
-        ))
-        
-        for response in orphanedResponses {
-            // Try to link to existing idea
-            let responseIdeaId = response.ideaId
-            let ideaDescriptor = FetchDescriptor<Idea>(
-                predicate: #Predicate<Idea> { idea in
-                    idea.id == responseIdeaId
-                }
-            )
-            
-            if let idea = try modelContext.fetch(ideaDescriptor).first {
-                response.idea = idea
-                idea.responses.append(response)
-                print("🔗 Linked orphaned response to idea: \(idea.title)")
-            } else {
-                print("🗑️ Deleting orphaned response for non-existent idea: \(response.ideaId)")
-                modelContext.delete(response)
-            }
-        }
-        
-        // 2. Fix orphaned progress
+        // Fix orphaned progress
         let orphanedProgress = try modelContext.fetch(FetchDescriptor<Progress>(
             predicate: #Predicate { $0.idea == nil }
         ))
@@ -155,9 +120,6 @@ class PersistenceDiagnostic {
         print("🔄 Resetting database...")
         
         // Delete all data in correct order (relationships first)
-        let responses = try modelContext.fetch(FetchDescriptor<UserResponse>())
-        responses.forEach { modelContext.delete($0) }
-        
         let progress = try modelContext.fetch(FetchDescriptor<Progress>())
         progress.forEach { modelContext.delete($0) }
         
@@ -182,11 +144,8 @@ struct PersistenceHealthReport {
     var booksWithIdeas: Int = 0
     var ideaCount: Int = 0
     var ideasWithValidIds: Int = 0
-    var responseCount: Int = 0
-    var responsesLinkedToIdeas: Int = 0
     var progressCount: Int = 0
     var primerCount: Int = 0
-    var orphanedResponseCount: Int = 0
     var orphanedProgressCount: Int = 0
     var isHealthy: Bool = false
     var error: String?
@@ -242,10 +201,8 @@ struct PersistenceDebugView: View {
             Group {
                 Text("Books: \(report.bookCount) (\(report.booksWithIdeas) with ideas)")
                 Text("Ideas: \(report.ideaCount) (\(report.ideasWithValidIds) with valid IDs)")
-                Text("Responses: \(report.responseCount) (\(report.responsesLinkedToIdeas) linked)")
                 Text("Progress Records: \(report.progressCount)")
                 Text("Primers: \(report.primerCount)")
-                Text("Orphaned Responses: \(report.orphanedResponseCount)")
                 Text("Orphaned Progress: \(report.orphanedProgressCount)")
             }
             .font(.body)

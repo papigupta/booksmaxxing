@@ -279,12 +279,6 @@ class BookService: ObservableObject {
             modelContext.delete(progress)
         }
         
-        let userResponseDescriptor = FetchDescriptor<UserResponse>()
-        let userResponses = try modelContext.fetch(userResponseDescriptor)
-        for response in userResponses {
-            modelContext.delete(response)
-        }
-        
         // Delete all ideas
         let ideaDescriptor = FetchDescriptor<Idea>()
         let ideas = try modelContext.fetch(ideaDescriptor)
@@ -315,12 +309,6 @@ class BookService: ObservableObject {
         
         // Validate idea relationships
         for idea in book.ideas {
-            for response in idea.responses {
-                guard response.idea == idea else {
-                    throw BookServiceError.invalidRelationship
-                }
-            }
-            
             for progress in idea.progress {
                 guard progress.idea == idea else {
                     throw BookServiceError.invalidRelationship
@@ -342,18 +330,6 @@ class BookService: ObservableObject {
         for idea in orphanedIdeas {
             print("DEBUG: Deleting orphaned idea: \(idea.title)")
             modelContext.delete(idea)
-        }
-        
-        // Remove orphaned responses
-        let orphanedResponses = try modelContext.fetch(FetchDescriptor<UserResponse>(
-            predicate: #Predicate<UserResponse> { response in
-                response.idea == nil
-            }
-        ))
-        
-        for response in orphanedResponses {
-            print("DEBUG: Deleting orphaned response for idea: \(response.ideaId)")
-            modelContext.delete(response)
         }
         
         // Remove orphaned progress
@@ -389,13 +365,6 @@ class BookService: ObservableObject {
             
             // Validate and fix idea relationships
             for idea in book.ideas {
-                for response in idea.responses {
-                    if response.idea != idea {
-                        response.idea = idea
-                        print("DEBUG: Fixed response relationship for idea: \(idea.title)")
-                    }
-                }
-                
                 for progress in idea.progress {
                     if progress.idea != idea {
                         progress.idea = idea
@@ -440,10 +409,6 @@ class BookService: ObservableObject {
                     // Update idea ID
                     idea.id = newId
                     
-                    // Update all related UserResponse records
-                    for response in idea.responses {
-                        response.ideaId = newId
-                    }
                     
                     // Update all related Progress records
                     for progress in idea.progress {

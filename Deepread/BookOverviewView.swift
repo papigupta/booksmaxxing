@@ -307,7 +307,6 @@ struct DebugInfoView: View {
 struct ActiveIdeaCard: View {
     let idea: Idea
     let openAIService: OpenAIService
-    @State private var showingHistory = false
     @State private var showingTest = false
     @State private var currentTest: Test?
     @State private var currentIncompleteAttempt: TestAttempt?
@@ -421,27 +420,6 @@ struct ActiveIdeaCard: View {
                             )
                         }
                         
-                        // History button for mastered ideas
-                        if idea.masteryLevel >= 3 {
-                            Button(action: {
-                                showingHistory = true
-                            }) {
-                                HStack(spacing: DS.Spacing.xxs) {
-                                    DSIcon("clock.arrow.circlepath", size: 12)
-                                        .foregroundStyle(DS.Colors.white)
-                                    Text("History")
-                                        .font(DS.Typography.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(DS.Colors.white)
-                                }
-                                .padding(.horizontal, DS.Spacing.sm)
-                                .padding(.vertical, DS.Spacing.xs)
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
-                                )
-                            }
-                        }
                     }
                 .padding(.top, DS.Spacing.xxs)
             }
@@ -454,9 +432,6 @@ struct ActiveIdeaCard: View {
             Rectangle()
                 .stroke(DS.Colors.white.opacity(0.2), lineWidth: DS.BorderWidth.thin)
         )
-        .sheet(isPresented: $showingHistory) {
-            ResponseHistoryView(idea: idea)
-        }
         .sheet(isPresented: $showingPrimer) {
             PrimerView(idea: idea, openAIService: openAIService)
         }
@@ -637,10 +612,6 @@ struct InactiveIdeaCard: View {
     @State private var progressInfo: (responseCount: Int, bestScore: Int?) = (0, nil)
     @State private var hasIncompleteTest = false
     
-    private var userResponseService: UserResponseService {
-        UserResponseService(modelContext: modelContext)
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -725,25 +696,10 @@ struct InactiveIdeaCard: View {
                 .stroke(DS.Colors.gray300, lineWidth: DS.BorderWidth.thin)
         )
         .onAppear {
-            loadProgressInfo()
             checkForIncompleteTest()
         }
     }
     
-    private func loadProgressInfo() {
-        Task {
-            do {
-                let responses = try userResponseService.getUserResponses(for: idea.id)
-                let bestScore = responses.compactMap { $0.starScore }.max()
-                
-                await MainActor.run {
-                    self.progressInfo = (responses.count, bestScore)
-                }
-            } catch {
-                print("DEBUG: Failed to load progress info: \(error)")
-            }
-        }
-    }
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
