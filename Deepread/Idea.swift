@@ -31,8 +31,7 @@ final class Idea {
     // Relationship back to Book
     @Relationship(deleteRule: .cascade) var book: Book?
     
-    // Relationships to UserResponse and Progress
-    @Relationship(deleteRule: .cascade) var responses: [UserResponse]
+    // Relationship to Progress
     @Relationship(deleteRule: .cascade) var progress: [Progress]
     
     init(id: String, title: String, description: String, bookTitle: String, depthTarget: Int, masteryLevel: Int = 0, lastPracticed: Date? = nil, currentLevel: Int? = nil, importance: ImportanceLevel? = .buildingBlock) {
@@ -45,7 +44,6 @@ final class Idea {
         self.lastPracticed = lastPracticed
         self.currentLevel = currentLevel
         self.importance = importance
-        self.responses = []
         self.progress = []
         print("DEBUG: Created Idea with id: \(id), title: \(title), bookTitle: \(bookTitle)")
     }

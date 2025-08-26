@@ -237,15 +237,46 @@ class BookService: ObservableObject {
         return books
     }
     
-    // Debug method to clear all data (for testing)
+    // Debug method to clear all data (for testing and migration)
     func clearAllData() throws {
-        print("DEBUG: Clearing all data from database")
+        print("DEBUG: Clearing all data from database (including new test system)")
         
-        // Delete all books
-        let bookDescriptor = FetchDescriptor<Book>()
-        let books = try modelContext.fetch(bookDescriptor)
-        for book in books {
-            modelContext.delete(book)
+        // Delete all test-related data first (to maintain referential integrity)
+        let questionResponseDescriptor = FetchDescriptor<QuestionResponse>()
+        let questionResponses = try modelContext.fetch(questionResponseDescriptor)
+        for response in questionResponses {
+            modelContext.delete(response)
+        }
+        
+        let testAttemptDescriptor = FetchDescriptor<TestAttempt>()
+        let testAttempts = try modelContext.fetch(testAttemptDescriptor)
+        for attempt in testAttempts {
+            modelContext.delete(attempt)
+        }
+        
+        let questionDescriptor = FetchDescriptor<Question>()
+        let questions = try modelContext.fetch(questionDescriptor)
+        for question in questions {
+            modelContext.delete(question)
+        }
+        
+        let testDescriptor = FetchDescriptor<Test>()
+        let tests = try modelContext.fetch(testDescriptor)
+        for test in tests {
+            modelContext.delete(test)
+        }
+        
+        let testProgressDescriptor = FetchDescriptor<TestProgress>()
+        let testProgresses = try modelContext.fetch(testProgressDescriptor)
+        for progress in testProgresses {
+            modelContext.delete(progress)
+        }
+        
+        // Delete old progress and response data
+        let progressDescriptor = FetchDescriptor<Progress>()
+        let progresses = try modelContext.fetch(progressDescriptor)
+        for progress in progresses {
+            modelContext.delete(progress)
         }
         
         // Delete all ideas
@@ -255,8 +286,15 @@ class BookService: ObservableObject {
             modelContext.delete(idea)
         }
         
+        // Delete all books
+        let bookDescriptor = FetchDescriptor<Book>()
+        let books = try modelContext.fetch(bookDescriptor)
+        for book in books {
+            modelContext.delete(book)
+        }
+        
         try modelContext.save()
-        print("DEBUG: All data cleared")
+        print("DEBUG: All data cleared - ready for new test system")
     }
     
     // MARK: - Relationship Validation and Cleanup
@@ -271,12 +309,6 @@ class BookService: ObservableObject {
         
         // Validate idea relationships
         for idea in book.ideas {
-            for response in idea.responses {
-                guard response.idea == idea else {
-                    throw BookServiceError.invalidRelationship
-                }
-            }
-            
             for progress in idea.progress {
                 guard progress.idea == idea else {
                     throw BookServiceError.invalidRelationship
@@ -298,18 +330,6 @@ class BookService: ObservableObject {
         for idea in orphanedIdeas {
             print("DEBUG: Deleting orphaned idea: \(idea.title)")
             modelContext.delete(idea)
-        }
-        
-        // Remove orphaned responses
-        let orphanedResponses = try modelContext.fetch(FetchDescriptor<UserResponse>(
-            predicate: #Predicate<UserResponse> { response in
-                response.idea == nil
-            }
-        ))
-        
-        for response in orphanedResponses {
-            print("DEBUG: Deleting orphaned response for idea: \(response.ideaId)")
-            modelContext.delete(response)
         }
         
         // Remove orphaned progress
@@ -345,13 +365,6 @@ class BookService: ObservableObject {
             
             // Validate and fix idea relationships
             for idea in book.ideas {
-                for response in idea.responses {
-                    if response.idea != idea {
-                        response.idea = idea
-                        print("DEBUG: Fixed response relationship for idea: \(idea.title)")
-                    }
-                }
-                
                 for progress in idea.progress {
                     if progress.idea != idea {
                         progress.idea = idea
@@ -396,10 +409,6 @@ class BookService: ObservableObject {
                     // Update idea ID
                     idea.id = newId
                     
-                    // Update all related UserResponse records
-                    for response in idea.responses {
-                        response.ideaId = newId
-                    }
                     
                     // Update all related Progress records
                     for progress in idea.progress {

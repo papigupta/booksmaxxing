@@ -23,6 +23,9 @@ enum DS {
         static let gray100 = Color(hex: "F5F5F5")    // Near white
         static let gray50 = Color(hex: "FAFAFA")     // Subtle background
         
+        // App background
+        static let appBackground = Color(hex: "DBDBDB")  // Light grey default app background
+        
         // Semantic colors - Sophisticated hierarchy
         static let primaryText = gray950
         static let secondaryText = gray700
@@ -41,31 +44,95 @@ enum DS {
     
     // MARK: - Typography
     enum Typography {
-        // Display hierarchy - Commanding presence
-        static let hero = Font.system(size: 40, weight: .black, design: .default)
-        static let largeTitle = Font.system(size: 32, weight: .heavy, design: .default)
-        static let title = Font.system(size: 24, weight: .bold, design: .default)
-        static let title2 = Font.system(size: 20, weight: .semibold, design: .default)
+        // Default letter spacing (-2% for all text)
+        static func defaultTracking(for size: CGFloat) -> CGFloat {
+            return size * -0.02
+        }
         
-        // Content hierarchy - Refined readability
-        static let headline = Font.system(size: 18, weight: .semibold, design: .default)
-        static let subheadline = Font.system(size: 16, weight: .medium, design: .default)
-        static let body = Font.system(size: 16, weight: .regular, design: .default)
-        static let bodyEmphasized = Font.system(size: 16, weight: .medium, design: .default)
-        static let bodyBold = Font.system(size: 16, weight: .semibold, design: .default)
+        // Special letter spacing (for titles, can go more negative)
+        static func tightTracking(for size: CGFloat) -> CGFloat {
+            return size * -0.03  // -3% for tighter spacing
+        }
         
-        // Supporting hierarchy - Precision details
-        static let callout = Font.system(size: 15, weight: .regular, design: .default)
-        static let caption = Font.system(size: 14, weight: .regular, design: .default)
-        static let captionEmphasized = Font.system(size: 14, weight: .medium, design: .default)
-        static let captionBold = Font.system(size: 14, weight: .semibold, design: .default)
-        static let footnote = Font.system(size: 13, weight: .regular, design: .default)
-        static let small = Font.system(size: 12, weight: .regular, design: .default)
-        static let micro = Font.system(size: 11, weight: .medium, design: .default)
+        // Fraunces font helpers
+        static func fraunces(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+            return Font.custom("Fraunces", size: size).weight(weight)
+        }
         
-        // Special purpose
+        static func frauncesItalic(size: CGFloat, weight: Font.Weight = .regular) -> Font {
+            return Font.custom("Fraunces", size: size).italic().weight(weight)
+        }
+        
+        // Display hierarchy - Commanding presence with Fraunces
+        static let hero = fraunces(size: 40, weight: .black)
+        static let heroTracking = defaultTracking(for: 40)
+        
+        static let largeTitle = fraunces(size: 32, weight: .heavy)
+        static let largeTitleTracking = defaultTracking(for: 32)
+        
+        static let title = fraunces(size: 24, weight: .bold)
+        static let titleTracking = defaultTracking(for: 24)
+        
+        static let title2 = fraunces(size: 20, weight: .semibold)
+        static let title2Tracking = defaultTracking(for: 20)
+        
+        // Content hierarchy - All using Fraunces now
+        static let headline = fraunces(size: 18, weight: .semibold)
+        static let headlineTracking = defaultTracking(for: 18)
+        
+        static let subheadline = fraunces(size: 16, weight: .medium)
+        static let subheadlineTracking = defaultTracking(for: 16)
+        
+        static let body = fraunces(size: 16, weight: .regular)
+        static let bodyTracking = defaultTracking(for: 16)
+        
+        static let bodyEmphasized = fraunces(size: 16, weight: .medium)
+        static let bodyEmphasizedTracking = defaultTracking(for: 16)
+        
+        static let bodyBold = fraunces(size: 16, weight: .semibold)
+        static let bodyBoldTracking = defaultTracking(for: 16)
+        
+        // Supporting hierarchy - Fraunces throughout
+        static let callout = fraunces(size: 15, weight: .regular)
+        static let calloutTracking = defaultTracking(for: 15)
+        
+        static let caption = fraunces(size: 14, weight: .regular)
+        static let captionTracking = defaultTracking(for: 14)
+        
+        static let captionEmphasized = fraunces(size: 14, weight: .medium)
+        static let captionEmphasizedTracking = defaultTracking(for: 14)
+        
+        static let captionBold = fraunces(size: 14, weight: .semibold)
+        static let captionBoldTracking = defaultTracking(for: 14)
+        
+        static let footnote = fraunces(size: 13, weight: .regular)
+        static let footnoteTracking = defaultTracking(for: 13)
+        
+        static let small = fraunces(size: 12, weight: .regular)
+        static let smallTracking = defaultTracking(for: 12)
+        
+        static let micro = fraunces(size: 11, weight: .medium)
+        static let microTracking = defaultTracking(for: 11)
+        
+        // Special purpose - Keep system fonts for code and numbers
         static let code = Font.system(size: 15, weight: .regular, design: .monospaced)
-        static let number = Font.system(size: 16, weight: .medium, design: .rounded)
+        static let codeTracking = CGFloat(0)  // No tracking for monospaced
+        
+        static let number = fraunces(size: 16, weight: .medium)
+        static let numberTracking = defaultTracking(for: 16)
+        
+        // Additional Fraunces variants for special use
+        static let frauncesBody = fraunces(size: 16, weight: .regular)
+        static let frauncesBodyTracking = defaultTracking(for: 16)
+        
+        static let frauncesBodyBold = fraunces(size: 16, weight: .semibold)
+        static let frauncesBodyBoldTracking = defaultTracking(for: 16)
+        
+        static let frauncesHeadline = fraunces(size: 18, weight: .semibold)
+        static let frauncesHeadlineTracking = defaultTracking(for: 18)
+        
+        static let frauncesCaption = fraunces(size: 14, weight: .regular)
+        static let frauncesCaptionTracking = defaultTracking(for: 14)
     }
     
     // MARK: - Spacing

@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct BookOverviewView: View {
     let bookTitle: String
@@ -306,7 +307,13 @@ struct DebugInfoView: View {
 struct ActiveIdeaCard: View {
     let idea: Idea
     let openAIService: OpenAIService
-    @State private var showingHistory = false
+    @State private var showingTest = false
+    @State private var currentTest: Test?
+    @State private var currentIncompleteAttempt: TestAttempt?
+    @State private var isGeneratingTest = false
+    @State private var showingPrimer = false
+    @State private var loadingMessage = "Preparing your test..."
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -319,8 +326,16 @@ struct ActiveIdeaCard: View {
                         
                         Spacer()
                         
-                        // Show mastered badge when masteryLevel >= 3
-                        if idea.masteryLevel >= 3 {
+                        // Show appropriate badge
+                        if currentIncompleteAttempt != nil {
+                            Text("RESUME TEST")
+                                .font(DS.Typography.small)
+                                .fontWeight(.bold)
+                                .foregroundColor(DS.Colors.white)
+                                .padding(.horizontal, DS.Spacing.xs)
+                                .padding(.vertical, 2)
+                                .background(Color.orange)
+                        } else if idea.masteryLevel >= 3 {
                             Text("MASTERED")
                                 .font(DS.Typography.small)
                                 .fontWeight(.bold)
@@ -365,37 +380,46 @@ struct ActiveIdeaCard: View {
                     
                     // CTA Buttons
                     HStack(spacing: DS.Spacing.xs) {
-                        NavigationLink(destination: LevelLoadingView(idea: idea, level: getStartingLevel(), openAIService: openAIService)) {
-                            Text(getButtonText())
-                                .font(DS.Typography.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(DS.Colors.black)
+                        // Start Test Button
+                        Button(action: startTest) {
+                            HStack(spacing: DS.Spacing.xs) {
+                                if isGeneratingTest {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                                        .scaleEffect(0.7)
+                                } else {
+                                    Text(getButtonText())
+                                        .font(DS.Typography.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(DS.Colors.black)
+                                }
+                            }
                             .padding(.horizontal, DS.Spacing.sm)
                             .padding(.vertical, DS.Spacing.xs)
                             .background(DS.Colors.white)
                         }
+                        .disabled(isGeneratingTest)
                         
-                        // History button for mastered ideas
-                        if idea.masteryLevel >= 3 {
-                            Button(action: {
-                                showingHistory = true
-                            }) {
-                                HStack(spacing: DS.Spacing.xxs) {
-                                    DSIcon("clock.arrow.circlepath", size: 12)
-                                        .foregroundStyle(DS.Colors.white)
-                                    Text("History")
-                                        .font(DS.Typography.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(DS.Colors.white)
-                                }
-                                .padding(.horizontal, DS.Spacing.sm)
-                                .padding(.vertical, DS.Spacing.xs)
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
-                                )
+                        // Primer Button
+                        Button(action: {
+                            showingPrimer = true
+                        }) {
+                            HStack(spacing: DS.Spacing.xxs) {
+                                DSIcon("lightbulb", size: 12)
+                                    .foregroundStyle(DS.Colors.white)
+                                Text("Primer")
+                                    .font(DS.Typography.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(DS.Colors.white)
                             }
+                            .padding(.horizontal, DS.Spacing.sm)
+                            .padding(.vertical, DS.Spacing.xs)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
+                            )
                         }
+                        
                     }
                 .padding(.top, DS.Spacing.xxs)
             }
@@ -408,19 +432,125 @@ struct ActiveIdeaCard: View {
             Rectangle()
                 .stroke(DS.Colors.white.opacity(0.2), lineWidth: DS.BorderWidth.thin)
         )
-        .sheet(isPresented: $showingHistory) {
-            ResponseHistoryView(idea: idea)
+        .sheet(isPresented: $showingPrimer) {
+            PrimerView(idea: idea, openAIService: openAIService)
+        }
+        .fullScreenCover(isPresented: $showingTest) {
+            if let test = currentTest {
+                TestView(
+                    idea: idea,
+                    test: test,
+                    openAIService: openAIService,
+                    onCompletion: { attempt in
+                        showingTest = false
+                        currentIncompleteAttempt = nil  // Clear the incomplete attempt reference
+                        // Test completed, mastery will be updated by TestResultsView
+                    },
+                    existingAttempt: currentIncompleteAttempt
+                )
+                .ignoresSafeArea()
+            }
+        }
+        .fullScreenCover(isPresented: $isGeneratingTest) {
+            TestLoadingView(message: $loadingMessage)
+        }
+        .onAppear {
+            checkForIncompleteTest()
         }
     }
     
     private func getButtonText() -> String {
-        if idea.masteryLevel >= 3 {
-            return "Remaster this idea"
+        if isGeneratingTest {
+            return "Preparing test..."
+        } else if currentIncompleteAttempt != nil {
+            return "Resume test"
+        } else if idea.masteryLevel >= 3 {
+            return "Take test again"
         } else if idea.masteryLevel > 0 {
-            return "Continue mastering"
+            return "Continue test"
         } else {
-            return "Master this idea"
+            return "Start test"
         }
+    }
+    
+    private func startTest() {
+        // First check if there's an incomplete test attempt to resume
+        checkForIncompleteTest()
+        
+        if currentIncompleteAttempt != nil {
+            // Resume the existing test
+            showingTest = true
+            return
+        }
+        
+        // Otherwise, generate a new test
+        isGeneratingTest = true
+        loadingMessage = "Preparing your test..."
+        
+        Task {
+            do {
+                // Update loading message progressively
+                await updateLoadingMessage("Creating questions based on \(idea.title)...")
+                
+                let testGenerationService = TestGenerationService(
+                    openAI: openAIService,
+                    modelContext: modelContext
+                )
+                
+                // Determine test type based on mastery and timing
+                let testType = determineTestType()
+                
+                await updateLoadingMessage("Generating \(testType == "review" ? "review" : "initial") questions...")
+                
+                // Add slight delays between questions for better UX
+                await updateLoadingMessage("Creating easy questions...")
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                
+                await updateLoadingMessage("Creating medium questions...")
+                
+                let test = try await testGenerationService.generateTest(
+                    for: idea,
+                    testType: testType
+                )
+                
+                await updateLoadingMessage("Finalizing your test...")
+                try await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+                
+                await MainActor.run {
+                    self.currentTest = test
+                    self.isGeneratingTest = false
+                    self.showingTest = true
+                }
+            } catch {
+                print("Error generating test: \(error)")
+                await MainActor.run {
+                    self.loadingMessage = "Failed to generate test. Please try again."
+                    // Delay before dismissing
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                        self.isGeneratingTest = false
+                    }
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func updateLoadingMessage(_ message: String) async {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            self.loadingMessage = message
+        }
+    }
+    
+    private func determineTestType() -> String {
+        let spacedRepetitionService = SpacedRepetitionService(modelContext: modelContext)
+        
+        // Check if this idea needs a review test
+        if spacedRepetitionService.isReviewDue(for: idea) {
+            return "review"
+        }
+        
+        return "initial"
     }
     
     private func getStartingLevel() -> Int {
@@ -444,6 +574,35 @@ struct ActiveIdeaCard: View {
             return 1
         }
     }
+    
+    private func checkForIncompleteTest() {
+        // Query for incomplete test attempts for this idea
+        let ideaId = idea.id
+        let descriptor = FetchDescriptor<Test>(
+            predicate: #Predicate<Test> { test in
+                test.ideaId == ideaId
+            },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        
+        do {
+            let tests = try modelContext.fetch(descriptor)
+            
+            // Find the most recent test with an incomplete attempt
+            for test in tests {
+                if let lastAttempt = test.attempts.last(where: { !$0.isComplete }) {
+                    currentTest = test
+                    currentIncompleteAttempt = lastAttempt
+                    return
+                }
+            }
+            // No incomplete test found
+            currentIncompleteAttempt = nil
+        } catch {
+            print("Error checking for incomplete tests: \(error)")
+            currentIncompleteAttempt = nil
+        }
+    }
 }
 
 // MARK: - Inactive Idea Card
@@ -451,10 +610,7 @@ struct InactiveIdeaCard: View {
     let idea: Idea
     @Environment(\.modelContext) private var modelContext
     @State private var progressInfo: (responseCount: Int, bestScore: Int?) = (0, nil)
-    
-    private var userResponseService: UserResponseService {
-        UserResponseService(modelContext: modelContext)
-    }
+    @State private var hasIncompleteTest = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -468,7 +624,15 @@ struct InactiveIdeaCard: View {
                     Spacer()
                     
                     // Show appropriate badge based on progress
-                    if idea.masteryLevel >= 3 {
+                    if hasIncompleteTest {
+                        Text("RESUME TEST")
+                            .font(DS.Typography.small)
+                            .fontWeight(.bold)
+                            .foregroundColor(DS.Colors.white)
+                            .padding(.horizontal, DS.Spacing.xs)
+                            .padding(.vertical, 2)
+                            .background(Color.orange)
+                    } else if idea.masteryLevel >= 3 {
                         Text("MASTERED")
                             .font(DS.Typography.small)
                             .fontWeight(.bold)
@@ -532,28 +696,41 @@ struct InactiveIdeaCard: View {
                 .stroke(DS.Colors.gray300, lineWidth: DS.BorderWidth.thin)
         )
         .onAppear {
-            loadProgressInfo()
+            checkForIncompleteTest()
         }
     }
     
-    private func loadProgressInfo() {
-        Task {
-            do {
-                let responses = try userResponseService.getUserResponses(for: idea.id)
-                let bestScore = responses.compactMap { $0.starScore }.max()
-                
-                await MainActor.run {
-                    self.progressInfo = (responses.count, bestScore)
-                }
-            } catch {
-                print("DEBUG: Failed to load progress info: \(error)")
-            }
-        }
-    }
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         return formatter.string(from: date)
+    }
+    
+    private func checkForIncompleteTest() {
+        // Query for incomplete test attempts for this idea
+        let ideaId = idea.id
+        let descriptor = FetchDescriptor<Test>(
+            predicate: #Predicate<Test> { test in
+                test.ideaId == ideaId
+            },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        
+        do {
+            let tests = try modelContext.fetch(descriptor)
+            
+            // Check if there's any incomplete attempt
+            for test in tests {
+                if test.attempts.contains(where: { !$0.isComplete }) {
+                    hasIncompleteTest = true
+                    return
+                }
+            }
+            hasIncompleteTest = false
+        } catch {
+            print("Error checking for incomplete tests: \(error)")
+            hasIncompleteTest = false
+        }
     }
 }
