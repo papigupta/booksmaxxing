@@ -26,7 +26,6 @@ struct TestView: View {
     @State private var selectedOptions: [UUID: Set<Int>] = [:]
     @State private var currentAttempt: TestAttempt?
     @State private var isSubmitting = false
-    @State private var showingResults = false
     @State private var evaluationResult: TestEvaluationResult?
     
     // Immediate feedback states
@@ -41,6 +40,10 @@ struct TestView: View {
     
     private var progress: Double {
         Double(currentQuestionIndex) / Double(test.questions.count)
+    }
+    
+    private var shouldShowResults: Bool {
+        evaluationResult != nil && currentAttempt != nil
     }
     
     var body: some View {
@@ -170,7 +173,10 @@ struct TestView: View {
             .onAppear {
                 initializeAttempt()
             }
-            .sheet(isPresented: $showingResults) {
+            .sheet(isPresented: Binding(
+                get: { shouldShowResults },
+                set: { if !$0 { evaluationResult = nil } }
+            )) {
                 if let result = evaluationResult, let attempt = currentAttempt {
                     TestResultsView(
                         idea: idea,
@@ -485,7 +491,6 @@ struct TestView: View {
                 await MainActor.run {
                     evaluationResult = result
                     isSubmitting = false
-                    showingResults = true
                 }
             } catch {
                 print("Error submitting test: \(error)")
