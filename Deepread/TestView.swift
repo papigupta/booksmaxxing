@@ -39,7 +39,8 @@ struct TestView: View {
     }
     
     private var progress: Double {
-        Double(currentQuestionIndex) / Double(test.questions.count)
+        guard test.questions.count > 0 else { return 0.0 }
+        return Double(currentQuestionIndex) / Double(test.questions.count)
     }
     
     private var shouldShowResults: Bool {

@@ -145,6 +145,10 @@ class TestEvaluationService {
             points = question.difficulty.pointValue
         } else if correctSelections > 0 && incorrectSelections == 0 {
             // Partial credit for some correct with no wrong selections
+            guard correctSet.count > 0 else { 
+                points = 0
+                return QuestionEvaluation(questionId: question.id, isCorrect: false, pointsEarned: 0, feedback: "Invalid question data")
+            }
             points = Int(Double(question.difficulty.pointValue) * (Double(correctSelections) / Double(correctSet.count)) * 0.5)
         } else {
             points = 0
@@ -279,7 +283,8 @@ struct TestEvaluationResult {
     let evaluationDetails: [QuestionEvaluation]
     
     var scorePercentage: Double {
-        Double(totalScore) / Double(maxScore) * 100
+        guard maxScore > 0 else { return 0.0 }
+        return Double(totalScore) / Double(maxScore) * 100
     }
     
     var allCorrect: Bool {

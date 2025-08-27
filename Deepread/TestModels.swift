@@ -278,6 +278,10 @@ final class TestProgress {
         
         // Update average score
         let newScore = Double(attempt.score)
+        guard totalTestsTaken > 0 else { 
+            averageScore = newScore
+            return 
+        }
         averageScore = ((averageScore * Double(totalTestsTaken - 1)) + newScore) / Double(totalTestsTaken)
         
         // Update mastery
