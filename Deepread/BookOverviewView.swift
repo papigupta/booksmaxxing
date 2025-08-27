@@ -7,7 +7,7 @@ struct BookOverviewView: View {
     @StateObject private var viewModel: IdeaExtractionViewModel
     @State private var activeIdeaIndex: Int = 0 // Track which idea is active
     @State private var showingDebugInfo = false
-    @State private var navigateToOnboarding = false
+    @EnvironmentObject var navigationState: NavigationState
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -109,9 +109,6 @@ struct BookOverviewView: View {
             DebugInfoView(bookTitle: bookTitle, viewModel: viewModel)
         }
         .navigationBarBackButtonHidden(true)
-        .navigationDestination(isPresented: $navigateToOnboarding) {
-            OnboardingView(openAIService: openAIService)
-        }
     }
     
     // MARK: - Header View
@@ -121,7 +118,8 @@ struct BookOverviewView: View {
             HStack {
                 // Home Button
                 Button(action: {
-                    navigateToOnboarding = true
+                    // Use NavigationState to navigate back to book selection
+                    navigationState.navigateToBookSelection()
                 }) {
                     HStack(spacing: DS.Spacing.xs) {
                         DSIcon("house.fill", size: 16)

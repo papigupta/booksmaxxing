@@ -4,12 +4,10 @@ import SwiftData
 struct OnboardingView: View {
     let openAIService: OpenAIService
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var navigationState: NavigationState
     @State private var bookTitle: String = ""
     @State private var savedBooks: [Book] = []
     @State private var isLoadingSavedBooks = false
-    @State private var isNavigatingToBookOverview = false
-    @State private var selectedBookTitle: String = ""
-    @State private var selectedSavedBook: Book?
     
     private var bookService: BookService {
         BookService(modelContext: modelContext)
@@ -33,21 +31,6 @@ struct OnboardingView: View {
             }
             .navigationTitle("Deepread")
             .navigationBarTitleDisplayMode(.large)
-            .navigationDestination(isPresented: $isNavigatingToBookOverview) {
-                if let savedBook = selectedSavedBook {
-                    BookOverviewView(
-                        bookTitle: savedBook.title, 
-                        openAIService: openAIService, 
-                        bookService: bookService
-                    )
-                } else {
-                    BookOverviewView(
-                        bookTitle: selectedBookTitle, 
-                        openAIService: openAIService, 
-                        bookService: bookService
-                    )
-                }
-            }
             .onAppear {
                 loadSavedBooks()
             }
@@ -157,20 +140,22 @@ struct OnboardingView: View {
         let trimmedTitle = bookTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return }
         
-        selectedBookTitle = trimmedTitle
-        selectedSavedBook = nil
         bookTitle = ""
         
         // Dismiss keyboard
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         
-        isNavigatingToBookOverview = true
+        // Use NavigationState to navigate
+        navigationState.navigateToBook(title: trimmedTitle)
     }
     
     private func selectSavedBook(_ book: Book) {
-        selectedSavedBook = book
-        selectedBookTitle = ""
-        isNavigatingToBookOverview = true
+        // Update book's last accessed time
+        book.lastAccessed = Date()
+        try? modelContext.save()
+        
+        // Use NavigationState to navigate
+        navigationState.navigateToBook(title: book.title)
     }
     
     private func loadSavedBooks() {
