@@ -8,6 +8,7 @@ struct BookOverviewView: View {
     @State private var activeIdeaIndex: Int = 0 // Track which idea is active
     @State private var showingDebugInfo = false
     @State private var navigateToOnboarding = false
+    @State private var showingDailyPractice = false
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -71,11 +72,37 @@ struct BookOverviewView: View {
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.top, DS.Spacing.xs)
+        .overlay(alignment: .bottomTrailing) {
+            // Daily Practice FAB
+            if !viewModel.extractedIdeas.isEmpty || (viewModel.currentBook?.ideas.count ?? 0) > 0 {
+                Button(action: {
+                    print("DEBUG: Daily Practice button tapped")
+                    showingDailyPractice = true
+                }) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 16, weight: .bold))
+                        Text("Practice Session")
+                            .font(DS.Typography.bodyBold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.sm)
+                    .background(DS.Colors.black)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .padding(.trailing, DS.Spacing.lg)
+                .padding(.bottom, DS.Spacing.xl)
+            }
+        }
         .task {
             print("DEBUG: BookOverviewView task triggered")
             await viewModel.loadOrExtractIdeas(from: bookTitle)
             // Set activeIdeaIndex to first unmastered idea after initial load
             await MainActor.run {
+                print("DEBUG: extractedIdeas count: \(viewModel.extractedIdeas.count)")
+                print("DEBUG: FAB should be visible: \(!viewModel.extractedIdeas.isEmpty)")
                 if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
                     activeIdeaIndex = firstUnmasteredIndex
                     print("DEBUG: Set activeIdeaIndex to first unmastered idea at index \(firstUnmasteredIndex)")
@@ -111,6 +138,11 @@ struct BookOverviewView: View {
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $navigateToOnboarding) {
             OnboardingView(openAIService: openAIService)
+        }
+        .fullScreenCover(isPresented: $showingDailyPractice) {
+            if let book = viewModel.currentBook {
+                DailyPracticeHomepage(book: book, openAIService: openAIService)
+            }
         }
     }
     

@@ -159,6 +159,6 @@ struct ProgressStep: View {
 // MARK: - Preview
 
 #Preview {
-    @State var message = "Creating questions based on Atomic Habits..."
+    @Previewable @State var message = "Creating questions based on Atomic Habits..."
     return TestLoadingView(message: $message)
 }

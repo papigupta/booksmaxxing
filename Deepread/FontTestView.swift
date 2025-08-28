@@ -68,7 +68,7 @@ struct FontTestView: View {
     func checkFontFile() -> String {
         if let fontURL = Bundle.main.url(forResource: "Fraunces-Variable", withExtension: "ttf") {
             return "YES - Found at: \(fontURL.lastPathComponent)"
-        } else if let fontURL = Bundle.main.url(forResource: "Fonts/Fraunces-Variable", withExtension: "ttf") {
+        } else if Bundle.main.url(forResource: "Fonts/Fraunces-Variable", withExtension: "ttf") != nil {
             return "YES - Found with Fonts path"
         } else {
             // List all TTF files in bundle

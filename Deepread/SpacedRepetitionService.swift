@@ -43,15 +43,19 @@ class SpacedRepetitionService {
     
     func getIdeasNeedingReview() -> [Idea] {
         let now = Date()
-        let descriptor = FetchDescriptor<TestProgress>(
-            predicate: #Predicate<TestProgress> { progress in
-                progress.nextReviewDate != nil && progress.nextReviewDate! <= now
-            }
-        )
+        let descriptor = FetchDescriptor<TestProgress>()
+        // Remove the problematic predicate and filter in code instead
         
         do {
             let progressItems = try modelContext.fetch(descriptor)
-            let ideaIds = progressItems.map { $0.ideaId }
+            
+            // Filter in code to avoid SwiftData predicate issues
+            let dueItems = progressItems.filter { progress in
+                guard let reviewDate = progress.nextReviewDate else { return false }
+                return reviewDate <= now
+            }
+            
+            let ideaIds = dueItems.map { $0.ideaId }
             
             // Use a simpler approach to avoid predicate issues
             let allIdeasDescriptor = FetchDescriptor<Idea>()
