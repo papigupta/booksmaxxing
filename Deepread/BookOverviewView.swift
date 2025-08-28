@@ -9,6 +9,7 @@ struct BookOverviewView: View {
     @State private var showingDebugInfo = false
     @State private var navigateToOnboarding = false
     @State private var showingDailyPractice = false
+    @EnvironmentObject var navigationState: NavigationState
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -153,7 +154,8 @@ struct BookOverviewView: View {
             HStack {
                 // Home Button
                 Button(action: {
-                    navigateToOnboarding = true
+                    // Use NavigationState to navigate back to book selection
+                    navigationState.navigateToBookSelection()
                 }) {
                     HStack(spacing: DS.Spacing.xs) {
                         DSIcon("house.fill", size: 16)

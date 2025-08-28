@@ -16,6 +16,9 @@ struct DeepreadApp: App {
     // State to control splash screen visibility
     @State private var isShowingSplash = true
     
+    // Navigation state
+    @StateObject private var navigationState = NavigationState()
+    
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Book.self,
@@ -87,18 +90,8 @@ struct DeepreadApp: App {
                     SplashScreenView()
                         .transition(.opacity)
                 } else {
-                    OnboardingView(openAIService: openAIService)
-                        .onAppear {
-                            // Run migration for existing data
-                            Task {
-                                do {
-                                    let bookService = BookService(modelContext: sharedModelContainer.mainContext)
-                                    try await bookService.migrateExistingDataToBookSpecificIds()
-                                } catch {
-                                    print("DEBUG: Migration failed: \(error)")
-                                }
-                            }
-                        }
+                    MainView(openAIService: openAIService)
+                        .environmentObject(navigationState)
                         .transition(.opacity)
                 }
             }
