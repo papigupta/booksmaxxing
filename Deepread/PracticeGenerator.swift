@@ -151,7 +151,7 @@ class PracticeGenerator {
     
     private func selectIdeasForPractice(from book: Book) -> PracticeSelectionResult {
         var newIdeas: [Idea] = []
-        var reviewIdeas: [Idea] = []
+        let reviewIdeas: [Idea] = []
         var selectionReason: [String: String] = [:]
         
         // Get all ideas from the book, sorted numerically by idea number (i1, i2, i3...)

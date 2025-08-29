@@ -60,16 +60,28 @@ class IdeaExtractionViewModel: ObservableObject {
                 do {
                     if let existingBook = try self.bookService.getBook(withTitle: input) {
                         print("DEBUG: Found exact match! Loading existing book with \(existingBook.ideas.count) ideas")
-                        await MainActor.run {
-                            self.updateExtractedIdeas(existingBook.ideas, source: "exact match")
-                            self.isLoading = false
-                            self.errorMessage = nil
-                            self.currentBookTitle = existingBook.title
-                            // Set book info from existing book
-                            self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
-                            self.currentBook = existingBook
+                        
+                        // If book exists but has no ideas, continue with idea extraction
+                        if existingBook.ideas.isEmpty {
+                            print("DEBUG: Book exists but has no ideas, continuing with extraction")
+                            await MainActor.run {
+                                self.currentBookTitle = existingBook.title
+                                self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
+                                self.currentBook = existingBook
+                            }
+                            // Continue to idea extraction below
+                        } else {
+                            await MainActor.run {
+                                self.updateExtractedIdeas(existingBook.ideas, source: "exact match")
+                                self.isLoading = false
+                                self.errorMessage = nil
+                                self.currentBookTitle = existingBook.title
+                                // Set book info from existing book
+                                self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
+                                self.currentBook = existingBook
+                            }
+                            return
                         }
-                        return
                     }
                 } catch {
                     print("DEBUG: Error checking for exact match: \(error)")
@@ -94,13 +106,23 @@ class IdeaExtractionViewModel: ObservableObject {
                 do {
                     if let existingBook = try self.bookService.getBook(withTitle: extractedBookInfo.title) {
                         print("DEBUG: Found existing book with corrected title with \(existingBook.ideas.count) ideas")
-                        await MainActor.run {
-                            self.updateExtractedIdeas(existingBook.ideas, source: "corrected title match")
-                            self.isLoading = false
-                            self.errorMessage = nil
-                            self.currentBook = existingBook
+                        
+                        // If book exists but has no ideas, continue with idea extraction
+                        if existingBook.ideas.isEmpty {
+                            print("DEBUG: Book with corrected title exists but has no ideas, continuing with extraction")
+                            await MainActor.run {
+                                self.currentBook = existingBook
+                            }
+                            // Continue to idea extraction below
+                        } else {
+                            await MainActor.run {
+                                self.updateExtractedIdeas(existingBook.ideas, source: "corrected title match")
+                                self.isLoading = false
+                                self.errorMessage = nil
+                                self.currentBook = existingBook
+                            }
+                            return
                         }
-                        return
                     }
                 } catch {
                     print("DEBUG: Error loading existing book with corrected title: \(error)")

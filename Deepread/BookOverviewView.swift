@@ -115,10 +115,11 @@ struct BookOverviewView: View {
             }
         }
         .onAppear {
+            print("DEBUG: BookOverviewView appeared")
             // Only refresh if returning from other views and ideas might have changed
             // This prevents race conditions while still updating mastery levels
             if !viewModel.extractedIdeas.isEmpty {
-                print("DEBUG: BookOverviewView appeared with existing ideas, checking if refresh needed")
+                print("DEBUG: BookOverviewView appeared with existing ideas, refreshing mastery data")
                 Task {
                     await viewModel.refreshIdeasIfNeeded()
                     // Update activeIdeaIndex if mastery levels changed
@@ -347,21 +348,61 @@ struct ActiveIdeaCard: View {
     @State private var isGeneratingTest = false
     @State private var showingPrimer = false
     @State private var loadingMessage = "Preparing your test..."
+    @State private var ideaMastery: IdeaMastery?
     @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     HStack {
-                        Text(idea.title)
-                            .font(DS.Typography.bodyBold)
-                            .lineLimit(2)
-                            .foregroundColor(DS.Colors.white)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(idea.title)
+                                .font(DS.Typography.bodyBold)
+                                .lineLimit(2)
+                                .foregroundColor(DS.Colors.white)
+                            
+                            // Mastery progress bar
+                            if let mastery = ideaMastery {
+                                HStack(spacing: DS.Spacing.xxs) {
+                                    ProgressView(value: mastery.masteryPercentage / 100)
+                                        .progressViewStyle(LinearProgressViewStyle(tint: masteryColor))
+                                        .frame(width: 100, height: 4)
+                                    
+                                    Text("\(Int(mastery.masteryPercentage))%")
+                                        .font(DS.Typography.small)
+                                        .foregroundColor(DS.Colors.white.opacity(0.8))
+                                }
+                            }
+                        }
                         
                         Spacer()
                         
                         // Show appropriate badge
-                        if currentIncompleteAttempt != nil {
+                        if let mastery = ideaMastery, mastery.isFullyMastered {
+                            VStack(spacing: 2) {
+                                Text("MASTERED")
+                                    .font(DS.Typography.small)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(DS.Colors.white)
+                                    .padding(.horizontal, DS.Spacing.xs)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green)
+                                
+                                if let reviewData = mastery.reviewStateData,
+                                   let reviewState = try? JSONDecoder().decode(FSRSScheduler.ReviewState.self, from: reviewData) {
+                                    let daysUntilReview = Calendar.current.dateComponents([.day], from: Date(), to: reviewState.nextReviewDate).day ?? 0
+                                    if daysUntilReview <= 0 {
+                                        Text("Review due")
+                                            .font(DS.Typography.caption)
+                                            .foregroundColor(DS.Colors.white.opacity(0.8))
+                                    } else {
+                                        Text("Review in \(daysUntilReview)d")
+                                            .font(DS.Typography.caption)
+                                            .foregroundColor(DS.Colors.white.opacity(0.8))
+                                    }
+                                }
+                            }
+                        } else if currentIncompleteAttempt != nil {
                             Text("RESUME TEST")
                                 .font(DS.Typography.small)
                                 .fontWeight(.bold)
@@ -369,20 +410,8 @@ struct ActiveIdeaCard: View {
                                 .padding(.horizontal, DS.Spacing.xs)
                                 .padding(.vertical, 2)
                                 .background(Color.orange)
-                        } else if idea.masteryLevel >= 3 {
-                            Text("MASTERED")
-                                .font(DS.Typography.small)
-                                .fontWeight(.bold)
-                                .foregroundColor(DS.Colors.white)
-                                .padding(.horizontal, DS.Spacing.xs)
-                                .padding(.vertical, 2)
-                                .background(DS.Colors.black)
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
-                                )
-                        } else if idea.masteryLevel > 0 {
-                            Text("RESUME")
+                        } else if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
+                            Text("IN PROGRESS")
                                 .font(DS.Typography.small)
                                 .fontWeight(.bold)
                                 .foregroundColor(DS.Colors.black)
@@ -490,6 +519,29 @@ struct ActiveIdeaCard: View {
         }
         .onAppear {
             checkForIncompleteTest()
+            loadMasteryData()
+            
+            // Set up periodic refresh timer for active card
+            Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+                loadMasteryData()
+            }
+        }
+    }
+    
+    private var masteryColor: Color {
+        guard let mastery = ideaMastery else { return Color.gray }
+        
+        switch mastery.masteryPercentage {
+        case 0..<30:
+            return Color.red
+        case 30..<70:
+            return Color.orange
+        case 70..<100:
+            return Color.yellow
+        case 100:
+            return Color.green
+        default:
+            return Color.gray
         }
     }
     
@@ -637,6 +689,24 @@ struct ActiveIdeaCard: View {
             currentIncompleteAttempt = nil
         }
     }
+    
+    private func loadMasteryData() {
+        // Get book ID from the idea's book relationship
+        let bookId = idea.book?.id.uuidString ?? idea.bookTitle
+        
+        let masteryService = MasteryService(modelContext: modelContext)
+        let newMastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+        
+        // Only update if there's a meaningful change
+        let oldPercentage = ideaMastery?.masteryPercentage ?? 0
+        let newPercentage = newMastery.masteryPercentage
+        
+        ideaMastery = newMastery
+        
+        if abs(oldPercentage - newPercentage) > 0.1 {
+            print("DEBUG: Mastery updated for idea \(idea.id): \(oldPercentage)% -> \(newPercentage)%")
+        }
+    }
 }
 
 // MARK: - Inactive Idea Card
@@ -645,20 +715,48 @@ struct InactiveIdeaCard: View {
     @Environment(\.modelContext) private var modelContext
     @State private var progressInfo: (responseCount: Int, bestScore: Int?) = (0, nil)
     @State private var hasIncompleteTest = false
+    @State private var ideaMastery: IdeaMastery?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(idea.title)
-                        .font(.body)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
-                        .foregroundColor(DS.Colors.secondaryText)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(idea.title)
+                            .font(.body)
+                            .fontWeight(.semibold)
+                            .lineLimit(2)
+                            .foregroundColor(DS.Colors.secondaryText)
+                        
+                        // Mastery progress for inactive cards
+                        if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
+                            HStack(spacing: DS.Spacing.xxs) {
+                                ProgressView(value: mastery.masteryPercentage / 100)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: inactiveMasteryColor))
+                                    .frame(width: 80, height: 3)
+                                
+                                Text("\(Int(mastery.masteryPercentage))%")
+                                    .font(DS.Typography.caption)
+                                    .foregroundColor(DS.Colors.tertiaryText)
+                            }
+                        }
+                    }
                     
                     Spacer()
                     
-                    // Show appropriate badge based on progress
-                    if hasIncompleteTest {
+                    // Show appropriate badge based on mastery
+                    if let mastery = ideaMastery, mastery.isFullyMastered {
+                        Text("MASTERED")
+                            .font(DS.Typography.small)
+                            .fontWeight(.bold)
+                            .foregroundColor(DS.Colors.white)
+                            .padding(.horizontal, DS.Spacing.xs)
+                            .padding(.vertical, 2)
+                            .background(Color.green)
+                            .overlay(
+                                Rectangle()
+                                    .stroke(DS.Colors.gray300, lineWidth: DS.BorderWidth.thin)
+                            )
+                    } else if hasIncompleteTest {
                         Text("RESUME TEST")
                             .font(DS.Typography.small)
                             .fontWeight(.bold)
@@ -666,20 +764,8 @@ struct InactiveIdeaCard: View {
                             .padding(.horizontal, DS.Spacing.xs)
                             .padding(.vertical, 2)
                             .background(Color.orange)
-                    } else if idea.masteryLevel >= 3 {
-                        Text("MASTERED")
-                            .font(DS.Typography.small)
-                            .fontWeight(.bold)
-                            .foregroundColor(DS.Colors.white)
-                            .padding(.horizontal, DS.Spacing.xs)
-                            .padding(.vertical, 2)
-                            .background(DS.Colors.black)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(DS.Colors.gray300, lineWidth: DS.BorderWidth.thin)
-                            )
-                    } else if idea.masteryLevel > 0 {
-                        Text("RESUME")
+                    } else if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
+                        Text("IN PROGRESS")
                             .font(DS.Typography.small)
                             .fontWeight(.bold)
                             .foregroundColor(DS.Colors.black)
@@ -731,6 +817,24 @@ struct InactiveIdeaCard: View {
         )
         .onAppear {
             checkForIncompleteTest()
+            loadMasteryData()
+        }
+    }
+    
+    private var inactiveMasteryColor: Color {
+        guard let mastery = ideaMastery else { return DS.Colors.gray300 }
+        
+        switch mastery.masteryPercentage {
+        case 0..<30:
+            return DS.Colors.gray500
+        case 30..<70:
+            return DS.Colors.gray600
+        case 70..<100:
+            return DS.Colors.gray700
+        case 100:
+            return Color.green
+        default:
+            return DS.Colors.gray300
         }
     }
     
@@ -766,5 +870,15 @@ struct InactiveIdeaCard: View {
             print("Error checking for incomplete tests: \(error)")
             hasIncompleteTest = false
         }
+    }
+    
+    private func loadMasteryData() {
+        // Get book ID from the idea's book relationship
+        let bookId = idea.book?.id.uuidString ?? idea.bookTitle
+        
+        let masteryService = MasteryService(modelContext: modelContext)
+        ideaMastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+        
+        print("DEBUG: Loaded mastery for inactive idea \(idea.id): \(ideaMastery?.masteryPercentage ?? 0)%")
     }
 }

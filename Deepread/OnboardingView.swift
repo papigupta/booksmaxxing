@@ -145,8 +145,8 @@ struct OnboardingView: View {
         // Dismiss keyboard
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         
-        // Use NavigationState to navigate
-        navigationState.navigateToBook(title: trimmedTitle)
+        // Use NavigationState to navigate with eager book creation to fix navigation race condition
+        navigationState.navigateToBookWithEagerCreation(title: trimmedTitle, modelContext: modelContext)
     }
     
     private func selectSavedBook(_ book: Book) {

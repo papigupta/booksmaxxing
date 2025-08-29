@@ -9,32 +9,31 @@ struct DailyPracticeHomepage: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var practiceStats: PracticeStats?
-    @State private var showingPractice = false
+    @State private var currentLessonNumber: Int = 0
+    @State private var selectedLesson: GeneratedLesson? = nil
     
-    // Practice milestones for linear path
-    @State private var practiceMilestones: [PracticeMilestone] = [
-        PracticeMilestone(id: 1, title: "Foundation Basics", isCompleted: true, isCurrent: false),
-        PracticeMilestone(id: 2, title: "Core Concepts", isCompleted: true, isCurrent: false),
-        PracticeMilestone(id: 3, title: "Key Principles", isCompleted: true, isCurrent: false),
-        PracticeMilestone(id: 4, title: "Today's Focus", isCompleted: false, isCurrent: true),
-        PracticeMilestone(id: 5, title: "Advanced Ideas", isCompleted: false, isCurrent: false),
-        PracticeMilestone(id: 6, title: "Deep Connections", isCompleted: false, isCurrent: false),
-        PracticeMilestone(id: 7, title: "Integration", isCompleted: false, isCurrent: false),
-        PracticeMilestone(id: 8, title: "Application", isCompleted: false, isCurrent: false),
-        PracticeMilestone(id: 9, title: "Mastery Check", isCompleted: false, isCurrent: false),
-        PracticeMilestone(id: 10, title: "Expert Level", isCompleted: false, isCurrent: false),
-    ]
+    // Real lessons generated from book ideas
+    @State private var practiceMilestones: [PracticeMilestone] = []
+    @State private var generatedLessons: [GeneratedLesson] = []
     
-    private var practiceGenerator: PracticeGenerator {
-        PracticeGenerator(
+    private var lessonStorage: LessonStorageService {
+        LessonStorageService(modelContext: modelContext)
+    }
+    
+    private var lessonGenerator: LessonGenerationService {
+        LessonGenerationService(
             modelContext: modelContext,
             openAIService: openAIService
         )
     }
     
+    private var masteryService: MasteryService {
+        MasteryService(modelContext: modelContext)
+    }
+    
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: DS.Spacing.lg) {
                     // Header
                     headerSection
@@ -52,27 +51,25 @@ struct DailyPracticeHomepage: View {
             }
             .navigationTitle("Practice Session")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .foregroundColor(DS.Colors.secondaryText)
-                }
-            }
             .task {
-                await loadPracticeStats()
+                await loadPracticeData()
             }
-            .fullScreenCover(isPresented: $showingPractice) {
+            .fullScreenCover(item: $selectedLesson) { lesson in
                 DailyPracticeView(
                     book: book,
                     openAIService: openAIService,
                     practiceType: .quick,
+                    selectedLesson: lesson,
                     onPracticeComplete: {
-                        // Advance milestone when practice is completed
-                        advanceMilestone()
+                        // Mark lesson as completed and unlock next lesson
+                        completeLesson(lesson)
+                        // Dismiss after completion
+                        selectedLesson = nil
                     }
                 )
+                .onAppear {
+                    print("DEBUG: Presenting DailyPracticeView with lesson \(lesson.lessonNumber)")
+                }
             }
         }
     }
@@ -149,17 +146,73 @@ struct DailyPracticeHomepage: View {
                 .font(DS.Typography.headline)
                 .foregroundColor(DS.Colors.primaryText)
             
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: DS.Spacing.lg) {
-                        ForEach(Array(practiceMilestones.enumerated()), id: \.element.id) { index, milestone in
+            if practiceMilestones.isEmpty {
+                Text("Loading lessons...")
+                    .font(DS.Typography.body)
+                    .foregroundColor(DS.Colors.secondaryText)
+                    .padding()
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(spacing: DS.Spacing.lg) {
+                            ForEach(Array(practiceMilestones.enumerated()), id: \.element.id) { index, milestone in
                             VStack(spacing: DS.Spacing.sm) {
                                 MilestoneNode(
                                     milestone: milestone,
+                                    lesson: nil, // No longer pre-generating lessons
                                     onTap: {
-                                        if milestone.isCurrent {
-                                            print("DEBUG: Starting practice session")
-                                            showingPractice = true
+                                        print("DEBUG: Tapped on lesson \(milestone.id), isCurrent: \(milestone.isCurrent), isCompleted: \(milestone.isCompleted)")
+                                        
+                                        // Allow tapping on unlocked lessons
+                                        let bookId = book.id.uuidString
+                                        guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
+                                            print("ERROR: Could not get lesson info for lesson \(milestone.id)")
+                                            return
+                                        }
+                                        
+                                        if lessonInfo.isUnlocked {
+                                            
+                                            print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
+                                            
+                                            // Create a temporary GeneratedLesson for compatibility
+                                            let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
+                                            
+                                            // Get the actual idea for this lesson to set primaryIdeaId
+                                            let sortedIdeas = book.ideas.sorted { idea1, idea2 in
+                                                let id1 = idea1.id.split(separator: "i")
+                                                let id2 = idea2.id.split(separator: "i")
+                                                let num1 = id1.count > 1 ? Int(id1[1]) ?? 0 : 0
+                                                let num2 = id2.count > 1 ? Int(id2[1]) ?? 0 : 0
+                                                return num1 < num2
+                                            }
+                                            
+                                            let primaryIdeaId: String
+                                            if milestone.id > 0 && milestone.id <= sortedIdeas.count {
+                                                primaryIdeaId = sortedIdeas[milestone.id - 1].id
+                                            } else {
+                                                print("ERROR: Could not find idea for lesson \(milestone.id)")
+                                                primaryIdeaId = sortedIdeas.first?.id ?? "unknown"
+                                            }
+                                            
+                                            let tempLesson = GeneratedLesson(
+                                                lessonNumber: milestone.id,
+                                                title: "Lesson \(milestone.id): \(lessonInfo.title)",
+                                                primaryIdeaId: primaryIdeaId,
+                                                primaryIdeaTitle: lessonInfo.title,
+                                                reviewIdeaIds: [],
+                                                mistakeCorrections: emptyMistakeCorrections,
+                                                questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
+                                                estimatedMinutes: 10,
+                                                isUnlocked: true,
+                                                isCompleted: lessonInfo.isCompleted
+                                            )
+                                            
+                                            print("DEBUG: Created temp lesson with primaryIdeaId: \(primaryIdeaId)")
+                                            
+                                            // Set the lesson to trigger the fullScreenCover
+                                            selectedLesson = tempLesson
+                                        } else {
+                                            print("DEBUG: Lesson \(milestone.id) is not unlocked or not found")
                                         }
                                     }
                                 )
@@ -187,45 +240,104 @@ struct DailyPracticeHomepage: View {
                 }
             }
         }
+            }
     }
     
     
-    // MARK: - Milestone Management
-    private func advanceMilestone() {
-        // Find current milestone and mark as completed
-        if let currentIndex = practiceMilestones.firstIndex(where: { $0.isCurrent }) {
-            practiceMilestones[currentIndex].isCompleted = true
-            practiceMilestones[currentIndex].isCurrent = false
+    // MARK: - Lesson Management
+    private func completeLesson(_ lesson: GeneratedLesson) {
+        print("DEBUG: Completing lesson \(lesson.lessonNumber)")
+        
+        // Update the milestone for this lesson
+        if let milestoneIndex = practiceMilestones.firstIndex(where: { $0.id == lesson.lessonNumber }) {
+            practiceMilestones[milestoneIndex].isCompleted = true
+            practiceMilestones[milestoneIndex].isCurrent = false
+            
+            print("DEBUG: Marked lesson \(lesson.lessonNumber) as completed")
             
             // Move to next milestone if available
-            if currentIndex + 1 < practiceMilestones.count {
-                practiceMilestones[currentIndex + 1].isCurrent = true
+            if milestoneIndex + 1 < practiceMilestones.count {
+                practiceMilestones[milestoneIndex + 1].isCurrent = true
+                print("DEBUG: Unlocked lesson \(practiceMilestones[milestoneIndex + 1].id)")
+            } else {
+                print("DEBUG: All lessons completed!")
             }
+            
+            // Mark the idea as mastered if lesson is completed
+            if let idea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) {
+                print("DEBUG: Marking idea \(idea.title) as progressed")
+            }
+        }
+        
+        // Reload practice data to refresh stats and milestones
+        Task {
+            await loadPracticeData()
         }
     }
     
     // MARK: - Data Loading
-    private func loadPracticeStats() async {
-        // Analyze the book's ideas to generate stats
+    private func loadPracticeData() async {
+        let bookId = book.id.uuidString
+        
+        // Get lesson info for display (no actual generation yet)
+        let lessonInfos = lessonStorage.getAllLessonInfo(book: book)
+        let currentLessonNumber = lessonStorage.getCurrentLessonNumber(bookId: bookId)
+        
+        print("DEBUG: Current lesson number: \(currentLessonNumber)")
+        print("DEBUG: Retrieved \(lessonInfos.count) lesson infos from LessonStorage")
+        
+        // Convert to milestones for UI
+        let milestones = lessonInfos.enumerated().map { index, info in
+            print("DEBUG: Creating milestone - Lesson \(info.lessonNumber): \(info.title), Unlocked: \(info.isUnlocked), Completed: \(info.isCompleted)")
+            return PracticeMilestone(
+                id: info.lessonNumber,
+                title: info.title,
+                isCompleted: info.isCompleted,
+                isCurrent: info.lessonNumber == currentLessonNumber && info.isUnlocked
+            )
+        }
+        
+        // Calculate practice stats
         let ideas = book.ideas
         
-        let newIdeas = ideas.filter { $0.masteryLevel == 0 }
-        let masteredIdeas = ideas.filter { $0.masteryLevel >= 3 }
+        var newIdeasCount = 0
+        var reviewDueCount = 0
+        var masteredCount = 0
         
-        // Check for review due items
-        let spacedRepetitionService = SpacedRepetitionService(modelContext: modelContext)
-        let reviewDueIdeas = spacedRepetitionService.getIdeasNeedingReview().filter { idea in
-            ideas.contains { $0.id == idea.id }
+        for idea in ideas {
+            let mastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+            
+            if mastery.masteryPercentage == 0 {
+                newIdeasCount += 1
+            } else if mastery.isFullyMastered {
+                masteredCount += 1
+                
+                // Check if review is due
+                if let reviewData = mastery.reviewStateData,
+                   let reviewState = try? JSONDecoder().decode(FSRSScheduler.ReviewState.self, from: reviewData),
+                   FSRSScheduler.isReviewDue(reviewState: reviewState) {
+                    reviewDueCount += 1
+                }
+            }
         }
         
         await MainActor.run {
+            print("DEBUG: Setting practiceMilestones array with \(milestones.count) milestones")
+            self.practiceMilestones = milestones
+            print("DEBUG: practiceMilestones.count after setting: \(self.practiceMilestones.count)")
+            
             self.practiceStats = PracticeStats(
-                newIdeasCount: newIdeas.count,
-                reviewDueCount: reviewDueIdeas.count,
-                masteredCount: masteredIdeas.count
+                newIdeasCount: newIdeasCount,
+                reviewDueCount: reviewDueCount,
+                masteredCount: masteredCount
             )
             
-            print("DEBUG: Loaded practice stats - New: \(newIdeas.count), Review: \(reviewDueIdeas.count), Mastered: \(masteredIdeas.count)")
+            self.currentLessonNumber = currentLessonNumber
+            
+            print("DEBUG: Loaded \(milestones.count) lesson infos from \(ideas.count) ideas")
+            print("DEBUG: Current lesson: \(currentLessonNumber)")
+            print("DEBUG: First milestone - ID: \(milestones.first?.id ?? 0), Current: \(milestones.first?.isCurrent ?? false), Completed: \(milestones.first?.isCompleted ?? false)")
+            print("DEBUG: Stats - New: \(newIdeasCount), Review: \(reviewDueCount), Mastered: \(masteredCount)")
         }
     }
 }
@@ -264,6 +376,7 @@ private struct StatCard: View {
 
 private struct MilestoneNode: View {
     let milestone: PracticeMilestone
+    let lesson: GeneratedLesson?
     let onTap: () -> Void
     
     var body: some View {

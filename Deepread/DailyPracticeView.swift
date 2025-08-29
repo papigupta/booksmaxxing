@@ -5,12 +5,14 @@ struct DailyPracticeView: View {
     let book: Book
     let openAIService: OpenAIService
     let practiceType: PracticeType
+    let selectedLesson: GeneratedLesson?
     let onPracticeComplete: (() -> Void)?
     
-    init(book: Book, openAIService: OpenAIService, practiceType: PracticeType, onPracticeComplete: (() -> Void)? = nil) {
+    init(book: Book, openAIService: OpenAIService, practiceType: PracticeType, selectedLesson: GeneratedLesson? = nil, onPracticeComplete: (() -> Void)? = nil) {
         self.book = book
         self.openAIService = openAIService
         self.practiceType = practiceType
+        self.selectedLesson = selectedLesson
         self.onPracticeComplete = onPracticeComplete
     }
     
@@ -30,11 +32,29 @@ struct DailyPracticeView: View {
         case streak
     }
     
-    private var practiceGenerator: PracticeGenerator {
-        PracticeGenerator(
-            modelContext: modelContext,
-            openAIService: openAIService,
-            configuration: PracticeConfiguration.configuration(for: practiceType)
+    private var testGenerationService: TestGenerationService {
+        TestGenerationService(
+            openAI: openAIService,
+            modelContext: modelContext
+        )
+    }
+    
+    private var masteryService: MasteryService {
+        MasteryService(modelContext: modelContext)
+    }
+    
+    private var ideaForTest: Idea {
+        if let primaryIdeaId = selectedLesson?.primaryIdeaId,
+           let idea = book.ideas.first(where: { $0.id == primaryIdeaId }) {
+            return idea
+        }
+        
+        return Idea(
+            id: "daily_practice",
+            title: "Daily Practice",
+            description: "Mixed practice from \(book.title)",
+            bookTitle: book.title,
+            depthTarget: 3
         )
     }
     
@@ -65,13 +85,7 @@ struct DailyPracticeView: View {
             .fullScreenCover(isPresented: $showingTest) {
                 if let test = generatedTest {
                     TestView(
-                        idea: Idea(
-                            id: "daily_practice",
-                            title: "Daily Practice",
-                            description: "Mixed practice from \(book.title)",
-                            bookTitle: book.title,
-                            depthTarget: 3
-                        ),
+                        idea: ideaForTest,
                         test: test,
                         openAIService: openAIService,
                         onCompletion: handleTestCompletion
@@ -88,10 +102,9 @@ struct DailyPracticeView: View {
                     })
                 } else if currentView == .streak {
                     StreakView(onContinue: {
-                        print("DEBUG: Streak onContinue tapped, going back to homepage")
+                        print("DEBUG: Streak onContinue tapped, completing lesson")
                         currentView = .none
-                        onPracticeComplete?() // Advance milestone
-                        dismiss() // Go back to homepage
+                        onPracticeComplete?() // This will complete the lesson and dismiss
                     })
                 } else {
                     // Fallback for unexpected states
@@ -294,13 +307,35 @@ struct DailyPracticeView: View {
         errorMessage = nil
         
         do {
-            let test = try practiceGenerator.generateDailyPractice(for: book, type: practiceType)
+            let test: Test
+            
+            if let lesson = selectedLesson {
+                print("DEBUG: Generating practice test for lesson \(lesson.lessonNumber)")
+                
+                // Get the primary idea for this lesson
+                guard let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) else {
+                    throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
+                }
+                
+                print("DEBUG: Generating test for idea: \(primaryIdea.title)")
+                
+                // Use the same TestGenerationService as "Start Test" button
+                test = try await testGenerationService.generateTest(
+                    for: primaryIdea,
+                    testType: "initial"
+                )
+                
+                print("DEBUG: Generated test with \(test.questions.count) questions using TestGenerationService")
+            } else {
+                throw NSError(domain: "LessonGeneration", code: 2, userInfo: [NSLocalizedDescriptionKey: "No lesson selected"])
+            }
             
             await MainActor.run {
                 self.generatedTest = test
                 self.isGenerating = false
             }
         } catch {
+            print("ERROR: Failed to generate practice: \(error)")
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
                 self.isGenerating = false
@@ -312,15 +347,103 @@ struct DailyPracticeView: View {
         completedAttempt = attempt
         showingTest = false
         
-        // Update progress for all ideas in the practice
-        if let test = generatedTest {
-            practiceGenerator.updateProgressAfterPractice(attempt: attempt, practiceTest: test)
+        // Update mastery for the lesson
+        if let test = generatedTest, let lesson = selectedLesson {
+            updateMasteryFromAttempt(attempt: attempt, test: test, lesson: lesson)
         }
         
         // Show results with a small delay to ensure proper state transition
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             print("DEBUG: Setting currentView to .results")
+            print("DEBUG: Attempt score: \(attempt.score) out of \(attempt.responses.count * 150)")
             currentView = .results
+        }
+    }
+    
+    private func updateMasteryFromAttempt(attempt: TestAttempt, test: Test, lesson: GeneratedLesson) {
+        let bookId = book.id.uuidString
+        print("DEBUG: Updating mastery for lesson \(lesson.lessonNumber), book \(bookId)")
+        
+        // Group responses by idea
+        var responsesByIdea: [String: [(questionId: String, isCorrect: Bool, questionText: String, conceptTested: String)]] = [:]
+        
+        for response in attempt.responses {
+            if let question = test.questions.first(where: { $0.id == response.questionId }) {
+                let ideaId = question.ideaId
+                if responsesByIdea[ideaId] == nil {
+                    responsesByIdea[ideaId] = []
+                }
+                
+                let conceptTested = question.bloomCategory.rawValue
+                responsesByIdea[ideaId]?.append((
+                    questionId: question.id.uuidString,
+                    isCorrect: response.isCorrect,
+                    questionText: question.questionText,
+                    conceptTested: conceptTested
+                ))
+                
+                print("DEBUG: Response for idea \(ideaId): \(response.isCorrect ? "CORRECT" : "WRONG")")
+            }
+        }
+        
+        print("DEBUG: Found responses for \(responsesByIdea.count) ideas")
+        
+        // Update mastery for each idea
+        for (ideaId, responses) in responsesByIdea {
+            print("DEBUG: Updating mastery for idea \(ideaId) with \(responses.count) responses")
+            masteryService.updateMasteryFromLesson(
+                ideaId: ideaId,
+                bookId: bookId,
+                responses: responses
+            )
+        }
+        
+        // Check if lesson is completed (80% or higher accuracy)
+        let totalQuestions = attempt.responses.count
+        let correctAnswers = attempt.responses.filter { $0.isCorrect }.count
+        let accuracy = totalQuestions > 0 ? Double(correctAnswers) / Double(totalQuestions) : 0.0
+        
+        print("DEBUG: Lesson \(lesson.lessonNumber) completed with accuracy: \(accuracy * 100)%")
+        
+        // If accuracy is 80% or higher, mark lesson as completed
+        if accuracy >= 0.8 {
+            print("DEBUG: Lesson \(lesson.lessonNumber) passed! Unlocking next lesson.")
+            // This will be handled by the completion callback
+        } else {
+            print("DEBUG: Lesson \(lesson.lessonNumber) needs retry (accuracy < 80%)")
+        }
+        
+        // Handle FSRS review updates if this was a review
+        if !lesson.reviewIdeaIds.isEmpty {
+            for reviewId in lesson.reviewIdeaIds {
+                if let responses = responsesByIdea[reviewId] {
+                    let correctCount = responses.filter { $0.isCorrect }.count
+                    let totalCount = responses.count
+                    let performance = FSRSScheduler.performanceFromScore(
+                        correctAnswers: correctCount,
+                        totalQuestions: totalCount
+                    )
+                    
+                    // Update review state
+                    let mastery = masteryService.getMastery(for: reviewId, bookId: bookId)
+                    if let reviewData = mastery.reviewStateData,
+                       var reviewState = try? JSONDecoder().decode(FSRSScheduler.ReviewState.self, from: reviewData) {
+                        reviewState = FSRSScheduler.calculateNextReview(
+                            currentState: reviewState,
+                            performance: performance
+                        )
+                        mastery.reviewStateData = try? JSONEncoder().encode(reviewState)
+                    }
+                }
+            }
+        }
+        
+        // Save changes
+        do {
+            try modelContext.save()
+            print("DEBUG: Mastery updated for lesson \(lesson.lessonNumber)")
+        } catch {
+            print("Error saving mastery: \(error)")
         }
     }
     

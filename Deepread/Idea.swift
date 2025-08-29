@@ -27,6 +27,7 @@ final class Idea {
     var lastPracticed: Date?
     var currentLevel: Int? // The exact level user was on when they left
     var importance: ImportanceLevel? // Foundation, Building Block, or Enhancement
+    var reviewStateData: Data? // FSRS review state data
     
     // Relationship back to Book
     @Relationship(deleteRule: .cascade) var book: Book?
@@ -44,6 +45,7 @@ final class Idea {
         self.lastPracticed = lastPracticed
         self.currentLevel = currentLevel
         self.importance = importance
+        self.reviewStateData = nil
         self.progress = []
         print("DEBUG: Created Idea with id: \(id), title: \(title), bookTitle: \(bookTitle)")
     }
