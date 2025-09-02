@@ -29,8 +29,7 @@ struct OnboardingView: View {
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.top, DS.Spacing.lg)
             }
-            .navigationTitle("Deepread")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarHidden(true)
             .onAppear {
                 loadSavedBooks()
             }
@@ -39,12 +38,30 @@ struct OnboardingView: View {
     
     // MARK: - Header Section
     private var headerSection: some View {
-        VStack(spacing: DS.Spacing.xs) {
-            Text("Which book do you want to master?")
-                .font(DS.Typography.title)
-                .multilineTextAlignment(.center)
-                .foregroundColor(DS.Colors.primaryText)
+        VStack(spacing: DS.Spacing.md) {
+            // App branding
+            VStack(spacing: DS.Spacing.xs) {
+                Text("Booksmaxxing")
+                    .font(.custom("Fraunces", size: 24).bold().italic())
+                    .tracking(DS.Typography.tightTracking(for: 24))
+                    .foregroundColor(DS.Colors.primaryText)
+                
+                Text("Books don't owe you knowledge, you owe them work.")
+                    .font(DS.Typography.fraunces(size: 14, weight: .light))
+                    .tracking(DS.Typography.tightTracking(for: 14))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(DS.Colors.secondaryText)
+                    .padding(.horizontal, DS.Spacing.sm)
+            }
+            
+            // Divider
+            Rectangle()
+                .fill(DS.Colors.tertiaryText.opacity(0.3))
+                .frame(height: 1)
+                .frame(maxWidth: 120)
+            
         }
+        .padding(.top, DS.Spacing.sm)
     }
     
     // MARK: - Add New Book Section
@@ -53,7 +70,7 @@ struct OnboardingView: View {
             // Section Header
             HStack {
                 DSIcon("plus.circle.fill", size: 24)
-                Text("Add New Book")
+                Text("Which non-fic book do you want to master?")
                     .font(DS.Typography.headline)
             }
             
