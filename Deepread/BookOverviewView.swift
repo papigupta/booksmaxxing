@@ -5,7 +5,6 @@ struct BookOverviewView: View {
     let bookTitle: String
     let openAIService: OpenAIService
     @StateObject private var viewModel: IdeaExtractionViewModel
-    @State private var activeIdeaIndex: Int = 0 // Track which idea is active
     @State private var showingDebugInfo = false
     @State private var navigateToOnboarding = false
     @State private var showingDailyPractice = false
@@ -25,6 +24,7 @@ struct BookOverviewView: View {
             if viewModel.isLoading {
                 DSLoadingView(message: "Breaking book into core ideas…")
                     .padding(.top, DS.Spacing.xxl)
+                Spacer()
             } else if let errorMessage = viewModel.errorMessage {
                 DSErrorView(
                     title: "Network Error",
@@ -36,6 +36,7 @@ struct BookOverviewView: View {
                     }
                 )
                 .padding(.top, DS.Spacing.xxl)
+                Spacer()
             } else if viewModel.extractedIdeas.isEmpty {
                 VStack(spacing: DS.Spacing.md) {
                     Text("No ideas found")
@@ -52,66 +53,43 @@ struct BookOverviewView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, DS.Spacing.xxl)
+                Spacer()
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                        ForEach(Array(viewModel.extractedIdeas.enumerated()), id: \.element.id) { index, idea in
-                            if index == activeIdeaIndex {
-                                ActiveIdeaCard(idea: idea, openAIService: openAIService)
-                            } else {
-                                InactiveIdeaCard(idea: idea)
-                                    .onTapGesture {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            activeIdeaIndex = index
-                                        }
-                                    }
-                            }
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                        ForEach(viewModel.extractedIdeas, id: \.id) { idea in
+                            UnifiedIdeaListItem(idea: idea)
                         }
                     }
+                    .padding(.top, DS.Spacing.xs)
+                }
+                
+                // Fixed Footer Button
+                if !viewModel.extractedIdeas.isEmpty {
+                    Button(action: {
+                        print("DEBUG: Start Practicing button tapped")
+                        showingDailyPractice = true
+                    }) {
+                        Text("Start Practicing")
+                            .font(DS.Typography.bodyBold)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DS.Spacing.lg)
+                            .background(DS.Colors.black)
+                    }
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.bottom, DS.Spacing.lg)
                 }
             }
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.top, DS.Spacing.xs)
-        .overlay(alignment: .bottomTrailing) {
-            // Daily Practice FAB
-            if !viewModel.extractedIdeas.isEmpty || (viewModel.currentBook?.ideas.count ?? 0) > 0 {
-                Button(action: {
-                    print("DEBUG: Daily Practice button tapped")
-                    showingDailyPractice = true
-                }) {
-                    HStack(spacing: DS.Spacing.xs) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 16, weight: .bold))
-                        Text("Practice Session")
-                            .font(DS.Typography.bodyBold)
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, DS.Spacing.md)
-                    .padding(.vertical, DS.Spacing.sm)
-                    .background(DS.Colors.black)
-                    .clipShape(Capsule())
-                    .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
-                }
-                .padding(.trailing, DS.Spacing.lg)
-                .padding(.bottom, DS.Spacing.xl)
-            }
-        }
         .task {
             print("DEBUG: BookOverviewView task triggered")
             await viewModel.loadOrExtractIdeas(from: bookTitle)
-            // Set activeIdeaIndex to first unmastered idea after initial load
             await MainActor.run {
                 print("DEBUG: extractedIdeas count: \(viewModel.extractedIdeas.count)")
                 print("DEBUG: FAB should be visible: \(!viewModel.extractedIdeas.isEmpty)")
-                if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
-                    activeIdeaIndex = firstUnmasteredIndex
-                    print("DEBUG: Set activeIdeaIndex to first unmastered idea at index \(firstUnmasteredIndex)")
-                } else {
-                    // If all ideas are mastered, start with the first one
-                    activeIdeaIndex = 0
-                    print("DEBUG: All ideas mastered, set activeIdeaIndex to 0")
-                }
             }
         }
         .onAppear {
@@ -122,15 +100,6 @@ struct BookOverviewView: View {
                 print("DEBUG: BookOverviewView appeared with existing ideas, refreshing mastery data")
                 Task {
                     await viewModel.refreshIdeasIfNeeded()
-                    // Update activeIdeaIndex if mastery levels changed
-                    await MainActor.run {
-                        if let firstUnmasteredIndex = viewModel.extractedIdeas.firstIndex(where: { $0.masteryLevel < 3 }) {
-                            if activeIdeaIndex != firstUnmasteredIndex {
-                                activeIdeaIndex = firstUnmasteredIndex
-                                print("DEBUG: Updated activeIdeaIndex to \(firstUnmasteredIndex) after refresh")
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -232,6 +201,101 @@ struct BookOverviewView: View {
             .padding(.bottom, DS.Spacing.sm)
         }
         .background(DS.Colors.primaryBackground)
+    }
+}
+
+// MARK: - Unified Idea List Item
+struct UnifiedIdeaListItem: View {
+    let idea: Idea
+    @Environment(\.modelContext) private var modelContext
+    @State private var ideaMastery: IdeaMastery?
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: DS.Spacing.md) {
+            // Left: Idea Title
+            VStack(alignment: .leading, spacing: 2) {
+                Text(idea.title)
+                    .font(DS.Typography.body)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                    .foregroundColor(DS.Colors.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // Center: Accuracy Percentage
+            VStack(alignment: .center, spacing: 4) {
+                if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
+                    Text("\(Int(mastery.masteryPercentage))%")
+                        .font(DS.Typography.bodyBold)
+                        .foregroundColor(DS.Colors.primaryText)
+                    
+                    ProgressView(value: mastery.masteryPercentage / 100)
+                        .progressViewStyle(LinearProgressViewStyle(tint: masteryColor))
+                        .frame(width: 60, height: 3)
+                } else {
+                    Text("0%")
+                        .font(DS.Typography.bodyBold)
+                        .foregroundColor(DS.Colors.tertiaryText)
+                    
+                    ProgressView(value: 0)
+                        .progressViewStyle(LinearProgressViewStyle(tint: DS.Colors.gray300))
+                        .frame(width: 60, height: 3)
+                }
+            }
+            .frame(width: 80)
+            
+            // Right: Importance Level
+            VStack(alignment: .trailing, spacing: 4) {
+                let importanceLevel = idea.importance ?? .buildingBlock
+                Text(importanceLevel.rawValue)
+                    .font(DS.Typography.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(DS.Colors.secondaryText)
+                
+                HStack(spacing: 2) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Rectangle()
+                            .fill(index < importanceLevel.barCount ? DS.Colors.primaryText : DS.Colors.gray300)
+                            .frame(width: 3, height: index == 0 ? 6 : index == 1 ? 10 : 14)
+                    }
+                }
+            }
+            .frame(width: 100, alignment: .trailing)
+        }
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
+        .background(DS.Colors.primaryBackground)
+        .overlay(
+            Rectangle()
+                .stroke(DS.Colors.gray200, lineWidth: DS.BorderWidth.thin)
+        )
+        .onAppear {
+            loadMasteryData()
+        }
+    }
+    
+    private var masteryColor: Color {
+        guard let mastery = ideaMastery else { return DS.Colors.gray300 }
+        
+        switch mastery.masteryPercentage {
+        case 0..<30:
+            return DS.Colors.gray400
+        case 30..<70:
+            return DS.Colors.gray600
+        case 70..<100:
+            return DS.Colors.gray800
+        case 100:
+            return DS.Colors.black
+        default:
+            return DS.Colors.gray300
+        }
+    }
+    
+    private func loadMasteryData() {
+        let bookId = idea.book?.id.uuidString ?? idea.bookTitle
+        let masteryService = MasteryService(modelContext: modelContext)
+        ideaMastery = masteryService.getMastery(for: idea.id, bookId: bookId)
     }
 }
 
@@ -441,49 +505,49 @@ struct ActiveIdeaCard: View {
                         }
                     }
                     
-                    // CTA Buttons
-                    HStack(spacing: DS.Spacing.xs) {
-                        // Start Test Button
-                        Button(action: startTest) {
-                            HStack(spacing: DS.Spacing.xs) {
-                                if isGeneratingTest {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
-                                        .scaleEffect(0.7)
-                                } else {
-                                    Text(getButtonText())
-                                        .font(DS.Typography.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(DS.Colors.black)
-                                }
-                            }
-                            .padding(.horizontal, DS.Spacing.sm)
-                            .padding(.vertical, DS.Spacing.xs)
-                            .background(DS.Colors.white)
-                        }
-                        .disabled(isGeneratingTest)
-                        
-                        // Primer Button
-                        Button(action: {
-                            showingPrimer = true
-                        }) {
-                            HStack(spacing: DS.Spacing.xxs) {
-                                DSIcon("lightbulb", size: 12)
-                                    .foregroundStyle(DS.Colors.white)
-                                Text("Primer")
-                                    .font(DS.Typography.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(DS.Colors.white)
-                            }
-                            .padding(.horizontal, DS.Spacing.sm)
-                            .padding(.vertical, DS.Spacing.xs)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
-                            )
-                        }
-                        
-                    }
+                    // CTA Buttons - Hidden per user request
+                    // HStack(spacing: DS.Spacing.xs) {
+                    //     // Start Test Button
+                    //     Button(action: startTest) {
+                    //         HStack(spacing: DS.Spacing.xs) {
+                    //             if isGeneratingTest {
+                    //                 ProgressView()
+                    //                     .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                    //                     .scaleEffect(0.7)
+                    //             } else {
+                    //                 Text(getButtonText())
+                    //                     .font(DS.Typography.caption)
+                    //                     .fontWeight(.medium)
+                    //                     .foregroundColor(DS.Colors.black)
+                    //             }
+                    //         }
+                    //         .padding(.horizontal, DS.Spacing.sm)
+                    //         .padding(.vertical, DS.Spacing.xs)
+                    //         .background(DS.Colors.white)
+                    //     }
+                    //     .disabled(isGeneratingTest)
+                    //     
+                    //     // Primer Button
+                    //     Button(action: {
+                    //         showingPrimer = true
+                    //     }) {
+                    //         HStack(spacing: DS.Spacing.xxs) {
+                    //             DSIcon("lightbulb", size: 12)
+                    //                 .foregroundStyle(DS.Colors.white)
+                    //             Text("Primer")
+                    //                 .font(DS.Typography.caption)
+                    //                 .fontWeight(.medium)
+                    //                 .foregroundColor(DS.Colors.white)
+                    //         }
+                    //         .padding(.horizontal, DS.Spacing.sm)
+                    //         .padding(.vertical, DS.Spacing.xs)
+                    //         .overlay(
+                    //             Rectangle()
+                    //                 .stroke(DS.Colors.white, lineWidth: DS.BorderWidth.thin)
+                    //         )
+                    //     }
+                    //     
+                    // }
                 .padding(.top, DS.Spacing.xxs)
             }
         }
