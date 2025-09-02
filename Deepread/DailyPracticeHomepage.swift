@@ -11,6 +11,7 @@ struct DailyPracticeHomepage: View {
     @State private var practiceStats: PracticeStats?
     @State private var currentLessonNumber: Int = 0
     @State private var selectedLesson: GeneratedLesson? = nil
+    @State private var refreshID = UUID()
     
     // Real lessons generated from book ideas
     @State private var practiceMilestones: [PracticeMilestone] = []
@@ -49,10 +50,23 @@ struct DailyPracticeHomepage: View {
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.top, DS.Spacing.md)
             }
+            .id(refreshID)
             .navigationTitle("Practice Session")
             .navigationBarTitleDisplayMode(.large)
             .task {
                 await loadPracticeData()
+            }
+            .onAppear {
+                // Reload data when view appears (e.g., returning from lesson)
+                Task {
+                    await loadPracticeData()
+                }
+            }
+            .onChange(of: refreshID) { newValue in
+                // Force reload when refresh is triggered
+                Task {
+                    await loadPracticeData()
+                }
             }
             .fullScreenCover(item: $selectedLesson) { lesson in
                 DailyPracticeView(
@@ -61,10 +75,14 @@ struct DailyPracticeHomepage: View {
                     practiceType: .quick,
                     selectedLesson: lesson,
                     onPracticeComplete: {
+                        print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
                         // Mark lesson as completed and unlock next lesson
                         completeLesson(lesson)
                         // Dismiss after completion
                         selectedLesson = nil
+                        // Force refresh
+                        refreshID = UUID()
+                        print("DEBUG: ✅✅ Refreshing view after lesson completion")
                     }
                 )
                 .onAppear {
@@ -232,11 +250,7 @@ struct DailyPracticeHomepage: View {
                 .frame(maxHeight: 400)
                 .onAppear {
                     // Scroll to current lesson (Today's Focus)
-                    if let currentMilestone = practiceMilestones.first(where: { $0.isCurrent }) {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            proxy.scrollTo(currentMilestone.id, anchor: .top)
-                        }
-                    }
+                    scrollToCurrentLesson(proxy: proxy)
                 }
             }
         }
@@ -244,34 +258,35 @@ struct DailyPracticeHomepage: View {
     }
     
     
-    // MARK: - Lesson Management
-    private func completeLesson(_ lesson: GeneratedLesson) {
-        print("DEBUG: Completing lesson \(lesson.lessonNumber)")
-        
-        // Update the milestone for this lesson
-        if let milestoneIndex = practiceMilestones.firstIndex(where: { $0.id == lesson.lessonNumber }) {
-            practiceMilestones[milestoneIndex].isCompleted = true
-            practiceMilestones[milestoneIndex].isCurrent = false
-            
-            print("DEBUG: Marked lesson \(lesson.lessonNumber) as completed")
-            
-            // Move to next milestone if available
-            if milestoneIndex + 1 < practiceMilestones.count {
-                practiceMilestones[milestoneIndex + 1].isCurrent = true
-                print("DEBUG: Unlocked lesson \(practiceMilestones[milestoneIndex + 1].id)")
-            } else {
-                print("DEBUG: All lessons completed!")
-            }
-            
-            // Mark the idea as mastered if lesson is completed
-            if let idea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) {
-                print("DEBUG: Marking idea \(idea.title) as progressed")
+    // MARK: - Helper Methods
+    private func scrollToCurrentLesson(proxy: ScrollViewProxy) {
+        if let currentMilestone = practiceMilestones.first(where: { $0.isCurrent }) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    proxy.scrollTo(currentMilestone.id, anchor: .center)
+                }
             }
         }
+    }
+    
+    // MARK: - Lesson Management
+    private func completeLesson(_ lesson: GeneratedLesson) {
+        print("DEBUG: ✅ Completing lesson \(lesson.lessonNumber)")
+        
+        let bookId = book.id.uuidString
+        
+        // Mark the lesson as completed (using UserDefaults for reliability)
+        lessonStorage.markLessonCompleted(bookId: bookId, lessonNumber: lesson.lessonNumber, book: book)
+        
+        // Note: We're NOT using mastery for completion anymore
+        // Completion = user attempted all questions, regardless of accuracy
+        print("DEBUG: Lesson \(lesson.lessonNumber) marked as completed (user attempted all questions)")
         
         // Reload practice data to refresh stats and milestones
+        // This will automatically set the next lesson as current
         Task {
             await loadPracticeData()
+            print("DEBUG: ✅ Reloaded practice data - should now show lesson \(lesson.lessonNumber + 1) as current")
         }
     }
     
@@ -281,19 +296,44 @@ struct DailyPracticeHomepage: View {
         
         // Get lesson info for display (no actual generation yet)
         let lessonInfos = lessonStorage.getAllLessonInfo(book: book)
-        let currentLessonNumber = lessonStorage.getCurrentLessonNumber(bookId: bookId)
         
-        print("DEBUG: Current lesson number: \(currentLessonNumber)")
+        // Find the first incomplete lesson (this will be the current lesson)
+        var currentLessonNumber = 1
+        var foundIncomplete = false
+        
+        for info in lessonInfos {
+            if !info.isCompleted && info.isUnlocked {
+                currentLessonNumber = info.lessonNumber
+                foundIncomplete = true
+                print("DEBUG: Found incomplete lesson \(info.lessonNumber) as current")
+                break
+            }
+        }
+        
+        // If all unlocked lessons are completed, the current lesson stays at the last one
+        if !foundIncomplete {
+            // Find the last completed lesson
+            for info in lessonInfos.reversed() {
+                if info.isCompleted {
+                    currentLessonNumber = min(info.lessonNumber + 1, lessonInfos.count)
+                    print("DEBUG: All unlocked lessons completed, setting current to lesson \(currentLessonNumber)")
+                    break
+                }
+            }
+        }
+        
+        print("DEBUG: Current lesson number after logic: \(currentLessonNumber)")
         print("DEBUG: Retrieved \(lessonInfos.count) lesson infos from LessonStorage")
         
         // Convert to milestones for UI
         let milestones = lessonInfos.enumerated().map { index, info in
-            print("DEBUG: Creating milestone - Lesson \(info.lessonNumber): \(info.title), Unlocked: \(info.isUnlocked), Completed: \(info.isCompleted)")
+            let isCurrent = info.lessonNumber == currentLessonNumber && info.isUnlocked && !info.isCompleted
+            print("DEBUG: Creating milestone - Lesson \(info.lessonNumber): \(info.title), Unlocked: \(info.isUnlocked), Completed: \(info.isCompleted), Current: \(isCurrent)")
             return PracticeMilestone(
                 id: info.lessonNumber,
                 title: info.title,
                 isCompleted: info.isCompleted,
-                isCurrent: info.lessonNumber == currentLessonNumber && info.isUnlocked
+                isCurrent: isCurrent
             )
         }
         
@@ -444,7 +484,7 @@ private struct MilestoneNode: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(!milestone.isCurrent)
+        .disabled(!milestone.isCompleted && !milestone.isCurrent)
     }
     
     private var circleColor: Color {

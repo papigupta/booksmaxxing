@@ -149,6 +149,7 @@ final class MasteryService {
         
         do {
             if let existing = try modelContext.fetch(descriptor).first {
+                print("DEBUG: Found existing mastery for idea \(ideaId): \(existing.masteryPercentage)%")
                 return existing
             }
         } catch {
@@ -158,6 +159,15 @@ final class MasteryService {
         // Create new mastery record
         let newMastery = IdeaMastery(ideaId: ideaId, bookId: bookId)
         modelContext.insert(newMastery)
+        
+        // Save immediately so it persists
+        do {
+            try modelContext.save()
+            print("DEBUG: Created and saved new mastery for idea \(ideaId)")
+        } catch {
+            print("ERROR: Failed to save new mastery: \(error)")
+        }
+        
         return newMastery
     }
     

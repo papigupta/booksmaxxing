@@ -82,17 +82,16 @@ final class LessonStorageService {
     
     /// Get lesson info for display (without generating test)
     func getLessonInfo(bookId: String, lessonNumber: Int, book: Book) -> (title: String, isUnlocked: Bool, isCompleted: Bool)? {
-        // Check if lesson is unlocked
-        let isUnlocked = lessonNumber == 1 || (lessonNumber > 1 ? isLessonCompleted(book: book, lessonNumber: lessonNumber - 1) : false)
-        
         // Get the idea for this lesson
         guard let idea = getIdeaForLesson(book: book, lessonNumber: lessonNumber) else {
             return nil
         }
         
-        // Check completion status based on mastery
-        let mastery = masteryService.getMastery(for: idea.id, bookId: bookId)
-        let isCompleted = mastery.masteryPercentage >= 80.0  // 80% threshold for lesson completion
+        // Check completion status
+        let isCompleted = isLessonCompleted(book: book, lessonNumber: lessonNumber)
+        
+        // Check if lesson is unlocked (first lesson or previous is completed)
+        let isUnlocked = lessonNumber == 1 || (lessonNumber > 1 ? isLessonCompleted(book: book, lessonNumber: lessonNumber - 1) : false)
         
         return (title: idea.title, isUnlocked: isUnlocked, isCompleted: isCompleted)
     }
@@ -113,9 +112,8 @@ final class LessonStorageService {
         
         for (index, idea) in sortedIdeas.enumerated() {
             let lessonNumber = index + 1
+            let isCompleted = isLessonCompleted(book: book, lessonNumber: lessonNumber)
             let isUnlocked = lessonNumber == 1 || (lessonNumber > 1 ? isLessonCompleted(book: book, lessonNumber: lessonNumber - 1) : false)
-            let mastery = masteryService.getMastery(for: idea.id, bookId: bookId)
-            let isCompleted = mastery.masteryPercentage >= 80.0  // 80% threshold for lesson completion
             
             print("DEBUG: Lesson \(lessonNumber) - \(idea.title): unlocked=\(isUnlocked), completed=\(isCompleted)")
             lessonInfo.append((lessonNumber, idea.title, isUnlocked, isCompleted))
@@ -128,6 +126,8 @@ final class LessonStorageService {
     // MARK: - Private Helper Methods
     
     private func findExistingLesson(bookId: String, lessonNumber: Int) -> StoredLesson? {
+        print("DEBUG: findExistingLesson - Looking for lesson \(lessonNumber) in book \(bookId)")
+        
         let descriptor = FetchDescriptor<StoredLesson>(
             predicate: #Predicate<StoredLesson> { lesson in
                 lesson.bookId == bookId && lesson.lessonNumber == lessonNumber
@@ -135,9 +135,25 @@ final class LessonStorageService {
         )
         
         do {
-            return try modelContext.fetch(descriptor).first
+            let results = try modelContext.fetch(descriptor)
+            print("DEBUG: findExistingLesson - Found \(results.count) lessons matching criteria")
+            if let lesson = results.first {
+                print("DEBUG: findExistingLesson - Returning lesson \(lesson.lessonNumber), completed: \(lesson.isCompleted)")
+                return lesson
+            } else {
+                print("DEBUG: findExistingLesson - No lesson found")
+                
+                // Let's also check ALL stored lessons for debugging
+                let allLessonsDescriptor = FetchDescriptor<StoredLesson>()
+                let allLessons = try modelContext.fetch(allLessonsDescriptor)
+                print("DEBUG: Total stored lessons in database: \(allLessons.count)")
+                for lesson in allLessons {
+                    print("DEBUG:   - Lesson \(lesson.lessonNumber) for book \(lesson.bookId), completed: \(lesson.isCompleted)")
+                }
+                return nil
+            }
         } catch {
-            print("Error fetching lesson: \(error)")
+            print("ERROR: Error fetching lesson: \(error)")
             return nil
         }
     }
@@ -154,14 +170,14 @@ final class LessonStorageService {
     }
     
     private func isLessonCompleted(book: Book, lessonNumber: Int) -> Bool {
-        // Check if the lesson is completed based on mastery of the corresponding idea
-        guard let idea = getIdeaForLesson(book: book, lessonNumber: lessonNumber) else {
-            return false
-        }
-        
         let bookId = book.id.uuidString
-        let mastery = masteryService.getMastery(for: idea.id, bookId: bookId)
-        return mastery.masteryPercentage >= 80.0
+        
+        // Use UserDefaults as a reliable persistence mechanism
+        let completionKey = "lesson_completed_\(bookId)_\(lessonNumber)"
+        let isCompleted = UserDefaults.standard.bool(forKey: completionKey)
+        
+        print("DEBUG: isLessonCompleted - Lesson \(lessonNumber) completed: \(isCompleted) (from UserDefaults)")
+        return isCompleted
     }
     
     private func createNewLesson(bookId: String, lessonNumber: Int, book: Book) -> StoredLesson? {
@@ -207,5 +223,27 @@ final class LessonStorageService {
             return number
         }
         return 0
+    }
+    
+    // MARK: - Lesson Completion
+    
+    /// Mark a lesson as completed
+    func markLessonCompleted(bookId: String, lessonNumber: Int, book: Book) {
+        print("DEBUG: markLessonCompleted called - lesson \(lessonNumber) for book \(bookId)")
+        
+        // Save to UserDefaults for reliable persistence
+        let completionKey = "lesson_completed_\(bookId)_\(lessonNumber)"
+        UserDefaults.standard.set(true, forKey: completionKey)
+        UserDefaults.standard.synchronize()
+        
+        print("DEBUG: ✅ Marked lesson \(lessonNumber) as completed in UserDefaults")
+        
+        // Also save the completion date
+        let dateKey = "lesson_completed_date_\(bookId)_\(lessonNumber)"
+        UserDefaults.standard.set(Date(), forKey: dateKey)
+        
+        // Verify it was saved
+        let isCompleted = UserDefaults.standard.bool(forKey: completionKey)
+        print("DEBUG: Verification - Lesson \(lessonNumber) isCompleted: \(isCompleted)")
     }
 }

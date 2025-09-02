@@ -102,9 +102,14 @@ struct DailyPracticeView: View {
                     })
                 } else if currentView == .streak {
                     StreakView(onContinue: {
-                        print("DEBUG: Streak onContinue tapped, completing lesson")
+                        print("DEBUG: ✅ Streak onContinue tapped, completing lesson")
                         currentView = .none
-                        onPracticeComplete?() // This will complete the lesson and dismiss
+                        if let onComplete = onPracticeComplete {
+                            print("DEBUG: ✅ Calling onPracticeComplete callback")
+                            onComplete()
+                        } else {
+                            print("DEBUG: ❌ onPracticeComplete callback is nil!")
+                        }
                     })
                 } else {
                     // Fallback for unexpected states
