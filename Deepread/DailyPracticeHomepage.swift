@@ -7,6 +7,7 @@ struct DailyPracticeHomepage: View {
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var navigationState: NavigationState
     
     @State private var practiceStats: PracticeStats?
     @State private var currentLessonNumber: Int = 0
@@ -94,6 +95,24 @@ struct DailyPracticeHomepage: View {
     // MARK: - Header Section
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            // Top row with back to book button
+            HStack {
+                // Back to Book Button
+                Button(action: {
+                    dismiss()
+                }) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        DSIcon("book.fill", size: 16)
+                        Text("Back to Book")
+                            .font(DS.Typography.caption)
+                    }
+                }
+                .dsSmallButton()
+                
+                Spacer()
+            }
+            .padding(.bottom, DS.Spacing.sm)
+            
             HStack {
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text("Ready to practice?")
