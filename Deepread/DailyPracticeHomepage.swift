@@ -51,8 +51,7 @@ struct DailyPracticeHomepage: View {
                 .padding(.top, DS.Spacing.md)
             }
             .id(refreshID)
-            .navigationTitle("Practice Session")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarHidden(true)
             .task {
                 await loadPracticeData()
             }
