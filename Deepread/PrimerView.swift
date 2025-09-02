@@ -45,36 +45,66 @@ struct PrimerView: View {
     // MARK: - View Components
     
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            Text(idea.bookTitle)
-                .font(DS.Typography.caption)
-                .foregroundStyle(DS.Colors.secondaryText)
-                .textCase(.uppercase)
-                .tracking(0.5)
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            // Book title with enhanced styling
+            HStack(spacing: DS.Spacing.xs) {
+                DSIcon("book.closed.fill", size: 14)
+                    .foregroundColor(DS.Colors.secondaryText)
+                
+                Text(idea.bookTitle)
+                    .font(DS.Typography.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(DS.Colors.secondaryText)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+            }
             
-            Text("Primer: \(idea.title)")
-                .font(DS.Typography.title)
+            // Primer title with better hierarchy
+            Text(idea.title)
+                .font(DS.Typography.title2)
+                .fontWeight(.semibold)
                 .foregroundStyle(DS.Colors.primaryText)
+                .lineLimit(2)
+            
+            // Subtle divider
+            Rectangle()
+                .fill(DS.Colors.divider)
+                .frame(height: 1)
+                .frame(maxWidth: 80)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, DS.Spacing.lg)
-        .padding(.top, DS.Spacing.lg)
-        .padding(.bottom, DS.Spacing.md)
+        .padding(.top, DS.Spacing.xl)
+        .padding(.bottom, DS.Spacing.lg)
+        .background(DS.Colors.primaryBackground)
     }
     
     @ViewBuilder
     private var contentView: some View {
-        if isLoading {
-            loadingView
-        } else if let error = errorMessage {
-            errorView(error)
-        } else if let primer = primer {
-            primerContentView(primer)
+        ZStack {
+            if isLoading {
+                loadingView
+            } else if let error = errorMessage {
+                errorView(error)
+            } else if let primer = primer {
+                primerContentView(primer)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private var loadingView: some View {
-        DSLoadingView(message: "Generating your primer...")
+        VStack(spacing: DS.Spacing.lg) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                .scaleEffect(1.2)
+            
+            Text("Loading primer...")
+                .font(DS.Typography.body)
+                .foregroundColor(DS.Colors.secondaryText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DS.Colors.primaryBackground)
     }
     
     private func errorView(_ error: String) -> some View {
@@ -87,37 +117,67 @@ struct PrimerView: View {
     
     private func primerContentView(_ primer: Primer) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+            VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 thesisSection(primer)
-                storySection(primer)
-                useItWhenSection(primer)
-                howToApplySection(primer)
-                edgesAndLimitsSection(primer)
+                
+                // Secondary sections with tighter spacing
+                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    storySection(primer)
+                    useItWhenSection(primer)
+                    howToApplySection(primer)
+                    edgesAndLimitsSection(primer)
+                }
+                
+                // Key recall section (prominent)
                 oneLineRecallSection(primer)
-                furtherLearningSection(primer)
-                legacyFallbackContent(primer)
-                refreshButton
+                
+                // Additional resources
+                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                    furtherLearningSection(primer)
+                    legacyFallbackContent(primer)
+                    refreshButton
+                }
             }
             .padding(.horizontal, DS.Spacing.lg)
-            .padding(.bottom, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.lg)
         }
     }
     
     @ViewBuilder
     private func thesisSection(_ primer: Primer) -> some View {
         if !primer.thesis.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                HStack {
-                    DSIcon("lightbulb.fill")
-                    Text("Thesis")
-                        .font(DS.Typography.headline)
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                // Enhanced header for thesis section
+                HStack(spacing: DS.Spacing.sm) {
+                    ZStack {
+                        Circle()
+                            .fill(DS.Colors.black)
+                            .frame(width: 32, height: 32)
+                        
+                        DSIcon("lightbulb.fill", size: 16)
+                            .foregroundColor(DS.Colors.white)
+                    }
+                    
+                    Text("Core Thesis")
+                        .font(DS.Typography.title2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(DS.Colors.black)
                 }
                 
+                // Enhanced thesis content
                 Text(primer.thesis)
                     .font(DS.Typography.body)
+                    .fontWeight(.medium)
                     .foregroundStyle(DS.Colors.primaryText)
-                    .lineSpacing(4)
-                    .dsCard()
+                    .lineSpacing(6)
+                    .padding(DS.Spacing.lg)
+                    .background(DS.Colors.secondaryBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(DS.Colors.black, lineWidth: 2)
+                    )
+                    .cornerRadius(12)
+                    .shadow(color: DS.Colors.shadow, radius: 4, x: 0, y: 2)
             }
         }
     }
@@ -127,10 +187,13 @@ struct PrimerView: View {
     private func storySection(_ primer: Primer) -> some View {
         if !primer.story.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                HStack {
-                    DSIcon("book.fill")
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("book.fill", size: 18)
+                        .foregroundColor(DS.Colors.secondaryText)
                     Text("Story")
                         .font(DS.Typography.headline)
+                        .fontWeight(.medium)
+                        .foregroundColor(DS.Colors.black)
                 }
                 
                 Text(primer.story)
@@ -146,10 +209,13 @@ struct PrimerView: View {
     private func useItWhenSection(_ primer: Primer) -> some View {
         if !primer.useItWhen.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                HStack {
-                    DSIcon("clock.fill")
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("clock.fill", size: 18)
+                        .foregroundColor(DS.Colors.secondaryText)
                     Text("Use it when...")
                         .font(DS.Typography.headline)
+                        .fontWeight(.medium)
+                        .foregroundColor(DS.Colors.black)
                 }
                 
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
@@ -173,10 +239,13 @@ struct PrimerView: View {
     private func howToApplySection(_ primer: Primer) -> some View {
         if !primer.howToApply.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                HStack {
-                    DSIcon("gear.circle.fill")
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("gear.circle.fill", size: 18)
+                        .foregroundColor(DS.Colors.secondaryText)
                     Text("How to apply")
                         .font(DS.Typography.headline)
+                        .fontWeight(.medium)
+                        .foregroundColor(DS.Colors.black)
                 }
                 
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
@@ -207,10 +276,13 @@ struct PrimerView: View {
     private func edgesAndLimitsSection(_ primer: Primer) -> some View {
         if !primer.edgesAndLimits.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                HStack {
-                    DSIcon("exclamationmark.triangle.fill")
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("exclamationmark.triangle.fill", size: 18)
+                        .foregroundColor(DS.Colors.secondaryText)
                     Text("Edges & Limits")
                         .font(DS.Typography.headline)
+                        .fontWeight(.medium)
+                        .foregroundColor(DS.Colors.black)
                 }
                 
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
@@ -233,19 +305,32 @@ struct PrimerView: View {
     @ViewBuilder
     private func oneLineRecallSection(_ primer: Primer) -> some View {
         if !primer.oneLineRecall.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                HStack {
-                    DSIcon("quote.bubble.fill")
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                // Section header
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("quote.bubble.fill", size: 20)
+                        .foregroundColor(DS.Colors.black)
+                    
                     Text("One-line Recall")
                         .font(DS.Typography.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(DS.Colors.black)
                 }
                 
+                // Quote content with enhanced styling
                 Text("\"\(primer.oneLineRecall)\"")
                     .font(DS.Typography.body)
+                    .fontWeight(.medium)
                     .italic()
                     .foregroundColor(DS.Colors.primaryText)
-                    .lineSpacing(4)
-                    .dsCard(borderColor: DS.Colors.black)
+                    .lineSpacing(6)
+                    .padding(DS.Spacing.lg)
+                    .background(DS.Colors.tertiaryBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(DS.Colors.subtleBorder, lineWidth: 1)
+                    )
+                    .cornerRadius(8)
             }
         }
     }
@@ -449,4 +534,6 @@ struct PrimerView: View {
             print("Cannot open URL: \(urlString)")
         }
     }
-} 
+}
+
+ 

@@ -23,6 +23,7 @@ struct DailyPracticeView: View {
     @State private var generatedTest: Test?
     @State private var errorMessage: String?
     @State private var showingTest = false
+    @State private var showingPrimer = false
     @State private var completedAttempt: TestAttempt?
     @State private var currentView: PracticeFlowState = .none
     
@@ -91,6 +92,9 @@ struct DailyPracticeView: View {
                         onCompletion: handleTestCompletion
                     )
                 }
+            }
+            .sheet(isPresented: $showingPrimer) {
+                PrimerView(idea: ideaForTest, openAIService: openAIService)
             }
             .fullScreenCover(isPresented: .constant(currentView != .none)) {
                 if currentView == .results, let attempt = completedAttempt, let test = generatedTest {
@@ -225,6 +229,11 @@ struct DailyPracticeView: View {
                     showingTest = true
                 }
                 .dsPrimaryButton()
+                
+                Button("Brush Up with Primer") {
+                    showingPrimer = true
+                }
+                .dsSecondaryButton()
                 
                 Button("Cancel") {
                     dismiss()
