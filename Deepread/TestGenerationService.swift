@@ -31,10 +31,38 @@ class TestGenerationService {
         self.modelContext = modelContext
     }
     
+    // MARK: - Test Retrieval
+    
+    func getTest(for idea: Idea, testType: String = "initial") -> Test? {
+        let ideaId = idea.id
+        let descriptor = FetchDescriptor<Test>(
+            predicate: #Predicate<Test> { test in
+                test.ideaId == ideaId && test.testType == testType
+            }
+        )
+        
+        do {
+            let tests = try modelContext.fetch(descriptor)
+            // Return the most recent test for this idea and type
+            return tests.sorted { $0.createdAt > $1.createdAt }.first
+        } catch {
+            print("Error fetching test: \(error)")
+            return nil
+        }
+    }
+    
     // MARK: - Main Test Generation
     
     func generateTest(for idea: Idea, testType: String = "initial", previousMistakes: [QuestionResponse]? = nil) async throws -> Test {
-        print("DEBUG: Generating \(testType) test for idea: \(idea.title)")
+        print("DEBUG: Checking for existing \(testType) test for idea: \(idea.title)")
+        
+        // Check if test already exists
+        if let existingTest = getTest(for: idea, testType: testType) {
+            print("DEBUG: Found existing test with \(existingTest.questions.count) questions, created at \(existingTest.createdAt)")
+            return existingTest
+        }
+        
+        print("DEBUG: No existing test found, generating new \(testType) test for idea: \(idea.title)")
         
         // Create test container
         let test = Test(
@@ -61,6 +89,22 @@ class TestGenerationService {
         try modelContext.save()
         
         return test
+    }
+    
+    // MARK: - Refresh Test (Force Regeneration)
+    
+    func refreshTest(for idea: Idea, testType: String = "initial") async throws -> Test {
+        print("DEBUG: Refreshing \(testType) test for idea: \(idea.title)")
+        
+        // Delete existing test if it exists
+        if let existingTest = getTest(for: idea, testType: testType) {
+            print("DEBUG: Deleting existing test created at \(existingTest.createdAt)")
+            modelContext.delete(existingTest)
+            try modelContext.save()
+        }
+        
+        // Generate new test (will not find existing one since we just deleted it)
+        return try await generateTest(for: idea, testType: testType)
     }
     
     // MARK: - Retry Test Generation (focused on incorrect answers)

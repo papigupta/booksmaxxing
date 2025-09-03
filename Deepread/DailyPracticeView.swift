@@ -138,11 +138,11 @@ struct DailyPracticeView: View {
                     .foregroundColor(DS.Colors.black)
                     .symbolEffect(.pulse)
                 
-                Text("Generating Your Practice Session")
+                Text("Loading Your Practice Session")
                     .font(DS.Typography.headline)
                     .foregroundColor(DS.Colors.black)
                 
-                Text("Selecting the perfect mix of new and review questions...")
+                Text("Preparing your personalized questions...")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
                     .multilineTextAlignment(.center)
@@ -232,6 +232,13 @@ struct DailyPracticeView: View {
                 
                 Button("Brush Up with Primer") {
                     showingPrimer = true
+                }
+                .dsSecondaryButton()
+                
+                Button("Generate New Questions") {
+                    Task {
+                        await refreshPractice()
+                    }
                 }
                 .dsSecondaryButton()
                 
@@ -470,6 +477,47 @@ struct DailyPracticeView: View {
             return try modelContext.fetch(descriptor).first?.title
         } catch {
             return nil
+        }
+    }
+    
+    private func refreshPractice() async {
+        isGenerating = true
+        errorMessage = nil
+        
+        do {
+            let test: Test
+            
+            if let lesson = selectedLesson {
+                print("DEBUG: Refreshing practice test for lesson \(lesson.lessonNumber)")
+                
+                // Get the primary idea for this lesson
+                guard let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) else {
+                    throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
+                }
+                
+                print("DEBUG: Refreshing test for idea: \(primaryIdea.title)")
+                
+                // Use refreshTest to force regeneration
+                test = try await testGenerationService.refreshTest(
+                    for: primaryIdea,
+                    testType: "initial"
+                )
+                
+                print("DEBUG: Refreshed test with \(test.questions.count) new questions")
+            } else {
+                throw NSError(domain: "LessonGeneration", code: 2, userInfo: [NSLocalizedDescriptionKey: "No lesson selected"])
+            }
+            
+            await MainActor.run {
+                self.generatedTest = test
+                self.isGenerating = false
+            }
+        } catch {
+            print("ERROR: Failed to refresh practice: \(error)")
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+                self.isGenerating = false
+            }
         }
     }
 }
