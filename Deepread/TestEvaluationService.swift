@@ -222,7 +222,7 @@ class TestEvaluationService {
         
         let aiResponse = try await openAI.complete(
             prompt: "\(systemPrompt)\n\n\(userPrompt)",
-            model: "gpt-4o-mini",
+            model: "gpt-4.1-mini",
             temperature: 0.3,
             maxTokens: 300
         )

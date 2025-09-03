@@ -51,6 +51,25 @@ struct PracticeSelectionResult {
 
 // MARK: - Practice Generator Service
 class PracticeGenerator {
+    // Helper function to randomize options and update correct answer index
+    private func randomizeOptions(_ options: [String], correctIndices: [Int]) -> (options: [String], correctIndices: [Int]) {
+        // Create array of indices paired with options
+        let indexedOptions = Array(options.enumerated())
+        
+        // Shuffle the indexed options
+        let shuffled = indexedOptions.shuffled()
+        
+        // Extract the new options order
+        let newOptions = shuffled.map { $0.element }
+        
+        // Map old correct indices to new positions
+        let newCorrectIndices = correctIndices.map { oldIndex in
+            shuffled.firstIndex(where: { $0.offset == oldIndex }) ?? 0
+        }
+        
+        return (newOptions, newCorrectIndices)
+    }
+    
     private let modelContext: ModelContext
     private let openAIService: OpenAIService
     private let spacedRepetitionService: SpacedRepetitionService
@@ -93,36 +112,42 @@ class PracticeGenerator {
         print("DEBUG: Created test container")
         
         // Create exactly 3 simple questions - NO LOOPS, NO COMPLEXITY
+        let options1 = ["Correct answer", "Wrong A", "Wrong B", "Wrong C"]
+        let (shuffled1, correct1) = randomizeOptions(options1, correctIndices: [0])
         let question1 = Question(
             ideaId: "simple1",
             type: .mcq,
             difficulty: .easy,
             bloomCategory: .recall,
             questionText: "What is the main concept from the first idea?",
-            options: ["Correct answer", "Wrong A", "Wrong B", "Wrong C"],
-            correctAnswers: [0],
+            options: shuffled1,
+            correctAnswers: correct1,
             orderIndex: 0
         )
         
+        let options2 = ["Right answer", "Wrong A", "Wrong B", "Wrong C"]
+        let (shuffled2, correct2) = randomizeOptions(options2, correctIndices: [0])
         let question2 = Question(
             ideaId: "simple2",
             type: .mcq,
             difficulty: .easy,
             bloomCategory: .recall,
             questionText: "What is important about this topic?",
-            options: ["Right answer", "Wrong A", "Wrong B", "Wrong C"],
-            correctAnswers: [0],
+            options: shuffled2,
+            correctAnswers: correct2,
             orderIndex: 1
         )
         
+        let options3 = ["Best answer", "Wrong A", "Wrong B", "Wrong C"]
+        let (shuffled3, correct3) = randomizeOptions(options3, correctIndices: [0])
         let question3 = Question(
             ideaId: "simple3",
             type: .mcq,
             difficulty: .easy,
             bloomCategory: .recall,
             questionText: "How would you apply this concept?",
-            options: ["Best answer", "Wrong A", "Wrong B", "Wrong C"],
-            correctAnswers: [0],
+            options: shuffled3,
+            correctAnswers: correct3,
             orderIndex: 2
         )
         

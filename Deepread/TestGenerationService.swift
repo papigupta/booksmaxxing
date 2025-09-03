@@ -4,6 +4,25 @@ import SwiftData
 // MARK: - Test Generation Service
 
 class TestGenerationService {
+    // Helper function to randomize options and update correct answer index
+    private func randomizeOptions(_ options: [String], correctIndices: [Int]) -> (options: [String], correctIndices: [Int]) {
+        // Create array of indices paired with options
+        let indexedOptions = Array(options.enumerated())
+        
+        // Shuffle the indexed options
+        let shuffled = indexedOptions.shuffled()
+        
+        // Extract the new options order
+        let newOptions = shuffled.map { $0.element }
+        
+        // Map old correct indices to new positions
+        let newCorrectIndices = correctIndices.map { oldIndex in
+            shuffled.firstIndex(where: { $0.offset == oldIndex }) ?? 0
+        }
+        
+        return (newOptions, newCorrectIndices)
+    }
+    
     private let openAI: OpenAIService
     private let modelContext: ModelContext
     
@@ -219,7 +238,7 @@ class TestGenerationService {
         
         let response = try await openAI.complete(
             prompt: "\(systemPrompt)\n\n\(userPrompt)",
-            model: "gpt-4o-mini",
+            model: "gpt-4.1",
             temperature: 0.7,
             maxTokens: 500
         )
@@ -227,14 +246,26 @@ class TestGenerationService {
         // Parse the response based on question type
         let (questionText, options, correctAnswers) = try parseQuestionResponse(response, type: type)
         
+        // Randomize options if they exist (MCQ and MSQ)
+        let finalOptions: [String]?
+        let finalCorrectAnswers: [Int]?
+        if let opts = options, let correct = correctAnswers {
+            let (shuffled, newCorrect) = randomizeOptions(opts, correctIndices: correct)
+            finalOptions = shuffled
+            finalCorrectAnswers = newCorrect
+        } else {
+            finalOptions = options
+            finalCorrectAnswers = correctAnswers
+        }
+        
         return Question(
             ideaId: idea.id,
             type: type,
             difficulty: difficulty,
             bloomCategory: bloomCategory,
             questionText: questionText,
-            options: options,
-            correctAnswers: correctAnswers,
+            options: finalOptions,
+            correctAnswers: finalCorrectAnswers,
             orderIndex: orderIndex
         )
     }

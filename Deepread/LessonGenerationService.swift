@@ -28,6 +28,25 @@ struct QuestionDistribution {
 
 // MARK: - Lesson Generation Service
 final class LessonGenerationService {
+    
+    // Helper function to randomize options and update correct answer index
+    private func randomizeOptions(_ options: [String], correctIndices: [Int]) -> (options: [String], correctIndices: [Int]) {
+        // Create array of indices paired with options
+        let indexedOptions = Array(options.enumerated())
+        
+        // Shuffle the indexed options
+        let shuffled = indexedOptions.shuffled()
+        
+        // Extract the new options order
+        let newOptions = shuffled.map { $0.element }
+        
+        // Map old correct indices to new positions
+        let newCorrectIndices = correctIndices.map { oldIndex in
+            shuffled.firstIndex(where: { $0.offset == oldIndex }) ?? 0
+        }
+        
+        return (newOptions, newCorrectIndices)
+    }
     private let modelContext: ModelContext
     private let openAIService: OpenAIService
     private let masteryService: MasteryService
@@ -313,7 +332,7 @@ final class LessonGenerationService {
         do {
             let response = try await openAIService.complete(
                 prompt: prompt,
-                model: "gpt-4o-mini",
+                model: "gpt-4.1",
                 temperature: 0.1,
                 maxTokens: 1500
             )
@@ -353,14 +372,17 @@ final class LessonGenerationService {
                     }
                 }()
                 
+                // Randomize options
+                let (shuffledOptions, newCorrectIndices) = randomizeOptions(options, correctIndices: [correctIndex])
+                
                 let question = Question(
                     ideaId: idea.id,
                     type: .mcq,
                     difficulty: difficulty,
                     bloomCategory: bloomCategory,
                     questionText: questionText,
-                    options: options,  // Already a [String]
-                    correctAnswers: [correctIndex],
+                    options: shuffledOptions,
+                    correctAnswers: newCorrectIndices,
                     orderIndex: startIndex + index
                 )
                 questions.append(question)
@@ -393,19 +415,24 @@ final class LessonGenerationService {
         var questions: [Question] = []
         
         for i in 0..<count {
+            let baseOptions = [
+                "The correct understanding of \(idea.title)",
+                "A common misconception about this concept",
+                "An unrelated but plausible answer",
+                "Another incorrect option"
+            ]
+            
+            // Randomize options (correct answer is initially at index 0)
+            let (shuffledOptions, newCorrectIndices) = randomizeOptions(baseOptions, correctIndices: [0])
+            
             let question = Question(
                 ideaId: idea.id,
                 type: .mcq,
                 difficulty: .medium,
                 bloomCategory: .recall,
                 questionText: "What is the key aspect of \(idea.title)?",
-                options: [
-                    "The correct understanding of \(idea.title)",
-                    "A common misconception about this concept",
-                    "An unrelated but plausible answer",
-                    "Another incorrect option"
-                ],  // Array provided directly
-                correctAnswers: [0],
+                options: shuffledOptions,
+                correctAnswers: newCorrectIndices,
                 orderIndex: startIndex + i
             )
             questions.append(question)
@@ -443,7 +470,7 @@ final class LessonGenerationService {
         do {
             let response = try await openAIService.complete(
                 prompt: prompt,
-                model: "gpt-4o-mini",
+                model: "gpt-4.1",
                 temperature: 0.1,
                 maxTokens: 1500
             )
@@ -454,14 +481,17 @@ final class LessonGenerationService {
                let options = questionData["options"] as? [String],
                let correctIndex = questionData["correctIndex"] as? Int {
                 
+                // Randomize options
+                let (shuffledOptions, newCorrectIndices) = randomizeOptions(options, correctIndices: [correctIndex])
+                
                 return Question(
                     ideaId: idea.id,
                     type: .mcq,
                     difficulty: .medium,
                     bloomCategory: .apply,
                     questionText: questionText,
-                    options: options,  // Already a [String]
-                    correctAnswers: [correctIndex],
+                    options: shuffledOptions,
+                    correctAnswers: newCorrectIndices,
                     orderIndex: index
                 )
             }
@@ -470,19 +500,24 @@ final class LessonGenerationService {
         }
         
         // Fallback
+        let fallbackOptions = [
+            "The correct application of \(idea.title)",
+            "A partial understanding",
+            "A misconception",
+            "An unrelated concept"
+        ]
+        
+        // Randomize options (correct answer is initially at index 0)
+        let (shuffledOptions, newCorrectIndices) = randomizeOptions(fallbackOptions, correctIndices: [0])
+        
         return Question(
             ideaId: idea.id,
             type: .mcq,
             difficulty: .medium,
             bloomCategory: .apply,
             questionText: "Let's revisit: \(concept). How does this relate to \(idea.title)?",
-            options: [
-                "The correct application of \(idea.title)",
-                "A partial understanding",
-                "A misconception",
-                "An unrelated concept"
-            ],  // Array provided directly
-            correctAnswers: [0],
+            options: shuffledOptions,
+            correctAnswers: newCorrectIndices,
             orderIndex: index
         )
     }
