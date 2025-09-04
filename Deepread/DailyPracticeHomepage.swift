@@ -18,6 +18,10 @@ struct DailyPracticeHomepage: View {
     @State private var practiceMilestones: [PracticeMilestone] = []
     @State private var generatedLessons: [GeneratedLesson] = []
     
+    // Review queue tracking
+    @State private var reviewQueueCount: Int? = nil
+    @State private var hasReviewItems: Bool = false
+    
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
     }
@@ -31,6 +35,10 @@ struct DailyPracticeHomepage: View {
     
     private var masteryService: MasteryService {
         MasteryService(modelContext: modelContext)
+    }
+    
+    private var reviewQueueManager: ReviewQueueManager {
+        ReviewQueueManager(modelContext: modelContext)
     }
     
     var body: some View {
@@ -62,21 +70,35 @@ struct DailyPracticeHomepage: View {
                     await loadPracticeData()
                 }
             }
-            .onChange(of: refreshID) { newValue in
+            .onChange(of: refreshID) { _, newValue in
                 // Force reload when refresh is triggered
                 Task {
                     await loadPracticeData()
                 }
             }
             .fullScreenCover(item: $selectedLesson) { lesson in
-                DailyPracticeView(
-                    book: book,
-                    openAIService: openAIService,
-                    practiceType: .quick,
-                    selectedLesson: lesson,
-                    onPracticeComplete: {
-                        print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
-                        // Mark lesson as completed and unlock next lesson
+                // Check if this is a special review session
+                if lesson.lessonNumber == -1 {
+                    // Use the new review-enabled practice view
+                    DailyPracticeWithReviewView(
+                        book: book,
+                        openAIService: openAIService,
+                        onPracticeComplete: {
+                            print("DEBUG: ✅✅ Review practice complete")
+                            selectedLesson = nil
+                            refreshView()
+                        }
+                    )
+                } else {
+                    // Use the regular lesson view
+                    DailyPracticeView(
+                        book: book,
+                        openAIService: openAIService,
+                        practiceType: .quick,
+                        selectedLesson: lesson,
+                        onPracticeComplete: {
+                            print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
+                            // Mark lesson as completed and unlock next lesson
                         completeLesson(lesson)
                         // Dismiss after completion
                         selectedLesson = nil
@@ -85,8 +107,6 @@ struct DailyPracticeHomepage: View {
                         print("DEBUG: ✅✅ Refreshing view after lesson completion")
                     }
                 )
-                .onAppear {
-                    print("DEBUG: Presenting DailyPracticeView with lesson \(lesson.lessonNumber)")
                 }
             }
         }
@@ -110,6 +130,38 @@ struct DailyPracticeHomepage: View {
                 .dsSmallButton()
                 
                 Spacer()
+                
+                // Review Practice Button (if there are items in queue)
+                if hasReviewItems {
+                    Button(action: {
+                        // Create a special lesson for review practice
+                        let reviewLesson = GeneratedLesson(
+                            lessonNumber: -1,  // Special number for review
+                            title: "Review Practice",
+                            primaryIdeaId: "",
+                            primaryIdeaTitle: "Mixed Review",
+                            reviewIdeaIds: [],
+                            mistakeCorrections: [],
+                            questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
+                            estimatedMinutes: 10,
+                            isUnlocked: true,
+                            isCompleted: false
+                        )
+                        selectedLesson = reviewLesson
+                    }) {
+                        HStack(spacing: DS.Spacing.xs) {
+                            DSIcon("clock.arrow.circlepath", size: 16)
+                            Text("Review Practice")
+                                .font(DS.Typography.caption)
+                            if let count = reviewQueueCount {
+                                Text("(\(count))")
+                                    .font(DS.Typography.caption)
+                                    .foregroundColor(DS.Colors.secondaryText)
+                            }
+                        }
+                    }
+                    .dsSmallButton()
+                }
             }
             .padding(.bottom, DS.Spacing.sm)
             
@@ -309,6 +361,13 @@ struct DailyPracticeHomepage: View {
     }
     
     // MARK: - Data Loading
+    private func refreshView() {
+        refreshID = UUID()
+        Task {
+            await loadPracticeData()
+        }
+    }
+    
     private func loadPracticeData() async {
         let bookId = book.id.uuidString
         
@@ -355,11 +414,15 @@ struct DailyPracticeHomepage: View {
             )
         }
         
+        // Load review queue stats for this specific book
+        let queueStats = reviewQueueManager.getQueueStatistics(for: book.title)
+        let totalReviewItems = queueStats.totalMCQs + queueStats.totalOpenEnded
+        
         // Calculate practice stats
         let ideas = book.ideas
         
         var newIdeasCount = 0
-        var reviewDueCount = 0
+        var reviewDueCount = totalReviewItems  // Use actual queue count
         var masteredCount = 0
         
         for idea in ideas {
@@ -369,13 +432,6 @@ struct DailyPracticeHomepage: View {
                 newIdeasCount += 1
             } else if mastery.isFullyMastered {
                 masteredCount += 1
-                
-                // Check if review is due
-                if let reviewData = mastery.reviewStateData,
-                   let reviewState = try? JSONDecoder().decode(FSRSScheduler.ReviewState.self, from: reviewData),
-                   FSRSScheduler.isReviewDue(reviewState: reviewState) {
-                    reviewDueCount += 1
-                }
             }
         }
         
@@ -389,6 +445,12 @@ struct DailyPracticeHomepage: View {
                 reviewDueCount: reviewDueCount,
                 masteredCount: masteredCount
             )
+            
+            // Update review queue state
+            self.reviewQueueCount = totalReviewItems
+            self.hasReviewItems = totalReviewItems > 0
+            
+            print("🎯 REVIEW BUTTON DEBUG: count=\(totalReviewItems), hasReviewItems=\(totalReviewItems > 0)")
             
             self.currentLessonNumber = currentLessonNumber
             

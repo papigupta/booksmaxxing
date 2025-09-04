@@ -30,7 +30,9 @@ struct DeepreadApp: App {
             Test.self,
             TestAttempt.self,
             QuestionResponse.self,
-            TestProgress.self
+            TestProgress.self,
+            // Review queue models
+            ReviewQueueItem.self
         ])
         
         do {

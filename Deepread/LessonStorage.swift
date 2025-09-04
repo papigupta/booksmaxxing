@@ -98,7 +98,6 @@ final class LessonStorageService {
     
     /// Get all available lesson info for a book
     func getAllLessonInfo(book: Book) -> [(lessonNumber: Int, title: String, isUnlocked: Bool, isCompleted: Bool)] {
-        let bookId = book.id.uuidString
         var lessonInfo: [(Int, String, Bool, Bool)] = []
         
         print("DEBUG: LessonStorage.getAllLessonInfo called for book: \(book.title)")

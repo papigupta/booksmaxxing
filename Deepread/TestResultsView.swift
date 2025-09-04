@@ -294,8 +294,18 @@ struct TestResultsView: View {
     }
     
     private func completeTest() {
+        // Add mistakes to review queue before completing
+        if hasIncorrectAnswers {
+            addMistakesToReviewQueue()
+        }
+        
         updateIdeaMastery()
         onContinue(attempt)
+    }
+    
+    private func addMistakesToReviewQueue() {
+        let reviewManager = ReviewQueueManager(modelContext: modelContext)
+        reviewManager.addMistakesToQueue(from: attempt, test: test, idea: idea)
     }
 }
 

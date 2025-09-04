@@ -340,13 +340,64 @@ struct DailyPracticeView: View {
                 
                 print("DEBUG: Generating test for idea: \(primaryIdea.title)")
                 
-                // Use the same TestGenerationService as "Start Test" button
-                test = try await testGenerationService.generateTest(
+                // Generate fresh questions for the primary idea
+                let freshTest = try await testGenerationService.generateTest(
                     for: primaryIdea,
                     testType: "initial"
                 )
                 
-                print("DEBUG: Generated test with \(test.questions.count) questions using TestGenerationService")
+                // Get review questions from the queue (max 3 MCQ + 1 OEQ = 4 total) for this book only
+                let reviewManager = ReviewQueueManager(modelContext: modelContext)
+                let (mcqItems, openEndedItems) = reviewManager.getDailyReviewItems(for: book.title)
+                let allReviewItems = mcqItems + openEndedItems // Already limited to 3 MCQ + 1 OEQ
+                
+                // Sort fresh questions by difficulty
+                let freshQuestions = Array(freshTest.questions)
+                let easyFresh = freshQuestions.filter { $0.difficulty == .easy }
+                let mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
+                let hardFresh = freshQuestions.filter { $0.difficulty == .hard }
+                
+                // Generate and sort review questions by difficulty if available
+                var easyReview: [Question] = []
+                var mediumReview: [Question] = []
+                var hardReview: [Question] = []
+                
+                if !allReviewItems.isEmpty {
+                    let reviewQuestions = try await testGenerationService.generateReviewQuestionsFromQueue(allReviewItems)
+                    
+                    // Sort review questions by difficulty
+                    easyReview = reviewQuestions.filter { $0.difficulty == .easy }
+                    mediumReview = reviewQuestions.filter { $0.difficulty == .medium }
+                    hardReview = reviewQuestions.filter { $0.difficulty == .hard }
+                    
+                    print("DEBUG: Added \(reviewQuestions.count) review questions (Easy: \(easyReview.count), Medium: \(mediumReview.count), Hard: \(hardReview.count))")
+                }
+                
+                // Combine in proper order: Easy → Medium → Hard for both fresh and review
+                var allQuestions: [Question] = []
+                allQuestions.append(contentsOf: easyFresh)
+                allQuestions.append(contentsOf: mediumFresh)
+                allQuestions.append(contentsOf: hardFresh)
+                allQuestions.append(contentsOf: easyReview)
+                allQuestions.append(contentsOf: mediumReview)
+                allQuestions.append(contentsOf: hardReview)
+                
+                // Create combined test
+                test = Test(
+                    ideaId: primaryIdea.id,
+                    ideaTitle: primaryIdea.title,
+                    bookTitle: book.title,
+                    testType: "mixed"
+                )
+                
+                // Update question order indices to reflect the new order
+                for (index, question) in allQuestions.enumerated() {
+                    question.orderIndex = index
+                }
+                
+                test.questions = allQuestions
+                
+                print("DEBUG: Generated mixed test with \(test.questions.count) questions (\(freshTest.questions.count) fresh + \(allQuestions.count - freshTest.questions.count) review)")
             } else {
                 throw NSError(domain: "LessonGeneration", code: 2, userInfo: [NSLocalizedDescriptionKey: "No lesson selected"])
             }
@@ -367,6 +418,41 @@ struct DailyPracticeView: View {
     private func handleTestCompletion(_ attempt: TestAttempt) {
         completedAttempt = attempt
         showingTest = false
+        
+        // Add NEW mistakes to review queue (only from fresh questions)
+        if let test = generatedTest, let primaryIdea = book.ideas.first(where: { $0.id == selectedLesson?.primaryIdeaId }) {
+            let reviewManager = ReviewQueueManager(modelContext: modelContext)
+            
+            // Determine how many fresh questions we had (they come first in the ordered list)
+            // Fresh questions are from the primary idea
+            let freshQuestionCount = test.questions.filter { $0.ideaId == primaryIdea.id }.count
+            
+            // Only add mistakes from fresh questions to the queue
+            let freshResponses = attempt.responses.filter { response in
+                if let question = test.questions.first(where: { $0.id == response.questionId }) {
+                    // Check if this is a fresh question (from the primary idea)
+                    return question.ideaId == primaryIdea.id
+                }
+                return false
+            }
+            
+            // Create a temporary attempt with only fresh responses
+            let freshAttempt = TestAttempt(testId: test.id)
+            freshAttempt.responses = freshResponses
+            
+            reviewManager.addMistakesToQueue(from: freshAttempt, test: test, idea: primaryIdea)
+            
+            // Mark review questions as completed if answered correctly
+            let reviewResponses = attempt.responses.filter { response in
+                if let question = test.questions.first(where: { $0.id == response.questionId }) {
+                    return question.orderIndex >= freshQuestionCount
+                }
+                return false
+            }
+            
+            // TODO: Mark the specific review items as completed based on correct answers
+            print("DEBUG: Handled \(reviewResponses.count) review question responses")
+        }
         
         // Update mastery for the lesson
         if let test = generatedTest, let lesson = selectedLesson {

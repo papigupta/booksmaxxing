@@ -218,6 +218,108 @@ class TestGenerationService {
         return questions
     }
     
+    // MARK: - Review Question Generation from Queue
+    
+    func generateReviewQuestionsFromQueue(_ queueItems: [ReviewQueueItem]) async throws -> [Question] {
+        var questions: [Question] = []
+        var orderIndex = 0
+        
+        for item in queueItems {
+            // Generate a similar question testing the same concept
+            let question = try await generateSimilarQuestion(
+                from: item,
+                orderIndex: orderIndex
+            )
+            questions.append(question)
+            orderIndex += 1
+        }
+        
+        return questions
+    }
+    
+    private func generateSimilarQuestion(from queueItem: ReviewQueueItem, orderIndex: Int) async throws -> Question {
+        // Fetch the idea for context
+        let targetIdeaId = queueItem.ideaId
+        let descriptor = FetchDescriptor<Idea>(
+            predicate: #Predicate<Idea> { idea in
+                idea.id == targetIdeaId
+            }
+        )
+        
+        guard let idea = try modelContext.fetch(descriptor).first else {
+            throw TestGenerationError.generationFailed("Idea not found")
+        }
+        
+        // Generate a similar question with the same parameters but different content
+        let systemPrompt = """
+        You are an expert educational content creator. Generate a NEW question that tests the SAME concept as the original question below, but with DIFFERENT content/examples.
+        
+        Original Question: \(queueItem.originalQuestionText)
+        Question Type: \(queueItem.questionType.rawValue)
+        Difficulty: \(queueItem.difficulty.rawValue)
+        Bloom's Level: \(queueItem.bloomCategory.rawValue)
+        
+        Requirements:
+        - Test the SAME underlying concept
+        - Use DIFFERENT examples or scenarios
+        - Keep the same difficulty level
+        - Keep the same question type (\(queueItem.questionType.rawValue))
+        
+        \(formatRequirements(for: queueItem.questionType, difficulty: queueItem.difficulty))
+        
+        Output Format:
+        Return ONLY a JSON object with this structure:
+        {
+            "question": "The new question text",
+            "options": ["Option 1", "Option 2", "Option 3", "Option 4"],  // Only for MCQ
+            "correct": [0]  // Index of correct answer (0-based)
+        }
+        
+        For open-ended questions, omit options and correct fields.
+        """
+        
+        let userPrompt = """
+        Generate a similar but different question for:
+        
+        Idea: \(idea.title)
+        Description: \(idea.ideaDescription)
+        
+        The question should test the same concept as the original but with fresh content.
+        """
+        
+        let response = try await openAI.complete(
+            prompt: "\(systemPrompt)\n\n\(userPrompt)",
+            model: "gpt-4.1",
+            temperature: 0.8,  // Slightly higher for variety
+            maxTokens: 500
+        )
+        
+        let (questionText, options, correctAnswers) = try parseQuestionResponse(response, type: queueItem.questionType)
+        
+        // Randomize options if they exist
+        let finalOptions: [String]?
+        let finalCorrectAnswers: [Int]?
+        if let opts = options, let correct = correctAnswers {
+            let (shuffled, newCorrect) = randomizeOptions(opts, correctIndices: correct)
+            finalOptions = shuffled
+            finalCorrectAnswers = newCorrect
+        } else {
+            finalOptions = options
+            finalCorrectAnswers = correctAnswers
+        }
+        
+        return Question(
+            ideaId: queueItem.ideaId,
+            type: queueItem.questionType,
+            difficulty: queueItem.difficulty,
+            bloomCategory: queueItem.bloomCategory,
+            questionText: questionText,
+            options: finalOptions,
+            correctAnswers: finalCorrectAnswers,
+            orderIndex: orderIndex
+        )
+    }
+    
     // MARK: - Review Test Generation (focused on mistakes)
     
     private func generateReviewQuestions(for idea: Idea, mistakes: [QuestionResponse]) async throws -> [Question] {
