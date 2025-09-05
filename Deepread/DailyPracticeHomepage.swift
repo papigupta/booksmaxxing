@@ -33,8 +33,8 @@ struct DailyPracticeHomepage: View {
         )
     }
     
-    private var masteryService: MasteryService {
-        MasteryService(modelContext: modelContext)
+    private var coverageService: CoverageService {
+        CoverageService(modelContext: modelContext)
     }
     
     private var reviewQueueManager: ReviewQueueManager {
@@ -426,11 +426,11 @@ struct DailyPracticeHomepage: View {
         var masteredCount = 0
         
         for idea in ideas {
-            let mastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+            let coverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
             
-            if mastery.masteryPercentage == 0 {
+            if coverage.coveragePercentage == 0 {
                 newIdeasCount += 1
-            } else if mastery.isFullyMastered {
+            } else if coverage.isFullyCovered {
                 masteredCount += 1
             }
         }

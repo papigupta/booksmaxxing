@@ -10,7 +10,7 @@ final class StoredLesson {
     var primaryIdeaTitle: String
     var createdAt: Date
     var isCompleted: Bool
-    var masteryPercentage: Double
+    var coveragePercentage: Double
     
     // The actual test data (generated questions)
     @Relationship(deleteRule: .cascade) var test: Test?
@@ -22,18 +22,18 @@ final class StoredLesson {
         self.primaryIdeaTitle = primaryIdeaTitle
         self.createdAt = Date()
         self.isCompleted = false
-        self.masteryPercentage = 0.0
+        self.coveragePercentage = 0.0
     }
 }
 
 // MARK: - Lesson Storage Service
 final class LessonStorageService {
     private let modelContext: ModelContext
-    private let masteryService: MasteryService
+    private let coverageService: CoverageService
     
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.masteryService = MasteryService(modelContext: modelContext)
+        self.coverageService = CoverageService(modelContext: modelContext)
     }
     
     // MARK: - Lesson Retrieval

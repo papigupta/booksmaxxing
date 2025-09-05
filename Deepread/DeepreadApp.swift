@@ -32,7 +32,12 @@ struct DeepreadApp: App {
             QuestionResponse.self,
             TestProgress.self,
             // Review queue models
-            ReviewQueueItem.self
+            ReviewQueueItem.self,
+            // Coverage tracking models
+            IdeaCoverage.self,
+            MissedQuestionRecord.self,
+            // Legacy model for migration
+            IdeaMastery.self
         ])
         
         do {
@@ -40,6 +45,11 @@ struct DeepreadApp: App {
             let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: false)
             let container = try ModelContainer(for: schema, configurations: modelConfiguration)
             print("✅ Successfully created persistent ModelContainer")
+            
+            // Run migration from old mastery to new coverage system
+            let migrationService = CoverageMigrationService(modelContext: container.mainContext)
+            migrationService.migrateOldMasteryToCoverage()
+            
             return container
         } catch {
             print("⚠️  Failed to create persistent ModelContainer: \(error)")

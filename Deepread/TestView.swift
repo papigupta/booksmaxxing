@@ -282,6 +282,9 @@ struct TestView: View {
         isEvaluatingQuestion = true
         saveCurrentResponse()
         
+        // Force save to ensure persistence
+        try? modelContext.save()
+        
         Task {
             do {
                 // Evaluate the current question immediately
@@ -397,6 +400,7 @@ struct TestView: View {
         
         modelContext.insert(response)
         attempt.responses.append(response)
+        print("DEBUG: Created and saved response for question \(question.id), total responses now: \(attempt.responses.count)")
     }
     
     private func evaluateCurrentQuestion(_ question: Question) async throws -> QuestionEvaluation {
@@ -434,6 +438,35 @@ struct TestView: View {
     
     private func submitTest() {
         guard let attempt = currentAttempt else { return }
+        
+        // Save the current response before submitting
+        saveCurrentResponse()
+        
+        // Also ensure all responses are saved for all questions
+        for question in test.orderedQuestions {
+            // Check if response already exists
+            if attempt.responses.first(where: { $0.questionId == question.id }) == nil {
+                // Create response if it doesn't exist but we have an answer
+                switch question.type {
+                case .mcq, .msq:
+                    if let selected = selectedOptions[question.id], !selected.isEmpty {
+                        createResponse(for: question, attempt: attempt)
+                    }
+                case .openEnded:
+                    if let answer = responses[question.id], !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        createResponse(for: question, attempt: attempt)
+                    }
+                }
+            }
+        }
+        
+        // Save all responses to persistent storage
+        try? modelContext.save()
+        
+        print("DEBUG: About to submit test - attempt has \(attempt.responses.count) responses")
+        for (index, response) in attempt.responses.enumerated() {
+            print("DEBUG: Response \(index): questionId=\(response.questionId)")
+        }
         
         isSubmitting = true
         

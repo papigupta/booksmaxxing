@@ -267,8 +267,8 @@ struct TestResultsView: View {
         
         try modelContext.save()
         
-        // Update the idea's mastery level
-        updateIdeaMastery()
+        // Update the idea's coverage (will be updated through the lesson system)
+        // Coverage is tracked per question type answered correctly
         
         // Dismiss and continue
         await MainActor.run {
@@ -281,15 +281,9 @@ struct TestResultsView: View {
         spacedRepetitionService.scheduleReviewTest(for: idea, after: attempt.masteryAchieved)
     }
     
-    private func updateIdeaMastery() {
-        switch attempt.masteryAchieved {
-        case .fragile:
-            idea.masteryLevel = 1
-        case .solid:
-            idea.masteryLevel = 3
-        case .none:
-            idea.masteryLevel = 0
-        }
+    private func updateIdeaCoverage() {
+        // Coverage is now tracked through CoverageService based on question types answered
+        // This function is kept for compatibility but coverage is updated elsewhere
         idea.lastPracticed = Date()
     }
     
@@ -299,7 +293,7 @@ struct TestResultsView: View {
             addMistakesToReviewQueue()
         }
         
-        updateIdeaMastery()
+        updateIdeaCoverage()
         onContinue(attempt)
     }
     

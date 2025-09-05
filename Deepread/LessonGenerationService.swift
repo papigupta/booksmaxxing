@@ -49,13 +49,13 @@ final class LessonGenerationService {
     }
     private let modelContext: ModelContext
     private let openAIService: OpenAIService
-    private let masteryService: MasteryService
+    private let coverageService: CoverageService
     private let testGenerationService: TestGenerationService
     
     init(modelContext: ModelContext, openAIService: OpenAIService) {
         self.modelContext = modelContext
         self.openAIService = openAIService
-        self.masteryService = MasteryService(modelContext: modelContext)
+        self.coverageService = CoverageService(modelContext: modelContext)
         self.testGenerationService = TestGenerationService(openAI: openAIService, modelContext: modelContext)
     }
     
@@ -73,13 +73,13 @@ final class LessonGenerationService {
         
         for (index, idea) in ideas.enumerated() {
             let lessonNumber = index + 1
-            let mastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+            let coverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
             
             // Determine if lesson is unlocked - ONLY first lesson is unlocked initially
             let isUnlocked = lessonNumber == 1
             
             // Determine if lesson is completed
-            let isCompleted = mastery.masteryPercentage >= 87.5 // At least 7/8 correct
+            let isCompleted = coverage.coveragePercentage >= 100.0 // All 8 question types covered
             
             // Get review ideas and mistakes for this lesson
             let (reviewIds, corrections) = getLessonComposition(
@@ -218,15 +218,15 @@ final class LessonGenerationService {
         if currentLessonNumber <= 3 {
             // Check for mistakes from previous lesson only
             if currentLessonNumber > 1 {
-                let corrections = masteryService.getMistakesForCorrection(bookId: bookId, limit: 2)
+                let corrections = coverageService.getMistakesForCorrection(bookId: bookId, limit: 2)
                 return ([], corrections.map { ($0.ideaId, $0.mistakes.map { $0.conceptTested }) })
             }
             return ([], [])
         }
         
         // After lesson 3, start mixing in reviews based on FSRS
-        let reviewIds = masteryService.getIdeasForReview(bookId: bookId, limit: 2)
-        let corrections = masteryService.getMistakesForCorrection(bookId: bookId, limit: 2)
+        let reviewIds = coverageService.getIdeasForReview(bookId: bookId, limit: 2)
+        let corrections = coverageService.getMistakesForCorrection(bookId: bookId, limit: 2)
         
         return (reviewIds, corrections.map { ($0.ideaId, $0.mistakes.map { $0.conceptTested }) })
     }
@@ -546,7 +546,7 @@ final class LessonGenerationService {
     
     private func isLessonCompleted(_ lessonNumber: Int, bookId: String) -> Bool {
         // Check if the lesson's primary idea has sufficient mastery
-        // This would check the IdeaMastery records
+        // This would check the IdeaCoverage records
         return false  // Start with all locked except first
     }
     

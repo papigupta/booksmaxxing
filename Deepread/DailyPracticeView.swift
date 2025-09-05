@@ -29,7 +29,6 @@ struct DailyPracticeView: View {
     
     enum PracticeFlowState {
         case none
-        case results
         case streak
     }
     
@@ -40,8 +39,8 @@ struct DailyPracticeView: View {
         )
     }
     
-    private var masteryService: MasteryService {
-        MasteryService(modelContext: modelContext)
+    private var coverageService: CoverageService {
+        CoverageService(modelContext: modelContext)
     }
     
     private var ideaForTest: Idea {
@@ -97,14 +96,7 @@ struct DailyPracticeView: View {
                 PrimerView(idea: ideaForTest, openAIService: openAIService)
             }
             .fullScreenCover(isPresented: .constant(currentView != .none)) {
-                if currentView == .results, let attempt = completedAttempt, let test = generatedTest {
-                    ResultsView(attempt: attempt, test: test, onContinue: {
-                        print("DEBUG: Results onContinue tapped, switching to streak")
-                        withAnimation {
-                            currentView = .streak
-                        }
-                    })
-                } else if currentView == .streak {
+                if currentView == .streak {
                     StreakView(onContinue: {
                         print("DEBUG: ✅ Streak onContinue tapped, completing lesson")
                         currentView = .none
@@ -419,6 +411,31 @@ struct DailyPracticeView: View {
         completedAttempt = attempt
         showingTest = false
         
+        // Fetch responses explicitly using the attemptId
+        let attemptId = attempt.id
+        let descriptor = FetchDescriptor<QuestionResponse>(
+            predicate: #Predicate<QuestionResponse> { response in
+                response.attemptId == attemptId
+            }
+        )
+        
+        var fetchedResponses: [QuestionResponse] = []
+        if let responses = try? modelContext.fetch(descriptor) {
+            print("DEBUG: Fetched \(responses.count) responses for attempt \(attempt.id)")
+            fetchedResponses = responses
+            attempt.responses = responses
+            // Debug: Print the fetched responses
+            for (index, response) in responses.enumerated() {
+                print("DEBUG: Fetched response \(index): questionId=\(response.questionId), isCorrect=\(response.isCorrect)")
+            }
+            
+            // Force save to ensure the relationship is persisted
+            try? modelContext.save()
+            print("DEBUG: Saved attempt with \(attempt.responses.count) responses")
+        } else {
+            print("DEBUG: Failed to fetch responses for attempt \(attempt.id)")
+        }
+        
         // Add NEW mistakes to review queue (only from fresh questions)
         if let test = generatedTest, let primaryIdea = book.ideas.first(where: { $0.id == selectedLesson?.primaryIdeaId }) {
             let reviewManager = ReviewQueueManager(modelContext: modelContext)
@@ -455,28 +472,59 @@ struct DailyPracticeView: View {
         }
         
         // Update mastery for the lesson
+        print("DEBUG: generatedTest is \(generatedTest != nil ? "not nil" : "nil")")
+        print("DEBUG: selectedLesson is \(selectedLesson != nil ? "not nil" : "nil")")
+        
         if let test = generatedTest, let lesson = selectedLesson {
-            updateMasteryFromAttempt(attempt: attempt, test: test, lesson: lesson)
+            // Pass the fetched responses directly since attempt.responses might not be working
+            updateCoverageFromAttempt(attempt: attempt, test: test, lesson: lesson, fetchedResponses: fetchedResponses)
+        } else {
+            print("DEBUG: WARNING - Cannot update coverage: test or lesson is nil")
         }
         
-        // Show results with a small delay to ensure proper state transition
+        // Go straight to streak view after test completion
+        print("DEBUG: Test completed - going to streak view")
+        print("DEBUG: Attempt score: \(attempt.score), responses: \(attempt.responses.count)")
+        
+        // Show streak view
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            print("DEBUG: Setting currentView to .results")
-            print("DEBUG: Attempt score: \(attempt.score) out of \(attempt.responses.count * 150)")
-            currentView = .results
+            withAnimation {
+                currentView = .streak
+            }
         }
     }
     
-    private func updateMasteryFromAttempt(attempt: TestAttempt, test: Test, lesson: GeneratedLesson) {
+    private func updateCoverageFromAttempt(attempt: TestAttempt, test: Test, lesson: GeneratedLesson, fetchedResponses: [QuestionResponse] = []) {
         let bookId = book.id.uuidString
-        print("DEBUG: Updating mastery for lesson \(lesson.lessonNumber), book \(bookId)")
+        print("DEBUG: updateCoverageFromAttempt called")
+        print("DEBUG: Updating coverage for lesson \(lesson.lessonNumber), book \(bookId)")
+        print("DEBUG: Attempt ID: \(attempt.id)")
+        print("DEBUG: Attempt has \(attempt.responses.count) responses")
+        print("DEBUG: fetchedResponses has \(fetchedResponses.count) responses")
+        print("DEBUG: Test has \(test.questions.count) questions")
+        
+        // Use fetched responses if available, otherwise fall back to attempt.responses
+        let responsesToUse = fetchedResponses.isEmpty ? attempt.responses : fetchedResponses
+        print("DEBUG: Using \(responsesToUse.count) responses for coverage calculation")
+        
+        // Debug: Print all responses
+        for (index, response) in responsesToUse.enumerated() {
+            print("DEBUG: Response \(index): questionId=\(response.questionId), isCorrect=\(response.isCorrect), userAnswer=\(response.userAnswer)")
+        }
+        
+        // Debug: Print all question IDs in the test
+        for question in test.questions {
+            print("DEBUG: Test question - id: \(question.id), ideaId: '\(question.ideaId)', bloom: \(question.bloomCategory.rawValue)")
+        }
         
         // Group responses by idea
-        var responsesByIdea: [String: [(questionId: String, isCorrect: Bool, questionText: String, conceptTested: String)]] = [:]
+        var responsesByIdea: [String: [(questionId: String, isCorrect: Bool, questionText: String, conceptTested: String, bloomCategory: String)]] = [:]
         
-        for response in attempt.responses {
+        for response in responsesToUse {
+            print("DEBUG: Processing response with questionId: \(response.questionId), isCorrect: \(response.isCorrect)")
             if let question = test.questions.first(where: { $0.id == response.questionId }) {
                 let ideaId = question.ideaId
+                print("DEBUG: Found matching question - ideaId: '\(ideaId)', bloom: \(question.bloomCategory.rawValue)")
                 if responsesByIdea[ideaId] == nil {
                     responsesByIdea[ideaId] = []
                 }
@@ -486,19 +534,22 @@ struct DailyPracticeView: View {
                     questionId: question.id.uuidString,
                     isCorrect: response.isCorrect,
                     questionText: question.questionText,
-                    conceptTested: conceptTested
+                    conceptTested: conceptTested,
+                    bloomCategory: question.bloomCategory.rawValue
                 ))
                 
                 print("DEBUG: Response for idea \(ideaId): \(response.isCorrect ? "CORRECT" : "WRONG")")
+            } else {
+                print("DEBUG: WARNING - No question found for response with questionId: \(response.questionId)")
             }
         }
         
         print("DEBUG: Found responses for \(responsesByIdea.count) ideas")
         
-        // Update mastery for each idea
+        // Update coverage for each idea
         for (ideaId, responses) in responsesByIdea {
-            print("DEBUG: Updating mastery for idea \(ideaId) with \(responses.count) responses")
-            masteryService.updateMasteryFromLesson(
+            print("DEBUG: Updating coverage for idea \(ideaId) with \(responses.count) responses")
+            coverageService.updateCoverageFromLesson(
                 ideaId: ideaId,
                 bookId: bookId,
                 responses: responses
@@ -506,8 +557,8 @@ struct DailyPracticeView: View {
         }
         
         // Check if lesson is completed (80% or higher accuracy)
-        let totalQuestions = attempt.responses.count
-        let correctAnswers = attempt.responses.filter { $0.isCorrect }.count
+        let totalQuestions = responsesToUse.count
+        let correctAnswers = responsesToUse.filter { $0.isCorrect }.count
         let accuracy = totalQuestions > 0 ? Double(correctAnswers) / Double(totalQuestions) : 0.0
         
         print("DEBUG: Lesson \(lesson.lessonNumber) completed with accuracy: \(accuracy * 100)%")
@@ -532,14 +583,14 @@ struct DailyPracticeView: View {
                     )
                     
                     // Update review state
-                    let mastery = masteryService.getMastery(for: reviewId, bookId: bookId)
-                    if let reviewData = mastery.reviewStateData,
+                    let coverage = coverageService.getCoverage(for: reviewId, bookId: bookId)
+                    if let reviewData = coverage.reviewStateData,
                        var reviewState = try? JSONDecoder().decode(FSRSScheduler.ReviewState.self, from: reviewData) {
                         reviewState = FSRSScheduler.calculateNextReview(
                             currentState: reviewState,
                             performance: performance
                         )
-                        mastery.reviewStateData = try? JSONEncoder().encode(reviewState)
+                        coverage.reviewStateData = try? JSONEncoder().encode(reviewState)
                     }
                 }
             }
@@ -609,118 +660,5 @@ struct DailyPracticeView: View {
 }
 
 // MARK: - Results View
-private struct ResultsView: View {
-    let attempt: TestAttempt
-    let test: Test
-    let onContinue: () -> Void
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: DS.Spacing.lg) {
-                // Score summary
-                VStack(spacing: DS.Spacing.md) {
-                    Image(systemName: scoreIcon)
-                        .font(.system(size: 64))
-                        .foregroundColor(scoreColor)
-                    
-                    Text("Practice Complete!")
-                        .font(DS.Typography.largeTitle)
-                        .foregroundColor(DS.Colors.black)
-                    
-                    Text("Score: \(attempt.score)/\(maxScore)")
-                        .font(DS.Typography.headline)
-                        .foregroundColor(DS.Colors.black)
-                    
-                    Text("\(percentage)% Correct")
-                        .font(DS.Typography.body)
-                        .foregroundColor(DS.Colors.secondaryText)
-                }
-                .padding(.top, DS.Spacing.xl)
-                
-                // Performance breakdown
-                performanceBreakdown
-                
-                Spacer()
-                
-                // Actions
-                Button("Continue") {
-                    onContinue()
-                }
-                .dsPrimaryButton()
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.bottom, DS.Spacing.xl)
-            }
-            .navigationTitle("Results")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-    
-    private var maxScore: Int {
-        test.questions.reduce(0) { $0 + $1.difficulty.pointValue }
-    }
-    
-    private var percentage: Int {
-        guard maxScore > 0 else { return 0 }
-        return Int((Double(attempt.score) / Double(maxScore)) * 100)
-    }
-    
-    private var scoreIcon: String {
-        switch percentage {
-        case 90...100: return "star.fill"
-        case 70..<90: return "checkmark.circle.fill"
-        case 50..<70: return "hand.thumbsup.fill"
-        default: return "arrow.clockwise"
-        }
-    }
-    
-    private var scoreColor: Color {
-        switch percentage {
-        case 90...100: return Color.yellow
-        case 70..<90: return Color.green
-        case 50..<70: return DS.Colors.black
-        default: return Color.red
-        }
-    }
-    
-    private var performanceBreakdown: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Performance Breakdown")
-                .font(DS.Typography.headline)
-                .foregroundColor(DS.Colors.black)
-            
-            // Group responses by idea
-            let responsesByIdea = Dictionary(grouping: attempt.responses) { response in
-                test.questions.first { $0.id == response.questionId }?.ideaId ?? ""
-            }
-            
-            ForEach(Array(responsesByIdea.keys).sorted(), id: \.self) { ideaId in
-                if let responses = responsesByIdea[ideaId], !ideaId.isEmpty && !ideaId.starts(with: "daily_practice") {
-                    let correctCount = responses.filter { $0.isCorrect }.count
-                    let totalCount = responses.count
-                    
-                    HStack {
-                        Text(getIdeaTitle(for: ideaId) ?? ideaId)
-                            .font(DS.Typography.body)
-                            .foregroundColor(DS.Colors.black)
-                            .lineLimit(1)
-                        
-                        Spacer()
-                        
-                        Text("\(correctCount)/\(totalCount)")
-                            .font(DS.Typography.bodyBold)
-                            .foregroundColor(correctCount == totalCount ? Color.green : Color.yellow)
-                    }
-                    .padding(.vertical, DS.Spacing.xs)
-                }
-            }
-        }
-        .padding(DS.Spacing.lg)
-        .background(DS.Colors.secondaryBackground)
-        .cornerRadius(8)
-        .padding(.horizontal, DS.Spacing.lg)
-    }
-    
-    private func getIdeaTitle(for ideaId: String) -> String? {
-        test.questions.first { $0.ideaId == ideaId }?.ideaId
-    }
-}
+// REMOVED: ResultsView struct - We're using TestResultsView only now
+// The second results screen was redundant and causing confusion with different accuracy calculations

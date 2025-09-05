@@ -9,6 +9,7 @@ struct BookOverviewView: View {
     @State private var navigateToOnboarding = false
     @State private var showingDailyPractice = false
     @EnvironmentObject var navigationState: NavigationState
+    @Environment(\.modelContext) private var modelContext
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -117,6 +118,69 @@ struct BookOverviewView: View {
         }
     }
     
+    // MARK: - Book Coverage View
+    private func getBookId() -> String {
+        // Ensure we use the actual book UUID, not the title
+        if let book = viewModel.currentBook {
+            return book.id.uuidString
+        } else {
+            // Fallback: try to find the book by title
+            let bookService = BookService(modelContext: modelContext)
+            if let book = try? bookService.getBook(withTitle: bookTitle) {
+                return book.id.uuidString
+            } else {
+                print("WARNING: Could not find book, using title as bookId")
+                return bookTitle // Last resort, won't match
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var bookCoverageView: some View {
+        let bookId = getBookId()
+        let coverageService = CoverageService(modelContext: modelContext)
+        let bookCoverage = coverageService.calculateBookCoverage(bookId: bookId, totalIdeas: viewModel.extractedIdeas.count)
+        let _ = print("DEBUG: Book coverage for bookId '\(bookId)': \(bookCoverage)%")
+        
+        VStack(spacing: DS.Spacing.xs) {
+            HStack {
+                Text("Book Coverage")
+                    .font(DS.Typography.caption)
+                    .foregroundColor(DS.Colors.secondaryText)
+                Spacer()
+                Text("\(Int(bookCoverage))%")
+                    .font(DS.Typography.bodyBold)
+                    .foregroundColor(DS.Colors.primaryText)
+            }
+            
+            ProgressView(value: bookCoverage / 100)
+                .progressViewStyle(LinearProgressViewStyle(tint: bookCoverageColor(bookCoverage)))
+                .frame(height: 6)
+        }
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.vertical, DS.Spacing.sm)
+        .background(DS.Colors.gray50)
+        .cornerRadius(8)
+        .padding(.bottom, DS.Spacing.sm)
+    }
+    
+    private func bookCoverageColor(_ coverage: Double) -> Color {
+        switch coverage {
+        case 0..<25:
+            return DS.Colors.gray400
+        case 25..<50:
+            return DS.Colors.gray500
+        case 50..<75:
+            return DS.Colors.gray700
+        case 75..<100:
+            return DS.Colors.gray900
+        case 100:
+            return Color.green
+        default:
+            return DS.Colors.gray300
+        }
+    }
+    
     // MARK: - Header View
     private var headerView: some View {
         VStack(spacing: 0) {
@@ -195,10 +259,17 @@ struct BookOverviewView: View {
                         }
                         .padding(.top, DS.Spacing.xxs)
                     }
+                    
+                    Spacer()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.bottom, DS.Spacing.sm)
+            
+            // Book Coverage Display
+            if !viewModel.extractedIdeas.isEmpty {
+                bookCoverageView
+            }
         }
         .background(DS.Colors.primaryBackground)
     }
@@ -208,7 +279,7 @@ struct BookOverviewView: View {
 struct UnifiedIdeaListItem: View {
     let idea: Idea
     @Environment(\.modelContext) private var modelContext
-    @State private var ideaMastery: IdeaMastery?
+    @State private var ideaCoverage: IdeaCoverage?
     
     var body: some View {
         HStack(alignment: .center, spacing: DS.Spacing.md) {
@@ -223,15 +294,15 @@ struct UnifiedIdeaListItem: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
-            // Center: Accuracy Percentage
+            // Center: Coverage Percentage
             VStack(alignment: .center, spacing: 4) {
-                if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
-                    Text("\(Int(mastery.masteryPercentage))%")
+                if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
+                    Text("\(Int(coverage.coveragePercentage))%")
                         .font(DS.Typography.bodyBold)
                         .foregroundColor(DS.Colors.primaryText)
                     
-                    ProgressView(value: mastery.masteryPercentage / 100)
-                        .progressViewStyle(LinearProgressViewStyle(tint: masteryColor))
+                    ProgressView(value: coverage.coveragePercentage / 100)
+                        .progressViewStyle(LinearProgressViewStyle(tint: coverageColor))
                         .frame(width: 60, height: 3)
                 } else {
                     Text("0%")
@@ -271,14 +342,14 @@ struct UnifiedIdeaListItem: View {
                 .stroke(DS.Colors.gray200, lineWidth: DS.BorderWidth.thin)
         )
         .onAppear {
-            loadMasteryData()
+            loadCoverageData()
         }
     }
     
-    private var masteryColor: Color {
-        guard let mastery = ideaMastery else { return DS.Colors.gray300 }
+    private var coverageColor: Color {
+        guard let coverage = ideaCoverage else { return DS.Colors.gray300 }
         
-        switch mastery.masteryPercentage {
+        switch coverage.coveragePercentage {
         case 0..<30:
             return DS.Colors.gray400
         case 30..<70:
@@ -292,10 +363,29 @@ struct UnifiedIdeaListItem: View {
         }
     }
     
-    private func loadMasteryData() {
-        let bookId = idea.book?.id.uuidString ?? idea.bookTitle
-        let masteryService = MasteryService(modelContext: modelContext)
-        ideaMastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+    private func loadCoverageData() {
+        // Get the book ID from the viewModel's currentBook if available
+        // This ensures consistency with how coverage is saved
+        let bookId: String
+        if let book = idea.book {
+            bookId = book.id.uuidString
+        } else {
+            // Fallback: try to find the book by title
+            let bookService = BookService(modelContext: modelContext)
+            if let book = try? bookService.getBook(withTitle: idea.bookTitle) {
+                bookId = book.id.uuidString
+            } else {
+                // Last resort: use the book title (this won't match saved coverage)
+                bookId = idea.bookTitle
+                print("WARNING: Could not find book for idea '\(idea.id)', using title as bookId")
+            }
+        }
+        
+        print("DEBUG: Loading coverage for idea '\(idea.id)' with bookId: '\(bookId)'")
+        print("DEBUG: Idea has book relationship: \(idea.book != nil)")
+        let coverageService = CoverageService(modelContext: modelContext)
+        ideaCoverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
+        print("DEBUG: Loaded coverage: \(ideaCoverage?.coveragePercentage ?? 0)%, categories: \(ideaCoverage?.coveredCategories.count ?? 0)")
     }
 }
 
@@ -412,7 +502,7 @@ struct ActiveIdeaCard: View {
     @State private var isGeneratingTest = false
     @State private var showingPrimer = false
     @State private var loadingMessage = "Preparing your test..."
-    @State private var ideaMastery: IdeaMastery?
+    @State private var ideaCoverage: IdeaCoverage?
     @Environment(\.modelContext) private var modelContext
     
     var body: some View {
@@ -425,14 +515,14 @@ struct ActiveIdeaCard: View {
                                 .lineLimit(2)
                                 .foregroundColor(DS.Colors.white)
                             
-                            // Mastery progress bar
-                            if let mastery = ideaMastery {
+                            // Coverage progress bar
+                            if let coverage = ideaCoverage {
                                 HStack(spacing: DS.Spacing.xxs) {
-                                    ProgressView(value: mastery.masteryPercentage / 100)
-                                        .progressViewStyle(LinearProgressViewStyle(tint: masteryColor))
+                                    ProgressView(value: coverage.coveragePercentage / 100)
+                                        .progressViewStyle(LinearProgressViewStyle(tint: coverageColor))
                                         .frame(width: 100, height: 4)
                                     
-                                    Text("\(Int(mastery.masteryPercentage))%")
+                                    Text("\(Int(coverage.coveragePercentage))%")
                                         .font(DS.Typography.small)
                                         .foregroundColor(DS.Colors.white.opacity(0.8))
                                 }
@@ -442,9 +532,9 @@ struct ActiveIdeaCard: View {
                         Spacer()
                         
                         // Show appropriate badge
-                        if let mastery = ideaMastery, mastery.isFullyMastered {
+                        if let coverage = ideaCoverage, coverage.isFullyCovered {
                             VStack(spacing: 2) {
-                                Text("MASTERED")
+                                Text("COVERED")
                                     .font(DS.Typography.small)
                                     .fontWeight(.bold)
                                     .foregroundColor(DS.Colors.white)
@@ -452,7 +542,7 @@ struct ActiveIdeaCard: View {
                                     .padding(.vertical, 2)
                                     .background(Color.green)
                                 
-                                if let reviewData = mastery.reviewStateData,
+                                if let reviewData = coverage.reviewStateData,
                                    let reviewState = try? JSONDecoder().decode(FSRSScheduler.ReviewState.self, from: reviewData) {
                                     let daysUntilReview = Calendar.current.dateComponents([.day], from: Date(), to: reviewState.nextReviewDate).day ?? 0
                                     if daysUntilReview <= 0 {
@@ -474,7 +564,7 @@ struct ActiveIdeaCard: View {
                                 .padding(.horizontal, DS.Spacing.xs)
                                 .padding(.vertical, 2)
                                 .background(Color.orange)
-                        } else if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
+                        } else if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
                             Text("IN PROGRESS")
                                 .font(DS.Typography.small)
                                 .fontWeight(.bold)
@@ -583,19 +673,19 @@ struct ActiveIdeaCard: View {
         }
         .onAppear {
             checkForIncompleteTest()
-            loadMasteryData()
+            loadCoverageData()
             
             // Set up periodic refresh timer for active card
             Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
-                loadMasteryData()
+                loadCoverageData()
             }
         }
     }
     
-    private var masteryColor: Color {
-        guard let mastery = ideaMastery else { return Color.gray }
+    private var coverageColor: Color {
+        guard let coverage = ideaCoverage else { return Color.gray }
         
-        switch mastery.masteryPercentage {
+        switch coverage.coveragePercentage {
         case 0..<30:
             return Color.red
         case 30..<70:
@@ -754,21 +844,33 @@ struct ActiveIdeaCard: View {
         }
     }
     
-    private func loadMasteryData() {
-        // Get book ID from the idea's book relationship
-        let bookId = idea.book?.id.uuidString ?? idea.bookTitle
+    private func loadCoverageData() {
+        // Get the proper book ID
+        let bookId: String
+        if let book = idea.book {
+            bookId = book.id.uuidString
+        } else {
+            // Fallback: try to find the book by title
+            let bookService = BookService(modelContext: modelContext)
+            if let book = try? bookService.getBook(withTitle: idea.bookTitle) {
+                bookId = book.id.uuidString
+            } else {
+                bookId = idea.bookTitle
+                print("WARNING: Could not find book for idea '\(idea.id)', using title as bookId")
+            }
+        }
         
-        let masteryService = MasteryService(modelContext: modelContext)
-        let newMastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+        let coverageService = CoverageService(modelContext: modelContext)
+        let newCoverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
         
         // Only update if there's a meaningful change
-        let oldPercentage = ideaMastery?.masteryPercentage ?? 0
-        let newPercentage = newMastery.masteryPercentage
+        let oldPercentage = ideaCoverage?.coveragePercentage ?? 0
+        let newPercentage = newCoverage.coveragePercentage
         
-        ideaMastery = newMastery
+        ideaCoverage = newCoverage
         
         if abs(oldPercentage - newPercentage) > 0.1 {
-            print("DEBUG: Mastery updated for idea \(idea.id): \(oldPercentage)% -> \(newPercentage)%")
+            print("DEBUG: Coverage updated for idea \(idea.id): \(oldPercentage)% -> \(newPercentage)%")
         }
     }
 }
@@ -779,7 +881,7 @@ struct InactiveIdeaCard: View {
     @Environment(\.modelContext) private var modelContext
     @State private var progressInfo: (responseCount: Int, bestScore: Int?) = (0, nil)
     @State private var hasIncompleteTest = false
-    @State private var ideaMastery: IdeaMastery?
+    @State private var ideaCoverage: IdeaCoverage?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -791,14 +893,14 @@ struct InactiveIdeaCard: View {
                             .lineLimit(2)
                             .foregroundColor(DS.Colors.secondaryText)
                         
-                        // Mastery progress for inactive cards
-                        if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
+                        // Coverage progress for inactive cards
+                        if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
                             HStack(spacing: DS.Spacing.xxs) {
-                                ProgressView(value: mastery.masteryPercentage / 100)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: inactiveMasteryColor))
+                                ProgressView(value: coverage.coveragePercentage / 100)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: inactiveCoverageColor))
                                     .frame(width: 80, height: 3)
                                 
-                                Text("\(Int(mastery.masteryPercentage))%")
+                                Text("\(Int(coverage.coveragePercentage))%")
                                     .font(DS.Typography.caption)
                                     .foregroundColor(DS.Colors.tertiaryText)
                             }
@@ -807,9 +909,9 @@ struct InactiveIdeaCard: View {
                     
                     Spacer()
                     
-                    // Show appropriate badge based on mastery
-                    if let mastery = ideaMastery, mastery.isFullyMastered {
-                        Text("MASTERED")
+                    // Show appropriate badge based on coverage
+                    if let coverage = ideaCoverage, coverage.isFullyCovered {
+                        Text("COVERED")
                             .font(DS.Typography.small)
                             .fontWeight(.bold)
                             .foregroundColor(DS.Colors.white)
@@ -828,7 +930,7 @@ struct InactiveIdeaCard: View {
                             .padding(.horizontal, DS.Spacing.xs)
                             .padding(.vertical, 2)
                             .background(Color.orange)
-                    } else if let mastery = ideaMastery, mastery.masteryPercentage > 0 {
+                    } else if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
                         Text("IN PROGRESS")
                             .font(DS.Typography.small)
                             .fontWeight(.bold)
@@ -881,14 +983,14 @@ struct InactiveIdeaCard: View {
         )
         .onAppear {
             checkForIncompleteTest()
-            loadMasteryData()
+            loadCoverageData()
         }
     }
     
-    private var inactiveMasteryColor: Color {
-        guard let mastery = ideaMastery else { return DS.Colors.gray300 }
+    private var inactiveCoverageColor: Color {
+        guard let coverage = ideaCoverage else { return DS.Colors.gray300 }
         
-        switch mastery.masteryPercentage {
+        switch coverage.coveragePercentage {
         case 0..<30:
             return DS.Colors.gray500
         case 30..<70:
@@ -936,13 +1038,25 @@ struct InactiveIdeaCard: View {
         }
     }
     
-    private func loadMasteryData() {
-        // Get book ID from the idea's book relationship
-        let bookId = idea.book?.id.uuidString ?? idea.bookTitle
+    private func loadCoverageData() {
+        // Get the proper book ID
+        let bookId: String
+        if let book = idea.book {
+            bookId = book.id.uuidString
+        } else {
+            // Fallback: try to find the book by title
+            let bookService = BookService(modelContext: modelContext)
+            if let book = try? bookService.getBook(withTitle: idea.bookTitle) {
+                bookId = book.id.uuidString
+            } else {
+                bookId = idea.bookTitle
+                print("WARNING: Could not find book for idea '\(idea.id)', using title as bookId")
+            }
+        }
         
-        let masteryService = MasteryService(modelContext: modelContext)
-        ideaMastery = masteryService.getMastery(for: idea.id, bookId: bookId)
+        let coverageService = CoverageService(modelContext: modelContext)
+        ideaCoverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
         
-        print("DEBUG: Loaded mastery for inactive idea \(idea.id): \(ideaMastery?.masteryPercentage ?? 0)%")
+        print("DEBUG: Loaded coverage for inactive idea \(idea.id): \(ideaCoverage?.coveragePercentage ?? 0)%, categories: \(ideaCoverage?.coveredCategories.count ?? 0)")
     }
 }
