@@ -266,13 +266,7 @@ struct DailyPracticeHomepage: View {
                                             let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
                                             
                                             // Get the actual idea for this lesson to set primaryIdeaId
-                                            let sortedIdeas = book.ideas.sorted { idea1, idea2 in
-                                                let id1 = idea1.id.split(separator: "i")
-                                                let id2 = idea2.id.split(separator: "i")
-                                                let num1 = id1.count > 1 ? Int(id1[1]) ?? 0 : 0
-                                                let num2 = id2.count > 1 ? Int(id2[1]) ?? 0 : 0
-                                                return num1 < num2
-                                            }
+                                            let sortedIdeas = book.ideas.sortedByNumericId()
                                             
                                             let primaryIdeaId: String
                                             if milestone.id > 0 && milestone.id <= sortedIdeas.count {

@@ -63,10 +63,7 @@ final class LessonGenerationService {
     
     /// Generate lesson structure based on book's ideas
     func generateLessonsForBook(_ book: Book) -> [GeneratedLesson] {
-        let ideas = book.ideas.sorted { idea1, idea2 in
-            // Sort by idea number (i1, i2, i3...)
-            extractIdeaNumber(from: idea1.id) < extractIdeaNumber(from: idea2.id)
-        }
+        let ideas = book.ideas.sortedByNumericId()
         
         var lessons: [GeneratedLesson] = []
         let bookId = book.id.uuidString

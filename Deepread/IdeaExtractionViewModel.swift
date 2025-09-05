@@ -25,11 +25,9 @@ class IdeaExtractionViewModel: ObservableObject {
     
     // MARK: - Helper Functions
     
-    /// Ensures consistent ordering of ideas by ID (i1, i2, i3, etc.)
+    /// Ensures consistent ordering of ideas by numeric ID (i1, i2, i3, i10, i11, etc.)
     private func sortedIdeas(_ ideas: [Idea]) -> [Idea] {
-        return ideas.sorted { idea1, idea2 in
-            idea1.id < idea2.id
-        }
+        return ideas.sortedByNumericId()
     }
     
     /// Updates extractedIdeas with proper sorting and logging
@@ -72,6 +70,9 @@ class IdeaExtractionViewModel: ObservableObject {
                             // Store the original input for later use when updating the book
                             // Continue to idea extraction below
                         } else {
+                            // Sort the book's ideas to ensure consistency
+                            existingBook.ideas = existingBook.ideas.sortedByNumericId()
+                            
                             await MainActor.run {
                                 self.updateExtractedIdeas(existingBook.ideas, source: "exact match")
                                 self.isLoading = false
@@ -116,6 +117,9 @@ class IdeaExtractionViewModel: ObservableObject {
                             }
                             // Continue to idea extraction below
                         } else {
+                            // Sort the book's ideas to ensure consistency
+                            existingBook.ideas = existingBook.ideas.sortedByNumericId()
+                            
                             await MainActor.run {
                                 self.updateExtractedIdeas(existingBook.ideas, source: "corrected title match")
                                 self.isLoading = false
@@ -198,6 +202,8 @@ class IdeaExtractionViewModel: ObservableObject {
                     author: bookInfo?.author
                 )
                 try bookService.saveIdeas(parsedIdeas, for: book)
+                // Ensure book.ideas is sorted after saving
+                book.ideas = book.ideas.sortedByNumericId()
                 await MainActor.run {
                     self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")
                     self.currentBook = book

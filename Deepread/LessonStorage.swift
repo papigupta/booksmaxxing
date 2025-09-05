@@ -103,9 +103,7 @@ final class LessonStorageService {
         print("DEBUG: LessonStorage.getAllLessonInfo called for book: \(book.title)")
         print("DEBUG: Book has \(book.ideas.count) ideas")
         
-        let sortedIdeas = book.ideas.sorted { idea1, idea2 in
-            extractIdeaNumber(from: idea1.id) < extractIdeaNumber(from: idea2.id)
-        }
+        let sortedIdeas = book.ideas.sortedByNumericId()
         
         print("DEBUG: Sorted ideas: \(sortedIdeas.map { $0.id })")
         
@@ -205,9 +203,7 @@ final class LessonStorageService {
     }
     
     private func getIdeaForLesson(book: Book, lessonNumber: Int) -> Idea? {
-        let sortedIdeas = book.ideas.sorted { idea1, idea2 in
-            extractIdeaNumber(from: idea1.id) < extractIdeaNumber(from: idea2.id)
-        }
+        let sortedIdeas = book.ideas.sortedByNumericId()
         
         guard lessonNumber > 0 && lessonNumber <= sortedIdeas.count else {
             return nil
