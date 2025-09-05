@@ -64,8 +64,8 @@ final class Question {
     var difficulty: QuestionDifficulty
     var bloomCategory: BloomCategory
     var questionText: String
-    @Attribute(.transformable) var options: [String]?  // For MCQ/MSQ - exactly 4 options
-    @Attribute(.transformable) var correctAnswers: [Int]?  // Indices of correct answers (1 for MCQ, multiple for MSQ)
+    var options: [String]?  // For MCQ/MSQ - exactly 4 options
+    var correctAnswers: [Int]?  // Indices of correct answers (1 for MCQ, multiple for MSQ)
     var orderIndex: Int  // Position in test (0-8)
     var createdAt: Date
     
