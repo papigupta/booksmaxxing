@@ -14,13 +14,15 @@ struct MainView: View {
                 OnboardingView(openAIService: openAIService)
                     .environmentObject(navigationState)
                     .onAppear {
-                        // Run migration for existing data
+                        // Run migration for existing data and cleanup duplicates
                         Task {
                             do {
                                 let bookService = BookService(modelContext: modelContext)
                                 try await bookService.migrateExistingDataToBookSpecificIds()
+                                // Clean up any duplicate books (0 ideas books with similar titles)
+                                try bookService.cleanupDuplicateBooks()
                             } catch {
-                                print("DEBUG: Migration failed: \(error)")
+                                print("DEBUG: Migration/cleanup failed: \(error)")
                             }
                         }
                     }
@@ -47,6 +49,17 @@ struct MainView: View {
             // Initialize selected book on first appear
             if !books.isEmpty && navigationState.selectedBookTitle == nil {
                 navigationState.selectedBookTitle = books[0].title
+            }
+            
+            // Run cleanup on app startup for all users
+            Task {
+                do {
+                    let bookService = BookService(modelContext: modelContext)
+                    try bookService.cleanupDuplicateBooks()
+                    print("DEBUG: Cleaned up duplicate books on app startup")
+                } catch {
+                    print("DEBUG: Cleanup failed: \(error)")
+                }
             }
         }
     }

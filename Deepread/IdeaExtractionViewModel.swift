@@ -69,6 +69,7 @@ class IdeaExtractionViewModel: ObservableObject {
                                 self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
                                 self.currentBook = existingBook
                             }
+                            // Store the original input for later use when updating the book
                             // Continue to idea extraction below
                         } else {
                             await MainActor.run {
@@ -129,7 +130,8 @@ class IdeaExtractionViewModel: ObservableObject {
                 }
                 
                 // Step 3: Extract ideas if no existing book found
-                await self.extractIdeas(from: extractedBookInfo.title)
+                // Pass the original input as well so we can update the correct book
+                await self.extractIdeas(from: extractedBookInfo.title, originalInput: input)
                 
                 // Step 4: If no author was found but ideas were extracted, try to get author from the ideas context
                 if extractedBookInfo.author == nil && !self.extractedIdeas.isEmpty {
@@ -150,7 +152,7 @@ class IdeaExtractionViewModel: ObservableObject {
         }
     }
     
-    private func extractIdeas(from title: String) async {
+    private func extractIdeas(from title: String, originalInput: String? = nil) async {
         do {
             print("DEBUG: Starting idea extraction for: '\(title)'")
             let ideas = try await openAIService.extractIdeas(from: title, author: bookInfo?.author)
@@ -189,7 +191,12 @@ class IdeaExtractionViewModel: ObservableObject {
             
             // Save to database with author information
             do {
-                let book = try bookService.findOrCreateBook(title: currentBookTitle, author: bookInfo?.author)
+                // Use the original input title to find the initial book and update it
+                let book = try bookService.updateBookDetails(
+                    oldTitle: originalInput ?? title,  // Use the original input title if available
+                    newTitle: currentBookTitle,  // Update to the corrected title
+                    author: bookInfo?.author
+                )
                 try bookService.saveIdeas(parsedIdeas, for: book)
                 await MainActor.run {
                     self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")

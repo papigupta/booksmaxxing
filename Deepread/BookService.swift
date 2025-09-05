@@ -226,6 +226,38 @@ class BookService: ObservableObject {
         }
     }
     
+    func updateBookDetails(oldTitle: String, newTitle: String, author: String?) throws -> Book {
+        let normalizedOldTitle = oldTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedNewTitle = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        print("DEBUG: Updating book from '\(normalizedOldTitle)' to '\(normalizedNewTitle)' with author '\(author ?? "nil")'")
+        
+        // First check if a book with the old title exists
+        let descriptor = FetchDescriptor<Book>(
+            predicate: #Predicate<Book> { book in
+                book.title.localizedStandardContains(normalizedOldTitle)
+            }
+        )
+        
+        let books = try modelContext.fetch(descriptor)
+        
+        if let book = books.first {
+            // Update the existing book
+            book.title = normalizedNewTitle
+            if let author = author {
+                book.author = author
+            }
+            book.lastAccessed = Date()
+            try modelContext.save()
+            print("DEBUG: Successfully updated existing book details in database")
+            return book
+        } else {
+            // If no book found with old title, create a new one
+            print("DEBUG: No book found with old title, creating new book")
+            return try findOrCreateBook(title: normalizedNewTitle, author: author)
+        }
+    }
+    
     // Debug method to list all books
     func getAllBooks() throws -> [Book] {
         let descriptor = FetchDescriptor<Book>()
@@ -235,6 +267,43 @@ class BookService: ObservableObject {
             print("DEBUG: - '\(book.title)' with \(book.ideas.count) ideas")
         }
         return books
+    }
+    
+    // Method to clean up duplicate books (books with 0 ideas that have a similar counterpart with ideas)
+    func cleanupDuplicateBooks() throws {
+        print("DEBUG: Starting duplicate book cleanup")
+        let allBooks = try getAllBooks()
+        var booksToDelete: [Book] = []
+        
+        for book in allBooks {
+            // If this book has 0 ideas, check if there's another book with similar title that has ideas
+            if book.ideas.isEmpty {
+                // Find potential duplicate with ideas
+                let potentialDuplicates = allBooks.filter { otherBook in
+                    otherBook.id != book.id && 
+                    !otherBook.ideas.isEmpty &&
+                    (otherBook.title.localizedCaseInsensitiveContains(book.title) || 
+                     book.title.localizedCaseInsensitiveContains(otherBook.title))
+                }
+                
+                if !potentialDuplicates.isEmpty {
+                    print("DEBUG: Found duplicate book to delete: '\(book.title)' (0 ideas) - duplicate of '\(potentialDuplicates.first!.title)' (\(potentialDuplicates.first!.ideas.count) ideas)")
+                    booksToDelete.append(book)
+                }
+            }
+        }
+        
+        // Delete the duplicate books
+        for book in booksToDelete {
+            modelContext.delete(book)
+        }
+        
+        if !booksToDelete.isEmpty {
+            try modelContext.save()
+            print("DEBUG: Deleted \(booksToDelete.count) duplicate books")
+        } else {
+            print("DEBUG: No duplicate books found")
+        }
     }
     
     // Debug method to clear all data (for testing and migration)
