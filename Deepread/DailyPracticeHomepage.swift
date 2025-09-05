@@ -416,7 +416,7 @@ struct DailyPracticeHomepage: View {
         let ideas = book.ideas
         
         var newIdeasCount = 0
-        var reviewDueCount = totalReviewItems  // Use actual queue count
+        let reviewDueCount = totalReviewItems  // Use actual queue count
         var masteredCount = 0
         
         for idea in ideas {

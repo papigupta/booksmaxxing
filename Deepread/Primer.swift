@@ -39,7 +39,7 @@ final class Primer {
         
         // Legacy fields for backward compatibility
         self.overview = thesis
-        self.keyNuances = useItWhen + howToApply + edgesAndLimits
+        self.keyNuances = Array(useItWhen) + Array(howToApply) + Array(edgesAndLimits)
         self.digDeeperLinks = furtherLearning
         
         self.createdAt = Date()
