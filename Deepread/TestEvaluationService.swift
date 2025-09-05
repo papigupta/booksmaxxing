@@ -234,11 +234,22 @@ class TestEvaluationService {
         }
         
         // Parse AI response
-        guard let data = aiResponse.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let scorePercentage = json["score_percentage"] as? Int,
+        print("DEBUG: Raw AI response: \(aiResponse)")
+        
+        // Try to extract JSON from response (in case there's extra text)
+        let jsonString = extractJSONFromResponse(aiResponse)
+        print("DEBUG: Extracted JSON: \(jsonString)")
+        
+        guard let data = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            print("DEBUG: Failed to parse JSON from response")
+            throw TestEvaluationError.invalidAIResponse
+        }
+        
+        guard let scorePercentage = json["score_percentage"] as? Int,
               let isCorrect = json["is_correct"] as? Bool,
               let feedback = json["feedback"] as? String else {
+            print("DEBUG: Missing required JSON fields. Available keys: \(json.keys)")
             throw TestEvaluationError.invalidAIResponse
         }
         
@@ -255,6 +266,15 @@ class TestEvaluationService {
     }
     
     // MARK: - Helper Methods
+    
+    private func extractJSONFromResponse(_ response: String) -> String {
+        // Look for JSON object in the response
+        if let startIndex = response.firstIndex(of: "{"),
+           let endIndex = response.lastIndex(of: "}") {
+            return String(response[startIndex...endIndex])
+        }
+        return response
+    }
     
     private func bloomDescription(for category: BloomCategory) -> String {
         switch category {
