@@ -40,12 +40,15 @@ class OpenAIService {
         self.apiKey = apiKey
         self.networkMonitor = NetworkMonitor()
         
-        // Create a custom configuration with timeout settings
+        // Create a custom configuration with maximum reliability settings
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30.0  // 30 seconds for request timeout
-        configuration.timeoutIntervalForResource = 60.0 // 60 seconds for resource timeout
+        configuration.timeoutIntervalForRequest = 90.0  // 90 seconds for request timeout (very generous for OEQ)
+        configuration.timeoutIntervalForResource = 180.0 // 180 seconds for resource timeout (3 minutes total)
         configuration.waitsForConnectivity = true       // Wait for connectivity if offline
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData // Always get fresh data
+        configuration.allowsConstrainedNetworkAccess = true // Allow on limited networks
+        configuration.allowsExpensiveNetworkAccess = true   // Allow on cellular
+        configuration.httpMaximumConnectionsPerHost = 1     // Limit concurrent connections to prevent overload
         
         self.session = URLSession(configuration: configuration)
     }
@@ -366,21 +369,64 @@ class OpenAIService {
         
         for attempt in 1...maxAttempts {
             // Check network connectivity before attempting
-            guard networkMonitor.isConnected else {
-                let error = OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1, userInfo: [NSLocalizedDescriptionKey: "No internet connection"]))
-                print("DEBUG: No network connectivity, skipping attempt \(attempt)")
-                throw error
+            if !networkMonitor.isConnected {
+                // Wait a bit for network to come back
+                print("DEBUG: Network offline, waiting for connectivity...")
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                
+                // Check again
+                if !networkMonitor.isConnected {
+                    let error = OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1009, userInfo: [NSLocalizedDescriptionKey: "No internet connection available"]))
+                    print("DEBUG: Still no network connectivity on attempt \(attempt)")
+                    lastError = error
+                    
+                    if attempt < maxAttempts {
+                        continue // Try again
+                    } else {
+                        throw error
+                    }
+                }
             }
             
             do {
-                return try await operation()
+                print("DEBUG: Attempting API call (attempt \(attempt) of \(maxAttempts))")
+                let result = try await operation()
+                print("DEBUG: API call successful on attempt \(attempt)")
+                return result
+            } catch let error as NSError {
+                lastError = error
+                print("DEBUG: Attempt \(attempt) failed with error: \(error.localizedDescription)")
+                print("DEBUG: Error code: \(error.code), domain: \(error.domain)")
+                
+                // Check for specific network errors
+                let isNetworkError = error.domain == NSURLErrorDomain && (
+                    error.code == NSURLErrorTimedOut ||
+                    error.code == NSURLErrorCannotFindHost ||
+                    error.code == NSURLErrorCannotConnectToHost ||
+                    error.code == NSURLErrorNetworkConnectionLost ||
+                    error.code == NSURLErrorNotConnectedToInternet ||
+                    error.code == NSURLErrorDNSLookupFailed
+                )
+                
+                if attempt < maxAttempts {
+                    let baseDelay = isNetworkError ? 4.0 : 3.0
+                    let exponentialDelay = baseDelay * pow(2.0, Double(attempt - 1)) // True exponential: 4s, 8s, 16s, 32s
+                    let jitter = Double.random(in: 0.5...1.5) // Add jitter to prevent thundering herd
+                    let delay = exponentialDelay * jitter
+                    print("DEBUG: Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))...")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                } else {
+                    print("DEBUG: Max attempts reached, failing with error: \(error)")
+                }
             } catch {
                 lastError = error
                 print("DEBUG: Attempt \(attempt) failed: \(error)")
                 
                 if attempt < maxAttempts {
-                    let delay = Double(attempt) * 2.0 // Exponential backoff: 2s, 4s, 6s
-                    print("DEBUG: Retrying in \(delay) seconds...")
+                    let exponentialDelay = 3.0 * pow(2.0, Double(attempt - 1)) // 3s, 6s, 12s, 24s
+                    let jitter = Double.random(in: 0.5...1.5)
+                    let delay = exponentialDelay * jitter
+                    print("DEBUG: Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))...")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 }
             }
@@ -549,6 +595,22 @@ class OpenAIService {
         temperature: Double,
         maxTokens: Int
     ) async throws -> String {
+        return try await withRetry(maxAttempts: 5) {
+            try await self.performComplete(
+                prompt: prompt,
+                model: model,
+                temperature: temperature,
+                maxTokens: maxTokens
+            )
+        }
+    }
+    
+    private func performComplete(
+        prompt: String,
+        model: String,
+        temperature: Double,
+        maxTokens: Int
+    ) async throws -> String {
         let requestBody = ChatRequest(
             model: model,
             messages: [
@@ -568,7 +630,13 @@ class OpenAIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(requestBody)
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            print("DEBUG: Network error in performComplete: \(error)")
+            throw OpenAIServiceError.networkError(error)
+        }
         
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw OpenAIServiceError.invalidResponse

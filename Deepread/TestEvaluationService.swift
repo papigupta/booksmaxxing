@@ -220,12 +220,18 @@ class TestEvaluationService {
         Evaluate this response and provide scoring with specific feedback.
         """
         
-        let aiResponse = try await openAI.complete(
-            prompt: "\(systemPrompt)\n\n\(userPrompt)",
-            model: "gpt-4.1-mini",
-            temperature: 0.3,
-            maxTokens: 300
-        )
+        let aiResponse: String
+        do {
+            aiResponse = try await openAI.complete(
+                prompt: "\(systemPrompt)\n\n\(userPrompt)",
+                model: "gpt-4.1-mini",
+                temperature: 0.3,
+                maxTokens: 300
+            )
+        } catch {
+            print("DEBUG: Failed to evaluate open-ended question: \(error)")
+            throw TestEvaluationError.evaluationFailed("Network error: \(error.localizedDescription)")
+        }
         
         // Parse AI response
         guard let data = aiResponse.data(using: .utf8),
