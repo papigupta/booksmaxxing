@@ -66,7 +66,13 @@ final class IdeaCoverage {
     
     /// Record a question attempt with BloomCategory tracking
     func recordAttempt(questionId: String, isCorrect: Bool, questionText: String, conceptTested: String, bloomCategory: String) {
-        print("DEBUG: Recording attempt for idea \(ideaId), bloomCategory: \(bloomCategory), isCorrect: \(isCorrect)")
+        print("🔍 DEBUG: Recording attempt for idea \(ideaId)")
+        print("   - BloomCategory: \(bloomCategory)")
+        print("   - isCorrect: \(isCorrect)")
+        print("   - Question ID: \(questionId)")
+        print("   - Current covered categories: \(coveredCategories)")
+        print("   - Current coverage %: \(coveragePercentage)")
+        
         totalQuestionsSeen += 1
         
         if isCorrect {
@@ -75,9 +81,11 @@ final class IdeaCoverage {
             // Track this BloomCategory as covered
             if !coveredCategories.contains(bloomCategory) {
                 coveredCategories.append(bloomCategory)
-                print("DEBUG: Added new bloom category \(bloomCategory) to covered categories. Total covered: \(coveredCategories.count)")
+                print("✅ DEBUG: Added NEW bloom category \(bloomCategory)")
+                print("   - Total unique categories covered: \(Set(coveredCategories).count)/8")
+                print("   - All covered categories: \(Set(coveredCategories).sorted())")
             } else {
-                print("DEBUG: Bloom category \(bloomCategory) already covered")
+                print("⚠️ DEBUG: Bloom category \(bloomCategory) already covered")
             }
             
             // Check if this was a correction of a previous mistake
@@ -111,8 +119,14 @@ final class IdeaCoverage {
         
         // Recalculate coverage
         updateCoverage()
-        print("DEBUG: After update - Coverage: \(coveragePercentage)%, Categories covered: \(Set(coveredCategories).count)/8")
-        print("DEBUG: Covered categories: \(coveredCategories)")
+        print("📊 DEBUG: After update:")
+        print("   - Coverage: \(coveragePercentage)%")
+        print("   - Unique categories covered: \(Set(coveredCategories).count)/8")
+        print("   - All categories (with duplicates): \(coveredCategories)")
+        print("   - Unique categories: \(Set(coveredCategories).sorted())")
+        print("   - Total questions seen: \(totalQuestionsSeen)")
+        print("   - Total correct: \(totalQuestionsCorrect)")
+        print("   - Accuracy: \(currentAccuracy)%")
     }
     
     /// Get uncorrected mistakes for review
@@ -190,11 +204,26 @@ final class CoverageService {
         bookId: String,
         responses: [(questionId: String, isCorrect: Bool, questionText: String, conceptTested: String, bloomCategory: String)]
     ) {
-        print("DEBUG: updateCoverageFromLesson called for idea \(ideaId) with \(responses.count) responses")
-        let coverage = getCoverage(for: ideaId, bookId: bookId)
+        print("🎯 DEBUG: updateCoverageFromLesson called")
+        print("   - Idea ID: \(ideaId)")
+        print("   - Book ID: \(bookId)")
+        print("   - Number of responses: \(responses.count)")
         
-        for response in responses {
-            print("DEBUG: Calling recordAttempt for bloom: \(response.bloomCategory), correct: \(response.isCorrect)")
+        // Show all bloom categories being processed
+        let bloomCategoriesInResponses = responses.map { $0.bloomCategory }
+        print("   - Bloom categories in responses: \(bloomCategoriesInResponses)")
+        let correctBloomCategories = responses.filter { $0.isCorrect }.map { $0.bloomCategory }
+        print("   - Correct bloom categories: \(correctBloomCategories)")
+        print("   - Unique correct categories: \(Set(correctBloomCategories).sorted())")
+        
+        let coverage = getCoverage(for: ideaId, bookId: bookId)
+        print("   - Current coverage before update: \(coverage.coveragePercentage)%")
+        print("   - Current covered categories: \(coverage.coveredCategories)")
+        
+        for (index, response) in responses.enumerated() {
+            print("📝 Processing response \(index + 1)/\(responses.count):")
+            print("   - Bloom: \(response.bloomCategory)")
+            print("   - Correct: \(response.isCorrect)")
             coverage.recordAttempt(
                 questionId: response.questionId,
                 isCorrect: response.isCorrect,

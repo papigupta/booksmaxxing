@@ -158,62 +158,32 @@ class TestGenerationService {
         var questions: [Question] = []
         var orderIndex = 0
         
-        // Easy Questions (0-2): 3 MCQs with different Bloom levels
-        let easyCategories: [BloomCategory] = [.recall, .reframe, .whyImportant]
+        // Ensure all 8 BloomCategories are covered exactly once
+        // Map each category to appropriate difficulty and type
+        let categoryDistribution: [(BloomCategory, QuestionDifficulty, QuestionType)] = [
+            (.recall, .easy, .mcq),
+            (.reframe, .easy, .mcq),
+            (.whyImportant, .easy, .mcq),
+            (.apply, .medium, .mcq),
+            (.whenUse, .medium, .mcq),
+            (.contrast, .hard, .mcq),
+            (.critique, .hard, .openEnded),
+            (.howWield, .hard, .openEnded)
+        ]
         
-        for category in easyCategories {
+        // Shuffle to randomize order while ensuring all categories are covered
+        let shuffledDistribution = categoryDistribution.shuffled()
+        
+        for (category, difficulty, type) in shuffledDistribution {
             questions.append(try await generateQuestion(
                 for: idea,
-                type: .mcq,
-                difficulty: .easy,
+                type: type,
+                difficulty: difficulty,
                 bloomCategory: category,
                 orderIndex: orderIndex
             ))
             orderIndex += 1
         }
-        
-        // Medium Questions (3-5): 2 MCQs + 1 Open-ended
-        let mediumCategories: [BloomCategory] = [.apply, .whenUse]
-        
-        for category in mediumCategories {
-            questions.append(try await generateQuestion(
-                for: idea,
-                type: .mcq,
-                difficulty: .medium,
-                bloomCategory: category,
-                orderIndex: orderIndex
-            ))
-            orderIndex += 1
-        }
-        
-        questions.append(try await generateQuestion(
-            for: idea,
-            type: .openEnded,
-            difficulty: .medium,
-            bloomCategory: .whenUse,
-            orderIndex: orderIndex
-        ))
-        orderIndex += 1
-        
-        // Hard Questions (6-7): 1 MCQ + 1 Open-ended
-        let hardCategories: [BloomCategory] = [.contrast, .critique, .howWield]
-        
-        questions.append(try await generateQuestion(
-            for: idea,
-            type: .mcq,
-            difficulty: .hard,
-            bloomCategory: hardCategories.randomElement()!,
-            orderIndex: orderIndex
-        ))
-        orderIndex += 1
-        
-        questions.append(try await generateQuestion(
-            for: idea,
-            type: .openEnded,
-            difficulty: .hard,
-            bloomCategory: .howWield,
-            orderIndex: orderIndex
-        ))
         
         return questions
     }
