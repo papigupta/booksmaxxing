@@ -9,16 +9,16 @@ final class Primer {
     // New structure fields
     var thesis: String
     var story: String = ""  // Default value for backward compatibility
-    var useItWhen: [String]
-    var howToApply: [String]
-    var edgesAndLimits: [String]
+    @Attribute(.transformable) var useItWhen: [String]
+    @Attribute(.transformable) var howToApply: [String]
+    @Attribute(.transformable) var edgesAndLimits: [String]
     var oneLineRecall: String
-    var furtherLearning: [PrimerLink]
+    @Attribute(.transformable) var furtherLearning: [PrimerLink]
     
     // Legacy fields for backward compatibility (deprecated)
     var overview: String
-    var keyNuances: [String]
-    var digDeeperLinks: [PrimerLink]
+    @Attribute(.transformable) var keyNuances: [String]
+    @Attribute(.transformable) var digDeeperLinks: [PrimerLink]
     
     var createdAt: Date
     var lastAccessed: Date?

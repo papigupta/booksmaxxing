@@ -16,7 +16,7 @@ final class IdeaCoverage {
     var mistakesCorrected: Int = 0
     
     // Track which BloomCategory questions have been answered correctly  
-    var coveredCategories: [String] = [] // Stores BloomCategory raw values that have been answered correctly
+    @Attribute(.transformable) var coveredCategories: [String] = [] // Stores BloomCategory raw values that have been answered correctly
     
     // Question history for mistake tracking
     @Relationship(deleteRule: .cascade) var missedQuestions: [MissedQuestionRecord] = []
