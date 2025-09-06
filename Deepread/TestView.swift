@@ -154,10 +154,10 @@ struct TestView: View {
                 .padding(.vertical, DS.Spacing.md)
             }
             .background(DS.Colors.primaryBackground)
-            .navigationTitle("Test: \(idea.title)")
+            .navigationTitle(idea.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Exit") {
                         // Save progress before exiting
                         if let attempt = currentAttempt, !attempt.isComplete {
@@ -169,6 +169,14 @@ struct TestView: View {
                     }
                     .font(DS.Typography.caption)
                     .foregroundStyle(DS.Colors.primaryText)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: PrimerView(idea: idea, openAIService: openAIService)) {
+                        Text("Primer")
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.Colors.primaryText)
+                    }
                 }
             }
             .onAppear {
