@@ -1,9 +1,11 @@
 import Foundation
 import SwiftData
+import OSLog
 
 class PrimerService: ObservableObject {
     private let openAIService: OpenAIService
     private var modelContext: ModelContext
+    private let logger = Logger(subsystem: "com.deepread.app", category: "Primer")
     
     init(openAIService: OpenAIService, modelContext: ModelContext) {
         self.openAIService = openAIService
@@ -19,36 +21,16 @@ class PrimerService: ObservableObject {
     // MARK: - Primer Generation
     
     func generatePrimer(for idea: Idea) async throws -> Primer {
-        let prompt = createPrimerPrompt(for: idea)
-        
-        let requestBody = ChatRequest(
+        let userPrompt = createPrimerPrompt(for: idea)
+        let system = "You are an expert summarizer specializing in distilling core ideas from books into concise primers, like those in book summary apps."
+
+        let primerContent = try await openAIService.chat(
+            systemPrompt: system,
+            userPrompt: userPrompt,
             model: "gpt-4.1",
-            messages: [
-                Message(role: "system", content: "You are an expert summarizer specializing in distilling core ideas from books into concise primers, like those in book summary apps."),
-                Message(role: "user", content: prompt)
-            ],
-            max_tokens: 2000,
-            temperature: 0.7
+            temperature: 0.7,
+            maxTokens: 2000
         )
-        
-        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
-            throw OpenAIServiceError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw OpenAIServiceError.invalidResponse
-        }
-        
-        let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-        let primerContent = chatResponse.choices.first?.message.content ?? ""
         
         // Parse the response into structured data
         let parsedPrimer = try parsePrimerResponse(primerContent)

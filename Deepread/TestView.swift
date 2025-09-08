@@ -16,6 +16,7 @@ struct TestView: View {
     let test: Test
     let openAIService: OpenAIService
     let onCompletion: (TestAttempt) -> Void
+    var onExit: (() -> Void)? = nil
     var existingAttempt: TestAttempt? = nil  // Allow resuming from existing attempt
     
     @Environment(\.modelContext) private var modelContext
@@ -27,6 +28,7 @@ struct TestView: View {
     @State private var currentAttempt: TestAttempt?
     @State private var isSubmitting = false
     @State private var evaluationResult: TestEvaluationResult?
+    @State private var showingPrimer = false
     
     // Immediate feedback states
     @State private var showingFeedback = false
@@ -165,6 +167,7 @@ struct TestView: View {
                             attempt.currentQuestionIndex = currentQuestionIndex
                             try? modelContext.save()
                         }
+                        onExit?()
                         dismiss()
                     }
                     .font(DS.Typography.caption)
@@ -172,7 +175,7 @@ struct TestView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(destination: PrimerView(idea: idea, openAIService: openAIService)) {
+                    Button(action: { showingPrimer = true }) {
                         Text("Primer")
                             .font(DS.Typography.caption)
                             .foregroundStyle(DS.Colors.primaryText)
@@ -198,6 +201,10 @@ struct TestView: View {
                         }
                     )
                 }
+            }
+            .sheet(isPresented: $showingPrimer) {
+                PrimerView(idea: idea, openAIService: openAIService)
+                    .presentationDetents([.medium, .large])
             }
         }
     }

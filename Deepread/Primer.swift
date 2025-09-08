@@ -9,7 +9,7 @@ final class Primer {
     // New structure fields
     var thesis: String
     var story: String = ""  // Default value for backward compatibility
-    var useItWhen: [String]
+     var useItWhen: [String]
     var howToApply: [String]
     var edgesAndLimits: [String]
     var oneLineRecall: String

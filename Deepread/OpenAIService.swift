@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import OSLog
 
 // MARK: - Network Monitor
 
@@ -7,12 +8,13 @@ class NetworkMonitor: ObservableObject {
     @Published var isConnected = true
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "NetworkMonitor")
+    private let logger = Logger(subsystem: "com.deepread.app", category: "Network")
     
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
                 self?.isConnected = path.status == .satisfied
-                print("DEBUG: Network status changed - Connected: \(path.status == .satisfied)")
+                self?.logger.debug("Network status changed - Connected: \(path.status == .satisfied)")
             }
         }
         monitor.start(queue: queue)
@@ -31,6 +33,7 @@ struct BookInfo {
 }
 
 class OpenAIService {
+    private let logger = Logger(subsystem: "com.deepread.app", category: "OpenAI")
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
     private let session: URLSession
@@ -189,7 +192,7 @@ class OpenAIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(requestBody)
         
-        print("DEBUG: Making OpenAI API request for book info extraction: '\(input)'")
+        logger.debug("Making OpenAI API request for book info extraction: '\(input)'")
         
         let (data, response) = try await session.data(for: request)
         
@@ -229,19 +232,14 @@ class OpenAIService {
             throw OpenAIServiceError.invalidResponse
         }
         
-        print("DEBUG: Raw LLM response for book info: \(content)")
-        print("DEBUG: Parsed book info - Title: '\(bookInfoResponse.title)', Author: \(bookInfoResponse.author ?? "nil")")
+        logger.debug("Raw LLM response for book info: \(content)")
+        logger.debug("Parsed book info - Title: '\(bookInfoResponse.title)', Author: \(bookInfoResponse.author ?? "nil")")
         
         return bookInfo
     }
     
     private func extractJSONFromResponse(_ response: String) -> String {
-        // Look for JSON object in the response
-        if let startIndex = response.firstIndex(of: "{"),
-           let endIndex = response.lastIndex(of: "}") {
-            return String(response[startIndex...endIndex])
-        }
-        return response
+        return SharedUtils.extractJSONObjectString(response)
     }
     
     func extractIdeas(from text: String, author: String? = nil) async throws -> [String] {
@@ -308,26 +306,26 @@ class OpenAIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(requestBody)
         
-        print("DEBUG: Making OpenAI API request for idea extraction: '\(text)'")
+        logger.debug("Making OpenAI API request for idea extraction: '\(text)'")
         
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            print("DEBUG: Network error during API request: \(error)")
+            logger.error("Network error during API request: \(String(describing: error))")
             throw OpenAIServiceError.networkError(error)
         }
         
         // Check HTTP response
         guard let httpResponse = response as? HTTPURLResponse else {
-            print("DEBUG: Invalid HTTP response")
+            logger.error("Invalid HTTP response")
             throw OpenAIServiceError.invalidResponse
         }
-        
-        print("DEBUG: HTTP response status: \(httpResponse.statusCode)")
-        
+
+        logger.debug("HTTP response status: \(httpResponse.statusCode, privacy: .public)")
+
         guard httpResponse.statusCode == 200 else {
-            print("DEBUG: HTTP error status: \(httpResponse.statusCode)")
+            logger.error("HTTP error status: \(httpResponse.statusCode, privacy: .public)")
             throw OpenAIServiceError.invalidResponse
         }
         
@@ -335,30 +333,30 @@ class OpenAIService {
         do {
             chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
         } catch {
-            print("DEBUG: Failed to decode chat response: \(error)")
+            logger.error("Failed to decode chat response: \(String(describing: error))")
             throw OpenAIServiceError.decodingError(error)
         }
         
         guard let content = chatResponse.choices.first?.message.content else {
-            print("DEBUG: No content in chat response")
+            logger.error("No content in chat response")
             throw OpenAIServiceError.noResponse
         }
         
         #if DEBUG
-        print("🧠 Raw OpenAI content:", content)
+        logger.debug("Raw OpenAI content received")
         #endif
         
         guard let contentData = content.data(using: .utf8) else {
-            print("DEBUG: Failed to convert content to data")
+            logger.error("Failed to convert content to data")
             throw OpenAIServiceError.invalidData
         }
         
         do {
             let ideas = try JSONDecoder().decode([String].self, from: contentData)
-            print("DEBUG: Successfully decoded \(ideas.count) ideas from OpenAI")
+            logger.debug("Successfully decoded \(ideas.count) ideas from OpenAI")
             return ideas
         } catch {
-            print("DEBUG: Failed to decode ideas array: \(error)")
+            logger.error("Failed to decode ideas array: \(String(describing: error))")
             throw OpenAIServiceError.decodingError(error)
         }
     }
@@ -371,13 +369,13 @@ class OpenAIService {
             // Check network connectivity before attempting
             if !networkMonitor.isConnected {
                 // Wait a bit for network to come back
-                print("DEBUG: Network offline, waiting for connectivity...")
+                logger.debug("Network offline, waiting for connectivity…")
                 try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
                 
                 // Check again
                 if !networkMonitor.isConnected {
                     let error = OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1009, userInfo: [NSLocalizedDescriptionKey: "No internet connection available"]))
-                    print("DEBUG: Still no network connectivity on attempt \(attempt)")
+                    logger.debug("Still no network connectivity on attempt \(attempt)")
                     lastError = error
                     
                     if attempt < maxAttempts {
@@ -389,14 +387,14 @@ class OpenAIService {
             }
             
             do {
-                print("DEBUG: Attempting API call (attempt \(attempt) of \(maxAttempts))")
+                self.logger.debug("Attempting API call (attempt \(attempt) of \(maxAttempts))")
                 let result = try await operation()
-                print("DEBUG: API call successful on attempt \(attempt)")
+                self.logger.debug("API call successful on attempt \(attempt)")
                 return result
             } catch let error as NSError {
                 lastError = error
-                print("DEBUG: Attempt \(attempt) failed with error: \(error.localizedDescription)")
-                print("DEBUG: Error code: \(error.code), domain: \(error.domain)")
+                self.logger.debug("Attempt \(attempt) failed with error: \(error.localizedDescription)")
+                self.logger.debug("Error code: \(error.code), domain: \(error.domain)")
                 
                 // Check for specific network errors
                 let isNetworkError = error.domain == NSURLErrorDomain && (
@@ -413,20 +411,20 @@ class OpenAIService {
                     let exponentialDelay = baseDelay * pow(2.0, Double(attempt - 1)) // True exponential: 4s, 8s, 16s, 32s
                     let jitter = Double.random(in: 0.5...1.5) // Add jitter to prevent thundering herd
                     let delay = exponentialDelay * jitter
-                    print("DEBUG: Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))...")
+                    self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 } else {
-                    print("DEBUG: Max attempts reached, failing with error: \(error)")
+                    self.logger.error("Max attempts reached, failing with error: \(String(describing: error))")
                 }
             } catch {
                 lastError = error
-                print("DEBUG: Attempt \(attempt) failed: \(error)")
+                self.logger.error("Attempt \(attempt) failed: \(String(describing: error))")
                 
                 if attempt < maxAttempts {
                     let exponentialDelay = 3.0 * pow(2.0, Double(attempt - 1)) // 3s, 6s, 12s, 24s
                     let jitter = Double.random(in: 0.5...1.5)
                     let delay = exponentialDelay * jitter
-                    print("DEBUG: Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))...")
+                    self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 }
             }
@@ -477,6 +475,7 @@ class OpenAIService {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            logger.error("Network error in performComplete: \(String(describing: error))")
             throw OpenAIServiceError.networkError(error)
         }
         
@@ -634,7 +633,7 @@ class OpenAIService {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            print("DEBUG: Network error in performComplete: \(error)")
+            logger.error("Network error in performComplete: \(String(describing: error))")
             throw OpenAIServiceError.networkError(error)
         }
         
@@ -650,6 +649,51 @@ class OpenAIService {
         
         return content
     }
+
+    // MARK: - General Chat Method (with system + user messages)
+    func chat(systemPrompt: String?, userPrompt: String, model: String, temperature: Double, maxTokens: Int) async throws -> String {
+        return try await withRetry(maxAttempts: 5) {
+            try await self.performChat(systemPrompt: systemPrompt, userPrompt: userPrompt, model: model, temperature: temperature, maxTokens: maxTokens)
+        }
+    }
+
+    private func performChat(systemPrompt: String?, userPrompt: String, model: String, temperature: Double, maxTokens: Int) async throws -> String {
+        var messages: [Message] = []
+        if let system = systemPrompt { messages.append(Message(role: "system", content: system)) }
+        messages.append(Message(role: "user", content: userPrompt))
+
+        let requestBody = ChatRequest(
+            model: model,
+            messages: messages,
+            max_tokens: maxTokens,
+            temperature: temperature
+        )
+
+        guard let url = URL(string: "\(baseURL)/chat/completions") else {
+            throw OpenAIServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response): (Data, URLResponse)
+        do { (data, response) = try await session.data(for: request) }
+        catch {
+            logger.error("Network error in performChat: \(String(describing: error))")
+            throw OpenAIServiceError.networkError(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw OpenAIServiceError.invalidResponse
+        }
+
+        let chatResponse = try validateAPIResponse(data)
+        guard let content = chatResponse.choices.first?.message.content else {
+            throw OpenAIServiceError.noResponse
+        }
+        return content
+    }
 }
-
-

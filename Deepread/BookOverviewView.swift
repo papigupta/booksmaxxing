@@ -651,6 +651,7 @@ struct ActiveIdeaCard: View {
         )
         .sheet(isPresented: $showingPrimer) {
             PrimerView(idea: idea, openAIService: openAIService)
+                .presentationDetents([.medium, .large])
         }
         .fullScreenCover(isPresented: $showingTest) {
             if let test = currentTest {
@@ -663,6 +664,7 @@ struct ActiveIdeaCard: View {
                         currentIncompleteAttempt = nil  // Clear the incomplete attempt reference
                         // Test completed, mastery will be updated by TestResultsView
                     },
+                    onExit: { showingTest = false },
                     existingAttempt: currentIncompleteAttempt
                 )
                 .ignoresSafeArea()

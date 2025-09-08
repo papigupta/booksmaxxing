@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import OSLog
 
 @MainActor
 class IdeaExtractionViewModel: ObservableObject {
@@ -13,6 +14,7 @@ class IdeaExtractionViewModel: ObservableObject {
     private let bookService: BookService
     private var currentTask: Task<Void, Never>?
     private var currentBookTitle: String = ""
+    private let logger = Logger(subsystem: "com.deepread.app", category: "IdeaExtraction")
     
     init(openAIService: OpenAIService, bookService: BookService) {
         self.openAIService = openAIService
@@ -301,80 +303,37 @@ class IdeaExtractionViewModel: ObservableObject {
             TASK:
             Based on the book title and the ideas extracted from it, identify the most likely author of the book.
             
+            Return ONLY the author name or null, nothing else.
+            """
+            let ideasBulleted = self.extractedIdeas.prefix(5).map { "- \($0.title): \($0.ideaDescription)" }.joined(separator: "\n")
+            let userPrompt = """
             BOOK TITLE: "\(bookTitle)"
             
             EXTRACTED IDEAS:
-            \(self.extractedIdeas.prefix(5).map { "- \($0.title): \($0.ideaDescription)" }.joined(separator: "\n"))
+            \(ideasBulleted)
             
-            INSTRUCTIONS:
-            1. Analyze the ideas and book title to identify the most likely author
-            2. Consider the themes, concepts, and writing style suggested by the ideas
-            3. If you can confidently identify the author, return their name
-            4. If you're uncertain, return null
-            
-            Return ONLY the author name or null, nothing else.
+            Who is the most likely author of this book based on the ideas?
             """
-            
-            let requestBody = ChatRequest(
+
+            let content = try await openAIService.chat(
+                systemPrompt: systemPrompt,
+                userPrompt: userPrompt,
                 model: "gpt-4.1-mini",
-                messages: [
-                    Message(role: "system", content: systemPrompt),
-                    Message(role: "user", content: "Who is the most likely author of this book based on the ideas?")
-                ],
-                max_tokens: 100,
-                temperature: 0.1
+                temperature: 0.1,
+                maxTokens: 100
             )
-            
-            guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
-                print("DEBUG: Invalid URL for author extraction")
-                return
-            }
-            
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.setValue("Bearer \(Secrets.openAIAPIKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(requestBody)
-            
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return
-            }
-            
-            let chatResponse: ChatResponse
-            do {
-                chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-            } catch {
-                return
-            }
-            
-            guard let content = chatResponse.choices.first?.message.content else {
-                return
-            }
-            
+
             let authorName = content.trimmingCharacters(in: .whitespacesAndNewlines)
-            
             if !authorName.isEmpty && authorName.lowercased() != "null" && authorName.lowercased() != "unknown" {
-                print("DEBUG: Successfully identified author from context: \(authorName)")
-                
-                // Update the book info with the found author
-                await MainActor.run {
-                    self.bookInfo = BookInfo(title: bookTitle, author: authorName)
-                }
-                
-                // Update the database with the author information
-                do {
-                    try bookService.updateBookAuthor(title: bookTitle, author: authorName)
-                } catch {
-                    print("DEBUG: Failed to update book with author information: \(error)")
-                }
+                logger.debug("Identified author from context: \(authorName)")
+                await MainActor.run { self.bookInfo = BookInfo(title: bookTitle, author: authorName) }
+                do { try bookService.updateBookAuthor(title: bookTitle, author: authorName) }
+                catch { logger.error("Failed to update book author: \(String(describing: error))") }
             } else {
-                print("DEBUG: Could not identify author from context")
+                logger.debug("Could not identify author from context")
             }
-            
         } catch {
-            print("DEBUG: Error trying to extract author from context: \(error)")
+            logger.error("Error extracting author from context: \(String(describing: error))")
         }
     }
 }

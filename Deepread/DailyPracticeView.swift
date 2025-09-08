@@ -88,12 +88,14 @@ struct DailyPracticeView: View {
                         idea: ideaForTest,
                         test: test,
                         openAIService: openAIService,
-                        onCompletion: handleTestCompletion
+                        onCompletion: handleTestCompletion,
+                        onExit: { showingTest = false }
                     )
                 }
             }
             .sheet(isPresented: $showingPrimer) {
                 PrimerView(idea: ideaForTest, openAIService: openAIService)
+                    .presentationDetents([.medium, .large])
             }
             .fullScreenCover(isPresented: .constant(currentView != .none)) {
                 if currentView == .streak {
@@ -329,6 +331,18 @@ struct DailyPracticeView: View {
                 guard let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) else {
                     throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
                 }
+
+                // 1) Try to reuse an existing practice session (persisted mixed test)
+                if let existingSession = try await fetchExistingSession(for: primaryIdea.id, type: "lesson_practice"),
+                   let existingTest = existingSession.test,
+                   existingTest.questions.count >= 8 {
+                    print("DEBUG: Reusing existing practice session with \(existingTest.questions.count) questions")
+                    await MainActor.run {
+                        self.generatedTest = existingTest
+                        self.isGenerating = false
+                    }
+                    return
+                }
                 
                 print("DEBUG: Generating test for idea: \(primaryIdea.title)")
                 
@@ -374,7 +388,7 @@ struct DailyPracticeView: View {
                 allQuestions.append(contentsOf: mediumReview)
                 allQuestions.append(contentsOf: hardReview)
                 
-                // Create combined test
+                // Create combined test (persisted as the session's test)
                 test = Test(
                     ideaId: primaryIdea.id,
                     ideaTitle: primaryIdea.title,
@@ -382,14 +396,45 @@ struct DailyPracticeView: View {
                     testType: "mixed"
                 )
                 
-                // Update question order indices to reflect the new order
-                for (index, question) in allQuestions.enumerated() {
-                    question.orderIndex = index
+                // Clone questions to attach to the mixed test cleanly
+                var combined: [Question] = []
+                for (index, q) in allQuestions.enumerated() {
+                    let cloned = Question(
+                        ideaId: q.ideaId,
+                        type: q.type,
+                        difficulty: q.difficulty,
+                        bloomCategory: q.bloomCategory,
+                        questionText: q.questionText,
+                        options: q.options,
+                        correctAnswers: q.correctAnswers,
+                        orderIndex: index
+                    )
+                    combined.append(cloned)
                 }
                 
-                test.questions = allQuestions
-                
-                print("DEBUG: Generated mixed test with \(test.questions.count) questions (\(freshTest.questions.count) fresh + \(allQuestions.count - freshTest.questions.count) review)")
+                // Persist mixed test, questions and session on MainActor
+                try await MainActor.run {
+                    self.modelContext.insert(test)
+                    for q in combined {
+                        q.test = test
+                        test.questions.append(q)
+                        self.modelContext.insert(q)
+                    }
+                    try self.modelContext.save()
+
+                    let session = PracticeSession(
+                        ideaId: primaryIdea.id,
+                        bookId: book.id.uuidString,
+                        type: "lesson_practice",
+                        status: "ready",
+                        configVersion: 1
+                    )
+                    session.test = test
+                    self.modelContext.insert(session)
+                    try self.modelContext.save()
+                }
+
+                print("DEBUG: Generated and saved mixed test with \(test.questions.count) questions (\(freshTest.questions.count) fresh + \(combined.count - freshTest.questions.count) review)")
             } else {
                 throw NSError(domain: "LessonGeneration", code: 2, userInfo: [NSLocalizedDescriptionKey: "No lesson selected"])
             }
@@ -631,7 +676,14 @@ struct DailyPracticeView: View {
                 guard let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) else {
                     throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
                 }
-                
+                // Invalidate existing session if present
+                if let existingSession = try await fetchExistingSession(for: primaryIdea.id, type: "lesson_practice") {
+                    await MainActor.run {
+                        self.modelContext.delete(existingSession)
+                        try? self.modelContext.save()
+                    }
+                }
+
                 print("DEBUG: Refreshing test for idea: \(primaryIdea.title)")
                 
                 // Use refreshTest to force regeneration
@@ -645,16 +697,27 @@ struct DailyPracticeView: View {
                 throw NSError(domain: "LessonGeneration", code: 2, userInfo: [NSLocalizedDescriptionKey: "No lesson selected"])
             }
             
-            await MainActor.run {
-                self.generatedTest = test
-                self.isGenerating = false
-            }
+            // Re-run generatePractice() to assemble and persist a new mixed test
+            await generatePractice()
         } catch {
             print("ERROR: Failed to refresh practice: \(error)")
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
                 self.isGenerating = false
             }
+        }
+    }
+
+    // MARK: - Session Helpers
+    private func fetchExistingSession(for ideaId: String, type: String) async throws -> PracticeSession? {
+        try await MainActor.run {
+            let descriptor = FetchDescriptor<PracticeSession>(
+                predicate: #Predicate { s in
+                    s.ideaId == ideaId && s.type == type && s.status == "ready"
+                },
+                sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+            )
+            return try self.modelContext.fetch(descriptor).first
         }
     }
 }

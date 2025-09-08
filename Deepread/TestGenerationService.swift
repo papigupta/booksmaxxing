@@ -1,9 +1,11 @@
 import Foundation
 import SwiftData
+import OSLog
 
 // MARK: - Test Generation Service
 
 class TestGenerationService {
+    private let logger = Logger(subsystem: "com.deepread.app", category: "TestGeneration")
     // Helper function to randomize options and update correct answer index
     private func randomizeOptions(_ options: [String], correctIndices: [Int]) -> (options: [String], correctIndices: [Int]) {
         // Create array of indices paired with options
@@ -44,9 +46,21 @@ class TestGenerationService {
         do {
             let tests = try modelContext.fetch(descriptor)
             // Return the most recent test for this idea and type
-            return tests.sorted { $0.createdAt > $1.createdAt }.first
+            let sorted = tests.sorted { $0.createdAt > $1.createdAt }
+            if let candidate = sorted.first {
+                let minCount = (testType == "review") ? 1 : 8
+                if candidate.questions.count >= minCount {
+                    return candidate
+                } else {
+                    // Delete incomplete/invalid test to avoid getting stuck with partial data
+                    logger.debug("Discarding invalid existing test (\(candidate.questions.count) questions); regenerating…")
+                    modelContext.delete(candidate)
+                    try? modelContext.save()
+                }
+            }
+            return nil
         } catch {
-            print("Error fetching test: \(error)")
+            logger.error("Error fetching test: \(String(describing: error))")
             return nil
         }
     }
@@ -54,15 +68,15 @@ class TestGenerationService {
     // MARK: - Main Test Generation
     
     func generateTest(for idea: Idea, testType: String = "initial", previousMistakes: [QuestionResponse]? = nil) async throws -> Test {
-        print("DEBUG: Checking for existing \(testType) test for idea: \(idea.title)")
+        logger.debug("Checking for existing \(testType, privacy: .public) test for idea: \(idea.title, privacy: .public)")
         
         // Check if test already exists
         if let existingTest = getTest(for: idea, testType: testType) {
-            print("DEBUG: Found existing test with \(existingTest.questions.count) questions, created at \(existingTest.createdAt)")
+            logger.debug("Found existing test with \(existingTest.questions.count) questions, created at \(existingTest.createdAt, privacy: .public)")
             return existingTest
         }
         
-        print("DEBUG: No existing test found, generating new \(testType) test for idea: \(idea.title)")
+        logger.debug("No existing test found, generating new \(testType, privacy: .public) test for idea: \(idea.title, privacy: .public)")
         
         // Create test container
         let test = Test(
@@ -94,11 +108,11 @@ class TestGenerationService {
     // MARK: - Refresh Test (Force Regeneration)
     
     func refreshTest(for idea: Idea, testType: String = "initial") async throws -> Test {
-        print("DEBUG: Refreshing \(testType) test for idea: \(idea.title)")
+        logger.debug("Refreshing \(testType, privacy: .public) test for idea: \(idea.title, privacy: .public)")
         
         // Delete existing test if it exists
         if let existingTest = getTest(for: idea, testType: testType) {
-            print("DEBUG: Deleting existing test created at \(existingTest.createdAt)")
+            logger.debug("Deleting existing test created at \(existingTest.createdAt, privacy: .public)")
             modelContext.delete(existingTest)
             try modelContext.save()
         }
@@ -110,7 +124,7 @@ class TestGenerationService {
     // MARK: - Retry Test Generation (focused on incorrect answers)
     
     func generateRetryTest(for idea: Idea, incorrectResponses: [QuestionResponse]) async throws -> Test {
-        print("DEBUG: Generating retry test for idea: \(idea.title) with \(incorrectResponses.count) incorrect responses")
+        logger.debug("Generating retry test for idea: \(idea.title, privacy: .public) with \(incorrectResponses.count) incorrect responses")
         
         // Create retry test container
         let test = Test(

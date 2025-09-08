@@ -70,13 +70,15 @@ struct DailyPracticeWithReviewView: View {
                         idea: currentIdea ?? createDailyPracticeIdea(),
                         test: test,
                         openAIService: openAIService,
-                        onCompletion: handleTestCompletion
+                        onCompletion: handleTestCompletion,
+                        onExit: { showingTest = false }
                     )
                 }
             }
             .sheet(isPresented: $showingPrimer) {
                 if let idea = currentIdea {
                     PrimerView(idea: idea, openAIService: openAIService)
+                        .presentationDetents([.medium, .large])
                 }
             }
             .fullScreenCover(isPresented: .constant(currentView != .none)) {

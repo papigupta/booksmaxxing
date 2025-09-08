@@ -31,6 +31,7 @@ struct DeepreadApp: App {
             TestAttempt.self,
             QuestionResponse.self,
             TestProgress.self,
+            PracticeSession.self,
             // Review queue models
             ReviewQueueItem.self,
             // Coverage tracking models
@@ -120,4 +121,3 @@ struct DeepreadApp: App {
         .modelContainer(sharedModelContainer)
     }
 }
-

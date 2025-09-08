@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import OSLog
 
 // MARK: - Coverage Tracking System
 // Tracks user progress and coverage for each idea
@@ -156,6 +157,7 @@ final class MissedQuestionRecord {
 // MARK: - Coverage Service
 final class CoverageService {
     private let modelContext: ModelContext
+    private let logger = Logger(subsystem: "com.deepread.app", category: "Coverage")
     
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -163,7 +165,7 @@ final class CoverageService {
     
     /// Get or create coverage record for an idea
     func getCoverage(for ideaId: String, bookId: String) -> IdeaCoverage {
-        print("DEBUG: getCoverage called for ideaId: '\(ideaId)', bookId: '\(bookId)'")
+        logger.debug("getCoverage(ideaId=\(ideaId, privacy: .public), bookId=\(bookId, privacy: .public))")
         let descriptor = FetchDescriptor<IdeaCoverage>(
             predicate: #Predicate<IdeaCoverage> { coverage in
                 coverage.ideaId == ideaId && coverage.bookId == bookId
@@ -172,27 +174,27 @@ final class CoverageService {
         
         do {
             let allCoverage = try modelContext.fetch(descriptor)
-            print("DEBUG: Found \(allCoverage.count) coverage records for ideaId: \(ideaId)")
+            logger.debug("Found \(allCoverage.count) coverage records for ideaId: \(ideaId, privacy: .public)")
             
             if let existing = allCoverage.first {
-                print("DEBUG: Found existing coverage for idea \(ideaId): \(existing.coveragePercentage)%, categories: \(existing.coveredCategories.count)")
+                logger.debug("Found existing coverage for idea \(ideaId, privacy: .public): \(existing.coveragePercentage, privacy: .public)% categories: \(existing.coveredCategories.count)")
                 return existing
             }
         } catch {
-            print("Error fetching coverage: \(error)")
+            logger.error("Error fetching coverage: \(String(describing: error))")
         }
         
         // Create new coverage record
-        print("DEBUG: Creating NEW coverage record for ideaId: \(ideaId), bookId: \(bookId)")
+        logger.debug("Creating NEW coverage record for ideaId: \(ideaId, privacy: .public), bookId: \(bookId, privacy: .public)")
         let newCoverage = IdeaCoverage(ideaId: ideaId, bookId: bookId)
         modelContext.insert(newCoverage)
         
         // Save immediately so it persists
         do {
             try modelContext.save()
-            print("DEBUG: Created and saved new coverage for idea \(ideaId)")
+            logger.debug("Created and saved new coverage for idea \(ideaId, privacy: .public)")
         } catch {
-            print("ERROR: Failed to save new coverage: \(error)")
+            logger.error("Failed to save new coverage: \(String(describing: error))")
         }
         
         return newCoverage
@@ -204,26 +206,17 @@ final class CoverageService {
         bookId: String,
         responses: [(questionId: String, isCorrect: Bool, questionText: String, conceptTested: String, bloomCategory: String)]
     ) {
-        print("🎯 DEBUG: updateCoverageFromLesson called")
-        print("   - Idea ID: \(ideaId)")
-        print("   - Book ID: \(bookId)")
-        print("   - Number of responses: \(responses.count)")
+        logger.debug("updateCoverageFromLesson: ideaId=\(ideaId, privacy: .public), bookId=\(bookId, privacy: .public), responses=\(responses.count)")
         
         // Show all bloom categories being processed
-        let bloomCategoriesInResponses = responses.map { $0.bloomCategory }
-        print("   - Bloom categories in responses: \(bloomCategoriesInResponses)")
+        _ = responses.map { $0.bloomCategory }
         let correctBloomCategories = responses.filter { $0.isCorrect }.map { $0.bloomCategory }
-        print("   - Correct bloom categories: \(correctBloomCategories)")
-        print("   - Unique correct categories: \(Set(correctBloomCategories).sorted())")
         
         let coverage = getCoverage(for: ideaId, bookId: bookId)
-        print("   - Current coverage before update: \(coverage.coveragePercentage)%")
-        print("   - Current covered categories: \(coverage.coveredCategories)")
+        logger.debug("Current coverage before: \(coverage.coveragePercentage, privacy: .public)% covered=\(coverage.coveredCategories.count)")
         
         for (index, response) in responses.enumerated() {
-            print("📝 Processing response \(index + 1)/\(responses.count):")
-            print("   - Bloom: \(response.bloomCategory)")
-            print("   - Correct: \(response.isCorrect)")
+            logger.debug("Processing response \(index + 1)/\(responses.count)")
             coverage.recordAttempt(
                 questionId: response.questionId,
                 isCorrect: response.isCorrect,
@@ -241,9 +234,9 @@ final class CoverageService {
         
         do {
             try modelContext.save()
-            print("DEBUG: Successfully saved coverage for idea \(ideaId). Coverage: \(coverage.coveragePercentage)%")
+            logger.debug("Saved coverage for idea \(ideaId, privacy: .public). Coverage: \(coverage.coveragePercentage, privacy: .public)%")
         } catch {
-            print("ERROR: Failed to save coverage for idea \(ideaId): \(error)")
+            logger.error("Failed to save coverage for idea \(ideaId, privacy: .public): \(String(describing: error))")
         }
     }
     
@@ -274,7 +267,7 @@ final class CoverageService {
             
             return Array(needsReview.prefix(limit)).map { $0.ideaId }
         } catch {
-            print("Error fetching ideas for review: \(error)")
+            logger.error("Error fetching ideas for review: \(String(describing: error))")
             return []
         }
     }
@@ -297,23 +290,18 @@ final class CoverageService {
                 return nil
             }
         } catch {
-            print("Error fetching mistakes: \(error)")
+            logger.error("Error fetching mistakes: \(String(describing: error))")
             return []
         }
     }
     
     /// Calculate overall book coverage
     func calculateBookCoverage(bookId: String, totalIdeas: Int) -> Double {
-        print("DEBUG: Calculating book coverage for bookId: '\(bookId)', totalIdeas: \(totalIdeas)")
+        logger.debug("Calculating book coverage for bookId=\(bookId, privacy: .public), totalIdeas=\(totalIdeas)")
         
         // Debug: List all coverage records
         let allDescriptor = FetchDescriptor<IdeaCoverage>()
-        if let allCoverage = try? modelContext.fetch(allDescriptor) {
-            print("DEBUG: All coverage records in database:")
-            for cov in allCoverage {
-                print("  - ideaId: '\(cov.ideaId)', bookId: '\(cov.bookId)', coverage: \(cov.coveragePercentage)%, categories: \(cov.coveredCategories)")
-            }
-        }
+        _ = try? modelContext.fetch(allDescriptor)
         
         let descriptor = FetchDescriptor<IdeaCoverage>(
             predicate: #Predicate<IdeaCoverage> { coverage in
@@ -327,7 +315,7 @@ final class CoverageService {
             let fullyCoveredCount = allCoverage.filter { $0.isFullyCovered }.count
             return (Double(fullyCoveredCount) / Double(totalIdeas)) * 100.0
         } catch {
-            print("Error calculating book coverage: \(error)")
+            logger.error("Error calculating book coverage: \(String(describing: error))")
             return 0.0
         }
     }

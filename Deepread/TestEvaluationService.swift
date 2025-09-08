@@ -1,11 +1,13 @@
 import Foundation
 import SwiftData
+import OSLog
 
 // MARK: - Test Evaluation Service
 
 class TestEvaluationService {
     private let openAI: OpenAIService
     private let modelContext: ModelContext
+    private let logger = Logger(subsystem: "com.deepread.app", category: "TestEval")
     
     init(openAI: OpenAIService, modelContext: ModelContext) {
         self.openAI = openAI
@@ -15,7 +17,7 @@ class TestEvaluationService {
     // MARK: - Evaluate Complete Test
     
     func evaluateTest(_ attempt: TestAttempt, test: Test, idea: Idea) async throws -> TestEvaluationResult {
-        print("DEBUG: Evaluating test attempt for idea: \(idea.title)")
+        logger.debug("Evaluating test attempt for idea: \(idea.title, privacy: .public)")
         
         var totalScore = 0
         var correctCount = 0
@@ -229,27 +231,26 @@ class TestEvaluationService {
                 maxTokens: 300
             )
         } catch {
-            print("DEBUG: Failed to evaluate open-ended question: \(error)")
+            logger.error("Failed to evaluate open-ended question: \(String(describing: error))")
             throw TestEvaluationError.evaluationFailed("Network error: \(error.localizedDescription)")
         }
         
         // Parse AI response
-        print("DEBUG: Raw AI response: \(aiResponse)")
+        logger.debug("Raw AI response received")
         
         // Try to extract JSON from response (in case there's extra text)
-        let jsonString = extractJSONFromResponse(aiResponse)
-        print("DEBUG: Extracted JSON: \(jsonString)")
+        let jsonString = SharedUtils.extractJSONObjectString(aiResponse)
         
         guard let data = jsonString.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("DEBUG: Failed to parse JSON from response")
+            logger.error("Failed to parse JSON from response")
             throw TestEvaluationError.invalidAIResponse
         }
         
         guard let scorePercentage = json["score_percentage"] as? Int,
               let isCorrect = json["is_correct"] as? Bool,
               let feedback = json["feedback"] as? String else {
-            print("DEBUG: Missing required JSON fields. Available keys: \(json.keys)")
+            logger.error("Missing required JSON fields in AI response")
             throw TestEvaluationError.invalidAIResponse
         }
         
@@ -267,14 +268,7 @@ class TestEvaluationService {
     
     // MARK: - Helper Methods
     
-    private func extractJSONFromResponse(_ response: String) -> String {
-        // Look for JSON object in the response
-        if let startIndex = response.firstIndex(of: "{"),
-           let endIndex = response.lastIndex(of: "}") {
-            return String(response[startIndex...endIndex])
-        }
-        return response
-    }
+    // Removed in favor of SharedUtils.extractJSONObjectString
     
     private func bloomDescription(for category: BloomCategory) -> String {
         switch category {
