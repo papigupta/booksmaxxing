@@ -530,7 +530,7 @@ struct TestView: View {
                 
                 let result = TestEvaluationResult(
                     totalScore: totalScore,
-                    maxScore: 125, // 3×10 (easy) + 3×15 (medium) + 2×25 (hard) = 30 + 45 + 50 = 125
+                    maxScore: 130, // 2×10 (easy) + 4×15 (medium) + 2×25 (hard) = 20 + 60 + 50 = 130
                     correctCount: correctCount,
                     totalQuestions: test.questions.count,
                     masteryAchieved: attempt.masteryAchieved,

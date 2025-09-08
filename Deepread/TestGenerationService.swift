@@ -73,6 +73,13 @@ class TestGenerationService {
         // Check if test already exists
         if let existingTest = getTest(for: idea, testType: testType) {
             logger.debug("Found existing test with \(existingTest.questions.count) questions, created at \(existingTest.createdAt, privacy: .public)")
+            
+            // Log the order of questions in the existing test
+            logger.debug("Existing test question order:")
+            for (index, q) in existingTest.orderedQuestions.enumerated() {
+                logger.debug("  Q\(index + 1): \(q.bloomCategory.rawValue) - \(q.type.rawValue) - orderIndex: \(q.orderIndex)")
+            }
+            
             return existingTest
         }
         
@@ -94,8 +101,8 @@ class TestGenerationService {
             questions = try await generateInitialQuestions(for: idea)
         }
         
-        // Add questions to test
-        test.questions = questions
+        // Add questions to test (ensure they're sorted by orderIndex)
+        test.questions = questions.sorted { $0.orderIndex < $1.orderIndex }
         questions.forEach { $0.test = test }
         
         // Save to database
@@ -155,8 +162,8 @@ class TestGenerationService {
             orderIndex += 1
         }
         
-        // Add questions to test
-        test.questions = questions
+        // Add questions to test (ensure they're sorted by orderIndex)
+        test.questions = questions.sorted { $0.orderIndex < $1.orderIndex }
         questions.forEach { $0.test = test }
         
         // Save to database
@@ -170,33 +177,45 @@ class TestGenerationService {
     
     private func generateInitialQuestions(for idea: Idea) async throws -> [Question] {
         var questions: [Question] = []
-        var orderIndex = 0
         
-        // Ensure all 8 BloomCategories are covered exactly once
-        // Map each category to appropriate difficulty and type
+        // Fixed order with specific question types and difficulties:
+        // Q1: Recall (Easy, MCQ)
+        // Q2: Apply (Easy, MCQ)  
+        // Q3: WhyImportant (Medium, MCQ)
+        // Q4: WhenUse (Medium, MCQ)
+        // Q5: Contrast (Medium, MCQ)
+        // Q6: Reframe (Medium, Open-ended)
+        // Q7: Critique (Hard, MCQ)
+        // Q8: HowWield (Hard, Open-ended)
+        
         let categoryDistribution: [(BloomCategory, QuestionDifficulty, QuestionType)] = [
-            (.recall, .easy, .mcq),
-            (.reframe, .easy, .mcq),
-            (.whyImportant, .easy, .mcq),
-            (.apply, .medium, .mcq),
-            (.whenUse, .medium, .mcq),
-            (.contrast, .hard, .mcq),
-            (.critique, .hard, .openEnded),
-            (.howWield, .hard, .openEnded)
+            (.recall, .easy, .mcq),           // Q1
+            (.apply, .easy, .mcq),            // Q2
+            (.whyImportant, .medium, .mcq),   // Q3
+            (.whenUse, .medium, .mcq),        // Q4
+            (.contrast, .medium, .mcq),       // Q5
+            (.reframe, .medium, .openEnded),  // Q6 - Open-ended for reframing
+            (.critique, .hard, .mcq),         // Q7
+            (.howWield, .hard, .openEnded)    // Q8 - Open-ended for how to wield
         ]
         
-        // Shuffle to randomize order while ensuring all categories are covered
-        let shuffledDistribution = categoryDistribution.shuffled()
-        
-        for (category, difficulty, type) in shuffledDistribution {
-            questions.append(try await generateQuestion(
+        // Generate questions in the fixed order
+        for (index, (category, difficulty, type)) in categoryDistribution.enumerated() {
+            let question = try await generateQuestion(
                 for: idea,
                 type: type,
                 difficulty: difficulty,
                 bloomCategory: category,
-                orderIndex: orderIndex
-            ))
-            orderIndex += 1
+                orderIndex: index
+            )
+            questions.append(question)
+            logger.debug("Generated Q\(index + 1): \(category.rawValue) - \(type.rawValue) - orderIndex: \(index)")
+        }
+        
+        // Verify order before returning
+        logger.debug("Final question order:")
+        for (index, q) in questions.enumerated() {
+            logger.debug("  Q\(index + 1): \(q.bloomCategory.rawValue) - \(q.type.rawValue) - orderIndex: \(q.orderIndex)")
         }
         
         return questions
@@ -333,15 +352,13 @@ class TestGenerationService {
             }
         }
         
-        // Fill remaining slots with new questions at appropriate difficulty
+        // Fill remaining slots with new questions following the same pattern
         while questions.count < 8 {
-            let difficulty: QuestionDifficulty = questions.count < 3 ? .easy : questions.count < 6 ? .medium : .hard
-            let category = bloomCategoryForDifficulty(difficulty)
-            let questionType = getQuestionTypeForSlot(questions.count)
+            let (category, difficulty, type) = getQuestionConfigForSlot(questions.count)
             
             questions.append(try await generateQuestion(
                 for: idea,
-                type: questionType,
+                type: type,
                 difficulty: difficulty,
                 bloomCategory: category,
                 orderIndex: orderIndex
@@ -574,17 +591,27 @@ class TestGenerationService {
     }
     
     private func getQuestionTypeForSlot(_ slotIndex: Int) -> QuestionType {
-        // Easy (0-2): All MCQ
-        if slotIndex < 3 {
+        // Only Q6 (index 5) and Q8 (index 7) are open-ended
+        // All others are MCQ
+        if slotIndex == 5 || slotIndex == 7 {
+            return .openEnded
+        } else {
             return .mcq
         }
-        // Medium (3-5): 2 MCQ + 1 Open-ended
-        else if slotIndex < 6 {
-            return slotIndex == 5 ? .openEnded : .mcq
-        }
-        // Hard (6-7): 1 MCQ + 1 Open-ended
-        else {
-            return slotIndex == 6 ? .mcq : .openEnded
+    }
+    
+    private func getQuestionConfigForSlot(_ slotIndex: Int) -> (BloomCategory, QuestionDifficulty, QuestionType) {
+        // Fixed configuration for each slot
+        switch slotIndex {
+        case 0: return (.recall, .easy, .mcq)           // Q1
+        case 1: return (.apply, .easy, .mcq)            // Q2
+        case 2: return (.whyImportant, .medium, .mcq)   // Q3
+        case 3: return (.whenUse, .medium, .mcq)        // Q4
+        case 4: return (.contrast, .medium, .mcq)       // Q5
+        case 5: return (.reframe, .medium, .openEnded)  // Q6
+        case 6: return (.critique, .hard, .mcq)         // Q7
+        case 7: return (.howWield, .hard, .openEnded)   // Q8
+        default: return (.recall, .easy, .mcq)          // Fallback
         }
     }
     
