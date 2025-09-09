@@ -357,11 +357,26 @@ struct DailyPracticeView: View {
                 let (mcqItems, openEndedItems) = reviewManager.getDailyReviewItems(for: book.title)
                 let allReviewItems = mcqItems + openEndedItems // Already limited to 3 MCQ + 1 OEQ
                 
-                // Sort fresh questions by difficulty
-                let freshQuestions = Array(freshTest.questions)
+                // Use orderedQuestions to preserve the fixed internal sequence (Q6/Q8 invariants)
+                let freshQuestions = freshTest.orderedQuestions
+
+                // Partition by difficulty while preserving relative order within each group
                 let easyFresh = freshQuestions.filter { $0.difficulty == .easy }
-                let mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
-                let hardFresh = freshQuestions.filter { $0.difficulty == .hard }
+                var mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
+                var hardFresh = freshQuestions.filter { $0.difficulty == .hard }
+
+                // Enforce fixed placement within groups:
+                // - Reframe (OpenEnded) should be last within Medium (overall Q6)
+                if let idx = mediumFresh.firstIndex(where: { $0.bloomCategory == .reframe && $0.type == .openEnded }) {
+                    let reframe = mediumFresh.remove(at: idx)
+                    mediumFresh.append(reframe)
+                }
+
+                // - HowWield (OpenEnded) should be last within Hard (overall Q8)
+                if let idx = hardFresh.firstIndex(where: { $0.bloomCategory == .howWield && $0.type == .openEnded }) {
+                    let howWield = hardFresh.remove(at: idx)
+                    hardFresh.append(howWield)
+                }
                 
                 // Generate and sort review questions by difficulty if available
                 var easyReview: [Question] = []
@@ -381,9 +396,11 @@ struct DailyPracticeView: View {
                 
                 // Combine in proper order: Easy → Medium → Hard for both fresh and review
                 var allQuestions: [Question] = []
-                allQuestions.append(contentsOf: easyFresh)
-                allQuestions.append(contentsOf: mediumFresh)
-                allQuestions.append(contentsOf: hardFresh)
+                let freshOrdered = easyFresh + mediumFresh + hardFresh
+                // Debug: verify final fresh order for the first 8
+                print("DEBUG: Fresh question order:", freshOrdered.map { "\($0.bloomCategory.rawValue)-\($0.type.rawValue)" }.joined(separator: ", "))
+
+                allQuestions.append(contentsOf: freshOrdered)
                 allQuestions.append(contentsOf: easyReview)
                 allQuestions.append(contentsOf: mediumReview)
                 allQuestions.append(contentsOf: hardReview)
