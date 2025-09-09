@@ -397,9 +397,6 @@ struct DailyPracticeView: View {
                 // Combine in proper order: Easy → Medium → Hard for both fresh and review
                 var allQuestions: [Question] = []
                 let freshOrdered = easyFresh + mediumFresh + hardFresh
-                // Debug: verify final fresh order for the first 8
-                print("DEBUG: Fresh question order:", freshOrdered.map { "\($0.bloomCategory.rawValue)-\($0.type.rawValue)" }.joined(separator: ", "))
-
                 allQuestions.append(contentsOf: freshOrdered)
                 allQuestions.append(contentsOf: easyReview)
                 allQuestions.append(contentsOf: mediumReview)
