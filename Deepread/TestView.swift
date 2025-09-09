@@ -73,13 +73,6 @@ struct TestView: View {
                             .padding(DS.Spacing.lg)
                         }
                     }
-                    
-                    // Feedback Overlay
-                    if showingFeedback, let feedback = currentFeedback {
-                        FeedbackOverlay(feedback: feedback)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                            .zIndex(1)
-                    }
                 }
                 
                 DSDivider()
@@ -202,6 +195,24 @@ struct TestView: View {
                     )
                 }
             }
+            // Solid full-screen feedback presentation
+            .fullScreenCover(isPresented: $showingFeedback) {
+                if let feedback = currentFeedback {
+                    FeedbackFullScreen(
+                        feedback: feedback,
+                        isLastQuestion: currentQuestionIndex >= test.questions.count - 1,
+                        onPrimaryAction: {
+                            // Dismiss and continue/finish
+                            showingFeedback = false
+                            if currentQuestionIndex >= test.questions.count - 1 {
+                                submitTest()
+                            } else {
+                                nextQuestion()
+                            }
+                        }
+                    )
+                }
+            }
             .sheet(isPresented: $showingPrimer) {
                 PrimerView(idea: idea, openAIService: openAIService)
                     .presentationDetents([.medium, .large])
@@ -314,10 +325,8 @@ struct TestView: View {
                         pointsEarned: evaluation.pointsEarned,
                         maxPoints: question.difficulty.pointValue
                     )
-                    
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                        self.showingFeedback = true
-                    }
+                    // Present full-screen feedback view
+                    self.showingFeedback = true
                     self.isEvaluatingQuestion = false
                 }
             } catch {
@@ -722,87 +731,80 @@ struct OpenEndedInput: View {
     }
 }
 
-// MARK: - Feedback Overlay
+// MARK: - Feedback Full Screen (Solid)
 
-struct FeedbackOverlay: View {
+struct FeedbackFullScreen: View {
     let feedback: QuestionFeedback
+    let isLastQuestion: Bool
+    let onPrimaryAction: () -> Void
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Semi-transparent background
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .onTapGesture { }  // Prevent taps from going through
-                
-                // Feedback content positioned at bottom
-                VStack {
-                    Spacer()
-                    
-                    VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                        // Result Header
-                        HStack(spacing: DS.Spacing.md) {
-                            // Icon
-                            DSIcon(
-                                feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill",
-                                size: 32
-                            )
+        VStack(spacing: 0) {
+            // Content
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+                    // Header
+                    HStack(spacing: DS.Spacing.md) {
+                        DSIcon(feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill", size: 36)
                             .foregroundStyle(feedback.isCorrect ? .green : .red)
-                            
-                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                Text(feedback.isCorrect ? "Correct!" : "Incorrect")
-                                    .font(DS.Typography.bodyBold)
-                                    .foregroundStyle(DS.Colors.primaryText)
-                                
-                                Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
-                                    .font(DS.Typography.caption)
-                                    .foregroundStyle(DS.Colors.secondaryText)
-                            }
-                            
-                            Spacer()
-                        }
                         
-                        // Explanation
-                        if !feedback.explanation.isEmpty {
-                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                Text("Explanation")
-                                    .font(DS.Typography.captionBold)
-                                    .foregroundStyle(DS.Colors.primaryText)
-                                
-                                Text(feedback.explanation)
-                                    .font(DS.Typography.body)
-                                    .foregroundStyle(DS.Colors.secondaryText)
-                            }
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text(feedback.isCorrect ? "Correct" : "Incorrect")
+                                .font(DS.Typography.headline)
+                                .foregroundStyle(DS.Colors.primaryText)
+                            Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.Colors.secondaryText)
                         }
-                        
-                        // Correct Answer (if incorrect)
-                        if !feedback.isCorrect, let correctAnswer = feedback.correctAnswer {
-                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                Text("Correct Answer")
-                                    .font(DS.Typography.captionBold)
-                                    .foregroundStyle(DS.Colors.primaryText)
-                                
-                                Text(correctAnswer)
-                                    .font(DS.Typography.body)
-                                    .foregroundStyle(DS.Colors.secondaryText)
-                            }
+                        Spacer()
+                    }
+                    
+                    // Explanation
+                    if !feedback.explanation.isEmpty {
+                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                            Text("Explanation")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(DS.Colors.primaryText)
+                            Text(feedback.explanation)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    .padding(DS.Spacing.lg)
-                    .background(
-                        Rectangle()
-                            .fill(feedback.isCorrect ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-                            .overlay(
-                                Rectangle()
-                                    .stroke(feedback.isCorrect ? Color.green.opacity(0.3) : Color.red.opacity(0.3), lineWidth: DS.BorderWidth.medium)
-                            )
-                    )
-                    .cornerRadius(12)
-                    .padding(.horizontal, DS.Spacing.lg)
-                    .padding(.bottom, DS.Spacing.xl)
+                    
+                    // Correct Answer
+                    if !feedback.isCorrect, let correct = feedback.correctAnswer {
+                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                            Text("Correct Answer")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(DS.Colors.primaryText)
+                            Text(correct)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
+                .padding(DS.Spacing.lg)
             }
+            
+            DSDivider()
+            
+            // Primary action
+            HStack {
+                Button(action: onPrimaryAction) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Text(isLastQuestion ? "Finish Test" : "Continue")
+                        if !isLastQuestion { DSIcon("chevron.right", size: 16) }
+                    }
+                    .font(DS.Typography.captionBold)
+                }
+                .dsPrimaryButton()
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.md)
         }
+        .background(DS.Colors.primaryBackground.ignoresSafeArea())
     }
 }
 
