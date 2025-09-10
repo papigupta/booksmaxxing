@@ -129,34 +129,7 @@ final class FSRSScheduler {
         return max(0.0, min(1.0, retentionProbability))
     }
     
-    /// Get ideas that need review, sorted by urgency
-    static func getIdeasForReview(
-        ideas: [Idea],
-        currentDate: Date = Date(),
-        limit: Int? = nil
-    ) -> [Idea] {
-        let overdueIdeas = ideas.filter { idea in
-            guard let reviewStateData = idea.reviewState,
-                  let reviewState = try? JSONDecoder().decode(ReviewState.self, from: reviewStateData) else {
-                return false
-            }
-            return isReviewDue(reviewState: reviewState, currentDate: currentDate)
-        }.sorted { idea1, idea2 in
-            // Sort by urgency (most overdue first)
-            guard let state1Data = idea1.reviewState,
-                  let state1 = try? JSONDecoder().decode(ReviewState.self, from: state1Data),
-                  let state2Data = idea2.reviewState,
-                  let state2 = try? JSONDecoder().decode(ReviewState.self, from: state2Data) else {
-                return false
-            }
-            return state1.nextReviewDate < state2.nextReviewDate
-        }
-        
-        if let limit = limit {
-            return Array(overdueIdeas.prefix(limit))
-        }
-        return overdueIdeas
-    }
+    // (Removed getIdeasForReview — coverage/queue flows handle selection)
     
     /// Initialize review state for a newly mastered idea
     static func initializeReviewState(for idea: Idea) -> ReviewState {

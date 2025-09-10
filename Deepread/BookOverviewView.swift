@@ -532,7 +532,23 @@ struct ActiveIdeaCard: View {
                         Spacer()
                         
                         // Show appropriate badge
-                        if let coverage = ideaCoverage, coverage.isFullyCovered {
+                        if let coverage = ideaCoverage, coverage.curveballPassed {
+                            // Golden mastered state
+                            VStack(spacing: 2) {
+                                Text("MASTERED")
+                                    .font(DS.Typography.small)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(Color.black)
+                                    .padding(.horizontal, DS.Spacing.xs)
+                                    .padding(.vertical, 2)
+                                    .background(Color.yellow)
+                                if let passedAt = coverage.curveballPassedAt {
+                                    Text("Since \(formatDate(passedAt))")
+                                        .font(DS.Typography.caption)
+                                        .foregroundColor(DS.Colors.white.opacity(0.9))
+                                }
+                            }
+                        } else if let coverage = ideaCoverage, coverage.isFullyCovered {
                             VStack(spacing: 2) {
                                 Text("COVERED")
                                     .font(DS.Typography.small)
@@ -687,6 +703,11 @@ struct ActiveIdeaCard: View {
     private var coverageColor: Color {
         guard let coverage = ideaCoverage else { return Color.gray }
         
+        // Special golden theme for mastered
+        if coverage.curveballPassed {
+            return Color.yellow
+        }
+
         switch coverage.coveragePercentage {
         case 0..<30:
             return Color.red
@@ -695,10 +716,16 @@ struct ActiveIdeaCard: View {
         case 70..<100:
             return Color.yellow
         case 100:
-            return Color.green
+            return coverage.curveballPassed ? Color.yellow : Color.green
         default:
             return Color.gray
         }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter.string(from: date)
     }
     
     private func getButtonText() -> String {
@@ -896,7 +923,17 @@ struct InactiveIdeaCard: View {
                             .foregroundColor(DS.Colors.secondaryText)
                         
                         // Coverage progress for inactive cards
-                        if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
+                        if let coverage = ideaCoverage, coverage.curveballPassed {
+                            HStack(spacing: DS.Spacing.xxs) {
+                                Text("MASTERED")
+                                    .font(DS.Typography.small)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(Color.black)
+                                    .padding(.horizontal, DS.Spacing.xs)
+                                    .padding(.vertical, 2)
+                                    .background(Color.yellow)
+                            }
+                        } else if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
                             HStack(spacing: DS.Spacing.xxs) {
                                 ProgressView(value: coverage.coveragePercentage / 100)
                                     .progressViewStyle(LinearProgressViewStyle(tint: inactiveCoverageColor))
@@ -991,7 +1028,11 @@ struct InactiveIdeaCard: View {
     
     private var inactiveCoverageColor: Color {
         guard let coverage = ideaCoverage else { return DS.Colors.gray300 }
-        
+
+        if coverage.curveballPassed {
+            return Color.yellow
+        }
+
         switch coverage.coveragePercentage {
         case 0..<30:
             return DS.Colors.gray500

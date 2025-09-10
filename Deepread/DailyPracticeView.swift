@@ -26,6 +26,8 @@ struct DailyPracticeView: View {
     @State private var showingPrimer = false
     @State private var completedAttempt: TestAttempt?
     @State private var currentView: PracticeFlowState = .none
+    // Map cloned review question IDs -> source queue items
+    @State private var reviewQuestionToQueueItem: [UUID: ReviewQueueItem] = [:]
     
     enum PracticeFlowState {
         case none
@@ -352,9 +354,13 @@ struct DailyPracticeView: View {
                     testType: "initial"
                 )
                 
+                // Ensure any due curveballs are queued for this book
+                let curveballService = CurveballService(modelContext: modelContext)
+                curveballService.ensureCurveballsQueuedIfDue(bookId: book.id.uuidString, bookTitle: book.title)
+
                 // Get review questions from the queue (max 3 MCQ + 1 OEQ = 4 total) for this book only
                 let reviewManager = ReviewQueueManager(modelContext: modelContext)
-                let (mcqItems, openEndedItems) = reviewManager.getDailyReviewItems(for: book.title)
+                let (mcqItems, openEndedItems) = reviewManager.getDailyReviewItems(bookId: book.id.uuidString)
                 let allReviewItems = mcqItems + openEndedItems // Already limited to 3 MCQ + 1 OEQ
                 
                 // Use orderedQuestions to preserve the fixed internal sequence (Q6/Q8 invariants)
@@ -378,29 +384,24 @@ struct DailyPracticeView: View {
                     hardFresh.append(howWield)
                 }
                 
-                // Generate and sort review questions by difficulty if available
-                var easyReview: [Question] = []
-                var mediumReview: [Question] = []
-                var hardReview: [Question] = []
-                
+                // Generate review questions and keep mapping to their queue items
+                var reviewPairs: [(ReviewQueueItem, Question)] = []
                 if !allReviewItems.isEmpty {
-                    let reviewQuestions = try await testGenerationService.generateReviewQuestionsFromQueue(allReviewItems)
-                    
-                    // Sort review questions by difficulty
-                    easyReview = reviewQuestions.filter { $0.difficulty == .easy }
-                    mediumReview = reviewQuestions.filter { $0.difficulty == .medium }
-                    hardReview = reviewQuestions.filter { $0.difficulty == .hard }
-                    
-                    print("DEBUG: Added \(reviewQuestions.count) review questions (Easy: \(easyReview.count), Medium: \(mediumReview.count), Hard: \(hardReview.count))")
+                    let generated = try await testGenerationService.generateReviewQuestionsFromQueue(allReviewItems)
+                    reviewPairs = Array(zip(allReviewItems, generated))
+                    // Sort by difficulty ascending for nicer flow
+                    reviewPairs.sort { lhs, rhs in
+                        lhs.1.difficulty.pointValue < rhs.1.difficulty.pointValue
+                    }
+                    print("DEBUG: Added \(generated.count) review questions")
                 }
                 
                 // Combine in proper order: Easy → Medium → Hard for both fresh and review
                 var allQuestions: [Question] = []
                 let freshOrdered = easyFresh + mediumFresh + hardFresh
                 allQuestions.append(contentsOf: freshOrdered)
-                allQuestions.append(contentsOf: easyReview)
-                allQuestions.append(contentsOf: mediumReview)
-                allQuestions.append(contentsOf: hardReview)
+                let orderedReviewQuestions = reviewPairs.map { $0.1 }
+                allQuestions.append(contentsOf: orderedReviewQuestions)
                 
                 // Create combined test (persisted as the session's test)
                 test = Test(
@@ -412,6 +413,9 @@ struct DailyPracticeView: View {
                 
                 // Clone questions to attach to the mixed test cleanly
                 var combined: [Question] = []
+                // Map from generated review question id -> queue item
+                let sourceMap: [UUID: ReviewQueueItem] = Dictionary(uniqueKeysWithValues: reviewPairs.map { ($0.1.id, $0.0) })
+                var newMap: [UUID: ReviewQueueItem] = [:]
                 for (index, q) in allQuestions.enumerated() {
                     let cloned = Question(
                         ideaId: q.ideaId,
@@ -421,10 +425,15 @@ struct DailyPracticeView: View {
                         questionText: q.questionText,
                         options: q.options,
                         correctAnswers: q.correctAnswers,
-                        orderIndex: index
+                        orderIndex: index,
+                        isCurveball: q.isCurveball
                     )
                     combined.append(cloned)
+                    if let src = sourceMap[q.id] {
+                        newMap[cloned.id] = src
+                    }
                 }
+                reviewQuestionToQueueItem = newMap
                 
                 // Persist mixed test, questions and session on MainActor
                 try await MainActor.run {
@@ -526,8 +535,41 @@ struct DailyPracticeView: View {
                 return false
             }
             
-            // TODO: Mark the specific review items as completed based on correct answers
-            print("DEBUG: Handled \(reviewResponses.count) review question responses")
+            var completedItems: [ReviewQueueItem] = []
+            for response in reviewResponses where response.isCorrect {
+                if let item = reviewQuestionToQueueItem[response.questionId] {
+                    completedItems.append(item)
+                } else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                    let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
+                    if let item = try? modelContext.fetch(fetch).first { completedItems.append(item) }
+                }
+            }
+            reviewManager.markItemsAsCompleted(completedItems)
+
+            // Handle curveball pass/fail and mastery
+            let curveService = CurveballService(modelContext: modelContext)
+            for response in reviewResponses {
+                var mapped: ReviewQueueItem?
+                if let m = reviewQuestionToQueueItem[response.questionId] { mapped = m }
+                else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                    let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
+                    mapped = try? modelContext.fetch(fetch).first
+                }
+                guard let item = mapped, item.isCurveball else { continue }
+                if response.isCorrect {
+                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: true)
+                    let targetId = item.ideaId
+                    let ideaDescriptor = FetchDescriptor<Idea>(
+                        predicate: #Predicate<Idea> { idea in idea.id == targetId }
+                    )
+                    if let masteredIdea = try? modelContext.fetch(ideaDescriptor).first {
+                        masteredIdea.masteryLevel = 3
+                    }
+                } else {
+                    item.isCompleted = true
+                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: false)
+                }
+            }
         }
         
         // Update mastery for the lesson

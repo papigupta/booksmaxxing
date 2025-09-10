@@ -319,7 +319,9 @@ class TestGenerationService {
             questionText: questionText,
             options: finalOptions,
             correctAnswers: finalCorrectAnswers,
-            orderIndex: orderIndex
+            orderIndex: orderIndex,
+            isCurveball: queueItem.isCurveball,
+            sourceQueueItemId: queueItem.id
         )
     }
     

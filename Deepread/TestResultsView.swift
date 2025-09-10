@@ -330,7 +330,7 @@ struct QuestionResultCard: View {
                 )
                 .foregroundStyle(isCorrect ? .green : .red)
                 
-                // Question type and difficulty
+                // Question type and difficulty (+ CB badge if curveball)
                 if let question = question {
                     HStack(spacing: DS.Spacing.xs) {
                         Text(question.type.rawValue)
@@ -344,6 +344,16 @@ struct QuestionResultCard: View {
                         Text(question.difficulty.rawValue)
                             .font(DS.Typography.caption)
                             .foregroundStyle(difficultyColor(question.difficulty))
+                        
+                        if question.isCurveball {
+                            Text("CB")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(Color.black)
+                                .padding(.horizontal, DS.Spacing.xs)
+                                .padding(.vertical, 2)
+                                .background(Color.yellow.opacity(0.9))
+                                .cornerRadius(3)
+                        }
                     }
                 }
                 

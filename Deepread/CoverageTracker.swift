@@ -35,6 +35,11 @@ final class IdeaCoverage {
     var lastAttemptDate: Date?
     var coveredDate: Date? // Date when all 8 question types were covered
     
+    // Curveball mastery gate
+    var curveballDueDate: Date?
+    var curveballPassed: Bool = false
+    var curveballPassedAt: Date?
+    
     init(ideaId: String, bookId: String) {
         self.ideaId = ideaId
         self.bookId = bookId
@@ -62,6 +67,12 @@ final class IdeaCoverage {
         
         if isFullyCovered && coveredDate == nil {
             coveredDate = Date()
+            // Schedule curveball if not already scheduled or passed
+            if !curveballPassed && curveballDueDate == nil {
+                // Default: 3 days; can be adjusted via config elsewhere
+                let days = CurveballConfig.delayDays
+                curveballDueDate = Calendar.current.date(byAdding: .day, value: days, to: Date())
+            }
         }
     }
     
@@ -100,14 +111,17 @@ final class IdeaCoverage {
         } else {
             mistakesCount += 1
             
-            // Record the missed question if not already recorded
-            if !missedQuestions.contains(where: { $0.conceptTested == conceptTested }) {
+            // Record the missed question if not already recorded, else increment retry count
+            if let idx = missedQuestions.firstIndex(where: { $0.conceptTested == conceptTested }) {
+                missedQuestions[idx].retryCount += 1
+            } else {
                 let missedRecord = MissedQuestionRecord(
                     originalQuestionId: questionId,
                     questionText: questionText,
                     conceptTested: conceptTested,
                     attemptDate: Date()
                 )
+                missedRecord.retryCount = 1
                 missedQuestions.append(missedRecord)
             }
         }
@@ -145,6 +159,7 @@ final class MissedQuestionRecord {
     var attemptDate: Date
     var isCorrected: Bool = false
     var correctedDate: Date?
+    var retryCount: Int = 0
     
     init(originalQuestionId: String, questionText: String, conceptTested: String, attemptDate: Date) {
         self.originalQuestionId = originalQuestionId
@@ -210,7 +225,6 @@ final class CoverageService {
         
         // Show all bloom categories being processed
         _ = responses.map { $0.bloomCategory }
-        let correctBloomCategories = responses.filter { $0.isCorrect }.map { $0.bloomCategory }
         
         let coverage = getCoverage(for: ideaId, bookId: bookId)
         logger.debug("Current coverage before: \(coverage.coveragePercentage, privacy: .public)% covered=\(coverage.coveredCategories.count)")

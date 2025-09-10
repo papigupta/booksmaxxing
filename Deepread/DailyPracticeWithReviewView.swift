@@ -13,6 +13,7 @@ struct DailyPracticeWithReviewView: View {
     @State private var freshQuestions: [Question] = []
     @State private var reviewQuestions: [Question] = []
     @State private var reviewQueueItems: [ReviewQueueItem] = []
+    @State private var reviewQuestionToQueueItem: [UUID: ReviewQueueItem] = [:]
     @State private var currentIdea: Idea?
     @State private var combinedTest: Test?
     @State private var errorMessage: String?
@@ -36,6 +37,10 @@ struct DailyPracticeWithReviewView: View {
     
     private var reviewQueueManager: ReviewQueueManager {
         ReviewQueueManager(modelContext: modelContext)
+    }
+    
+    private var curveballService: CurveballService {
+        CurveballService(modelContext: modelContext)
     }
     
     var body: some View {
@@ -323,7 +328,7 @@ struct DailyPracticeWithReviewView: View {
                 Text("Queue Remaining")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
-                let queueStats = reviewQueueManager.getQueueStatistics(for: book.title)
+                let queueStats = reviewQueueManager.getQueueStatistics(bookId: book.id.uuidString)
                 Text("\(queueStats.totalMCQs + queueStats.totalOpenEnded)")
                     .font(DS.Typography.headline)
                     .foregroundColor(DS.Colors.black)
@@ -341,31 +346,34 @@ struct DailyPracticeWithReviewView: View {
         errorMessage = nil
         
         do {
+            // Ensure due curveballs for this book are queued before selecting
+            let bookId = book.id.uuidString
+            curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: book.title)
             // For pure review sessions, we only need review questions
             // 1. Get review items from queue for this specific book
-            let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(for: book.title)
+            let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(bookId: book.id.uuidString)
             reviewQueueItems = mcqItems + openEndedItems
             
             print("🔄 REVIEW SESSION: Found \(reviewQueueItems.count) items in queue (\(mcqItems.count) MCQ, \(openEndedItems.count) Open-ended)")
             
             // 2. Generate similar questions for review items
             if !reviewQueueItems.isEmpty {
-                reviewQuestions = try await testGenerationService.generateReviewQuestionsFromQueue(reviewQueueItems)
+                let generated = try await testGenerationService.generateReviewQuestionsFromQueue(reviewQueueItems)
+                // Pair queue items with generated questions
+                var pairs = Array(zip(reviewQueueItems, generated))
+                // Sort by question difficulty while keeping pairs intact
+                pairs.sort { lhs, rhs in
+                    lhs.1.difficulty.pointValue < rhs.1.difficulty.pointValue
+                }
+                // Unzip back and build mapping
+                reviewQueueItems = pairs.map { $0.0 }
+                reviewQuestions = pairs.map { $0.1 }
+                reviewQuestionToQueueItem = Dictionary(uniqueKeysWithValues: pairs.map { ($0.1.id, $0.0) })
                 
-                // Sort review questions by difficulty for proper progression
-                let easyReview = reviewQuestions.filter { $0.difficulty == .easy }
-                let mediumReview = reviewQuestions.filter { $0.difficulty == .medium }
-                let hardReview = reviewQuestions.filter { $0.difficulty == .hard }
-                
-                // Combine in difficulty order: Easy → Medium → Hard
-                var sortedReviewQuestions: [Question] = []
-                sortedReviewQuestions.append(contentsOf: easyReview)
-                sortedReviewQuestions.append(contentsOf: mediumReview)
-                sortedReviewQuestions.append(contentsOf: hardReview)
-                
-                reviewQuestions = sortedReviewQuestions
-                
-                print("🔄 REVIEW SESSION: Generated \(reviewQuestions.count) review questions (Easy: \(easyReview.count), Medium: \(mediumReview.count), Hard: \(hardReview.count))")
+                let easyCount = reviewQuestions.filter { $0.difficulty == .easy }.count
+                let mediumCount = reviewQuestions.filter { $0.difficulty == .medium }.count
+                let hardCount = reviewQuestions.filter { $0.difficulty == .hard }.count
+                print("🔄 REVIEW SESSION: Generated \(reviewQuestions.count) review questions (Easy: \(easyCount), Medium: \(mediumCount), Hard: \(hardCount))")
             }
             
             // 3. Create test with only review questions
@@ -396,16 +404,18 @@ struct DailyPracticeWithReviewView: View {
     private func getNextUnlearnedIdea() -> Idea? {
         // Find the first idea that hasn't been tested yet
         let targetBookTitle = book.title
+        // First fetch all ideas for this book, then filter by mastery in code
         let descriptor = FetchDescriptor<Idea>(
             predicate: #Predicate<Idea> { idea in
-                idea.bookTitle == targetBookTitle && idea.masteryLevel == 0
+                idea.bookTitle == targetBookTitle
             },
             sortBy: [SortDescriptor(\.id)]
         )
         
         do {
-            let unlearnedIdeas = try modelContext.fetch(descriptor)
-            return unlearnedIdeas.first
+            let ideasForBook = try modelContext.fetch(descriptor)
+            let unlearned = ideasForBook.first { $0.masteryLevel == 0 }
+            return unlearned
         } catch {
             print("Error fetching unlearned ideas: \(error)")
             return nil
@@ -479,13 +489,49 @@ struct DailyPracticeWithReviewView: View {
             }
             
             var completedItems: [ReviewQueueItem] = []
-            for (index, response) in reviewResponses.enumerated() {
-                if response.isCorrect && index < reviewQueueItems.count {
-                    completedItems.append(reviewQueueItems[index])
+            for response in reviewResponses {
+                if response.isCorrect {
+                    if let item = reviewQuestionToQueueItem[response.questionId] {
+                        completedItems.append(item)
+                    } else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                        let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
+                        if let item = try? modelContext.fetch(fetch).first { completedItems.append(item) }
+                    }
                 }
             }
             
             reviewManager.markItemsAsCompleted(completedItems)
+
+            // If any completed item was a passed curveball, mark coverage+mastery
+            let bookId = book.id.uuidString
+            for response in reviewResponses {
+                var curveItem: ReviewQueueItem?
+                if let item = reviewQuestionToQueueItem[response.questionId] { curveItem = item }
+                else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                    let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
+                    curveItem = try? modelContext.fetch(fetch).first
+                }
+                guard let item = curveItem, item.isCurveball else { continue }
+                let curveService = CurveballService(modelContext: modelContext)
+                if response.isCorrect {
+                    // Passed: mark result and promote mastery
+                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: bookId, passed: true)
+                    let targetId = item.ideaId
+                    let ideaDescriptor = FetchDescriptor<Idea>(
+                        predicate: #Predicate<Idea> { idea in
+                            idea.id == targetId
+                        }
+                    )
+                    if let masteredIdea = try? modelContext.fetch(ideaDescriptor).first {
+                        masteredIdea.masteryLevel = 3
+                    }
+                } else {
+                    // Failed: remove current curveball from queue and reschedule for later
+                    item.isCompleted = true
+                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: bookId, passed: false)
+                }
+            }
+            try? modelContext.save()
         }
         
         // Show results
@@ -594,7 +640,7 @@ private struct ReviewTestResultsView: View {
             
             // Show current queue status
             let queueManager = ReviewQueueManager(modelContext: modelContext)
-            let stats = queueManager.getQueueStatistics(for: book.title)
+            let stats = queueManager.getQueueStatistics(bookId: book.id.uuidString)
             
             HStack {
                 Image(systemName: "clock.arrow.circlepath")

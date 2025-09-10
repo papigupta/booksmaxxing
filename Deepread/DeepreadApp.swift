@@ -47,9 +47,35 @@ struct DeepreadApp: App {
             let container = try ModelContainer(for: schema, configurations: modelConfiguration)
             print("✅ Successfully created persistent ModelContainer")
             
-            // Run migration from old mastery to new coverage system
-            let migrationService = CoverageMigrationService(modelContext: container.mainContext)
-            migrationService.migrateOldMasteryToCoverage()
+            // One-time migration from old mastery to new coverage system
+            let migrationKey = "coverageMigrationV1Done"
+            let alreadyMigrated = UserDefaults.standard.bool(forKey: migrationKey)
+            if !alreadyMigrated {
+                let migrationService = CoverageMigrationService(modelContext: container.mainContext)
+                migrationService.migrateOldMasteryToCoverage()
+                UserDefaults.standard.set(true, forKey: migrationKey)
+            }
+
+            // Backfill bookId for any legacy ReviewQueueItems missing it
+            do {
+                let ctx = container.mainContext
+                let descriptor = FetchDescriptor<ReviewQueueItem>(
+                    predicate: #Predicate<ReviewQueueItem> { item in item.bookId == nil }
+                )
+                let legacyItems = try ctx.fetch(descriptor)
+                if !legacyItems.isEmpty {
+                    let bookService = BookService(modelContext: ctx)
+                    for item in legacyItems {
+                        if let book = try? bookService.getBook(withTitle: item.bookTitle) {
+                            item.bookId = book.id.uuidString
+                        }
+                    }
+                    try? ctx.save()
+                    print("✅ Backfilled bookId for \(legacyItems.count) ReviewQueueItems")
+                }
+            } catch {
+                print("⚠️  Backfill for ReviewQueueItem.bookId failed: \(error)")
+            }
             
             return container
         } catch {

@@ -41,6 +41,10 @@ struct DailyPracticeHomepage: View {
         ReviewQueueManager(modelContext: modelContext)
     }
     
+    private var curveballService: CurveballService {
+        CurveballService(modelContext: modelContext)
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: true) {
@@ -131,6 +135,22 @@ struct DailyPracticeHomepage: View {
                 
                 Spacer()
                 
+                // DEV: Force curveball due button
+                if DebugFlags.enableDevControls {
+                    Button(action: {
+                        let bookId = book.id.uuidString
+                        curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                        refreshView()
+                    }) {
+                        HStack(spacing: DS.Spacing.xs) {
+                            DSIcon("bolt.fill", size: 14)
+                            Text("Force Curveball Due")
+                                .font(DS.Typography.caption)
+                        }
+                    }
+                    .dsSmallButton()
+                }
+
                 // Review Practice Button (if there are items in queue)
                 if hasReviewItems {
                     Button(action: {
@@ -364,6 +384,8 @@ struct DailyPracticeHomepage: View {
     
     private func loadPracticeData() async {
         let bookId = book.id.uuidString
+        // Ensure any due curveballs are queued for this book before computing stats
+        curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: book.title)
         
         // Get lesson info for display (no actual generation yet)
         let lessonInfos = lessonStorage.getAllLessonInfo(book: book)
@@ -408,8 +430,8 @@ struct DailyPracticeHomepage: View {
             )
         }
         
-        // Load review queue stats for this specific book
-        let queueStats = reviewQueueManager.getQueueStatistics(for: book.title)
+        // Load review queue stats for this specific book (after ensuring curveballs queued)
+        let queueStats = reviewQueueManager.getQueueStatistics(bookId: book.id.uuidString)
         let totalReviewItems = queueStats.totalMCQs + queueStats.totalOpenEnded
         
         // Calculate practice stats

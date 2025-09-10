@@ -68,6 +68,9 @@ final class Question {
     var correctAnswers: [Int]?  // Indices of correct answers (1 for MCQ, multiple for MSQ)
     var orderIndex: Int  // Position in test (0-8)
     var createdAt: Date
+    var isCurveball: Bool = false
+    // Persist mapping to source review queue item for reliable completion marking
+    var sourceQueueItemId: UUID?
     
     // Relationship to test
     var test: Test?
@@ -80,7 +83,9 @@ final class Question {
         questionText: String,
         options: [String]? = nil,
         correctAnswers: [Int]? = nil,
-        orderIndex: Int
+        orderIndex: Int,
+        isCurveball: Bool = false,
+        sourceQueueItemId: UUID? = nil
     ) {
         self.id = UUID()
         self.ideaId = ideaId
@@ -92,6 +97,8 @@ final class Question {
         self.correctAnswers = correctAnswers
         self.orderIndex = orderIndex
         self.createdAt = Date()
+        self.isCurveball = isCurveball
+        self.sourceQueueItemId = sourceQueueItemId
     }
 }
 

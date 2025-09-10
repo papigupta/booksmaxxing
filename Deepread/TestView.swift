@@ -581,6 +581,9 @@ struct QuestionView: View {
                     HStack(spacing: DS.Spacing.xs) {
                         DifficultyBadge(difficulty: question.difficulty)
                         BloomBadge(category: question.bloomCategory)
+                        if question.isCurveball {
+                            CurveballBadge()
+                        }
                     }
                 }
                 
@@ -885,5 +888,22 @@ struct BloomBadge: View {
                 Rectangle()
                     .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
             )
+    }
+}
+
+struct CurveballBadge: View {
+    var body: some View {
+        Text("CB")
+            .font(DS.Typography.captionBold)
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, DS.Spacing.xs)
+            .padding(.vertical, 2)
+            .background(Color.yellow.opacity(0.9))
+            .cornerRadius(3)
+            .overlay(
+                Rectangle()
+                    .stroke(Color.yellow, lineWidth: DS.BorderWidth.thin)
+            )
+            .accessibilityLabel("Curveball")
     }
 }
