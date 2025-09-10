@@ -8,6 +8,7 @@ struct DailyPracticeHomepage: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var navigationState: NavigationState
+    @EnvironmentObject var streakManager: StreakManager
     
     @State private var practiceStats: PracticeStats?
     @State private var currentLessonNumber: Int = 0
@@ -119,12 +120,10 @@ struct DailyPracticeHomepage: View {
     // MARK: - Header Section
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            // Top row with back to book button
+            // Top row: back button • streak • debug menu
             HStack {
                 // Back to Book Button
-                Button(action: {
-                    dismiss()
-                }) {
+                Button(action: { dismiss() }) {
                     HStack(spacing: DS.Spacing.xs) {
                         DSIcon("book.fill", size: 16)
                         Text("Back to Book")
@@ -132,56 +131,49 @@ struct DailyPracticeHomepage: View {
                     }
                 }
                 .dsSmallButton()
-                
-                Spacer()
-                
-                // DEV: Force curveball due button
-                if DebugFlags.enableDevControls {
-                    Button(action: {
-                        let bookId = book.id.uuidString
-                        curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
-                        refreshView()
-                    }) {
-                        HStack(spacing: DS.Spacing.xs) {
-                            DSIcon("bolt.fill", size: 14)
-                            Text("Force Curveball Due")
-                                .font(DS.Typography.caption)
-                        }
-                    }
-                    .dsSmallButton()
-                }
 
-                // Review Practice Button (if there are items in queue)
-                if hasReviewItems {
-                    Button(action: {
-                        // Create a special lesson for review practice
-                        let reviewLesson = GeneratedLesson(
-                            lessonNumber: -1,  // Special number for review
-                            title: "Review Practice",
-                            primaryIdeaId: "",
-                            primaryIdeaTitle: "Mixed Review",
-                            reviewIdeaIds: [],
-                            mistakeCorrections: [],
-                            questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
-                            estimatedMinutes: 10,
-                            isUnlocked: true,
-                            isCompleted: false
-                        )
-                        selectedLesson = reviewLesson
-                    }) {
-                        HStack(spacing: DS.Spacing.xs) {
-                            DSIcon("clock.arrow.circlepath", size: 16)
-                            Text("Review Practice")
-                                .font(DS.Typography.caption)
-                            if let count = reviewQueueCount {
-                                Text("(\(count))")
-                                    .font(DS.Typography.caption)
-                                    .foregroundColor(DS.Colors.secondaryText)
-                            }
+                Spacer()
+
+                // Streak indicator on homepage
+                StreakIndicatorView()
+
+                // Tiny overflow menu for debug/review shortcuts
+                Menu {
+                    if hasReviewItems {
+                        Button(action: {
+                            let reviewLesson = GeneratedLesson(
+                                lessonNumber: -1,
+                                title: "Review Practice",
+                                primaryIdeaId: "",
+                                primaryIdeaTitle: "Mixed Review",
+                                reviewIdeaIds: [],
+                                mistakeCorrections: [],
+                                questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
+                                estimatedMinutes: 10,
+                                isUnlocked: true,
+                                isCompleted: false
+                            )
+                            selectedLesson = reviewLesson
+                        }) {
+                            Label("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")", systemImage: "clock.arrow.circlepath")
                         }
                     }
-                    .dsSmallButton()
+                    if DebugFlags.enableDevControls {
+                        Button(action: {
+                            let bookId = book.id.uuidString
+                            curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                            refreshView()
+                        }) {
+                            Label("Force Curveball Due", systemImage: "bolt.fill")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(DS.Colors.primaryText)
+                        .padding(.leading, DS.Spacing.sm)
                 }
+                .contentShape(Rectangle())
             }
             .padding(.bottom, DS.Spacing.sm)
             
@@ -361,6 +353,8 @@ struct DailyPracticeHomepage: View {
         
         // Mark the lesson as completed (using UserDefaults for reliability)
         lessonStorage.markLessonCompleted(bookId: bookId, lessonNumber: lesson.lessonNumber, book: book)
+        // Count toward daily streak (idempotent per day)
+        streakManager.markActivity()
         
         // Note: We're NOT using mastery for completion anymore
         // Completion = user attempted all questions, regardless of accuracy

@@ -3,9 +3,9 @@ import SwiftUI
 struct StreakView: View {
     let onContinue: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var streakManager: StreakManager
     
-    // Static streak data
-    private let streakCount = 3
+    // Static bonus data (can be wired later)
     private let xpGained = 50
     private let achievement = "Quick Learner"
     
@@ -49,7 +49,7 @@ struct StreakView: View {
                     
                     // Streak count
                     VStack(spacing: DS.Spacing.xs) {
-                        Text("\(streakCount) Day Streak!")
+                        Text("\(streakManager.currentStreak) Day Streak!")
                             .font(.system(size: 32, weight: .bold))
                             .foregroundColor(DS.Colors.black)
                             .scaleEffect(animateStreak ? 1.0 : 0.8)

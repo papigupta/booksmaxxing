@@ -39,6 +39,11 @@ struct OnboardingView: View {
     // MARK: - Header Section
     private var headerSection: some View {
         VStack(spacing: DS.Spacing.md) {
+            // Streak in top-right
+            HStack {
+                Spacer()
+                StreakIndicatorView()
+            }
             // App branding
             VStack(spacing: DS.Spacing.xs) {
                 Text("Booksmaxxing")

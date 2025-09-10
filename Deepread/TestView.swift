@@ -21,6 +21,7 @@ struct TestView: View {
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var streakManager: StreakManager
     
     @State private var currentQuestionIndex = 0
     @State private var responses: [UUID: String] = [:]
@@ -177,6 +178,10 @@ struct TestView: View {
             }
             .onAppear {
                 initializeAttempt()
+                streakManager.isTestingActive = true
+            }
+            .onDisappear {
+                streakManager.isTestingActive = false
             }
             .sheet(isPresented: Binding(
                 get: { shouldShowResults },
@@ -549,6 +554,8 @@ struct TestView: View {
                 await MainActor.run {
                     evaluationResult = result
                     isSubmitting = false
+                    // Mark daily streak on successful test completion (idempotent per day)
+                    streakManager.markActivity()
                 }
             } catch {
                 print("Error submitting test: \(error)")

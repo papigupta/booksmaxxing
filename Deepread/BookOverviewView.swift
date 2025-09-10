@@ -10,6 +10,7 @@ struct BookOverviewView: View {
     @State private var showingDailyPractice = false
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var streakManager: StreakManager
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -184,7 +185,7 @@ struct BookOverviewView: View {
     // MARK: - Header View
     private var headerView: some View {
         VStack(spacing: 0) {
-            // Top row with home button and debug
+            // Top row with home button, streak, and overflow menu
             HStack {
                 // Home Button
                 Button(action: {
@@ -200,14 +201,42 @@ struct BookOverviewView: View {
                 .dsSmallButton()
                 
                 Spacer()
-                
-                #if DEBUG
-                Button("Debug") {
-                    showingDebugInfo = true
+
+                // Streak indicator
+                StreakIndicatorView()
+
+                // Overflow menu with Review Practice and Debug actions
+                Menu {
+                    if let book = viewModel.currentBook {
+                        let bookId = book.id.uuidString
+                        let rq = ReviewQueueManager(modelContext: modelContext)
+                        let stats = rq.getQueueStatistics(bookId: bookId)
+                        let count = stats.totalMCQs + stats.totalOpenEnded
+                        if count > 0 {
+                            Button(action: {
+                                // Open Daily Practice, user can jump to review from there
+                                showingDailyPractice = true
+                            }) {
+                                Label("Review Practice (\(count))", systemImage: "clock.arrow.circlepath")
+                            }
+                        }
+                        if DebugFlags.enableDevControls {
+                            Button(action: {
+                                let service = CurveballService(modelContext: modelContext)
+                                service.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                            }) {
+                                Label("Force Curveball Due", systemImage: "bolt.fill")
+                            }
+                        }
+                    }
+                    Button("Debug Info") { showingDebugInfo = true }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(DS.Colors.primaryText)
+                        .padding(.leading, DS.Spacing.sm)
                 }
-                .font(.caption)
-                .foregroundColor(DS.Colors.secondaryText)
-                #endif
+                .contentShape(Rectangle())
             }
             .padding(.horizontal, DS.Spacing.xxs)
             .padding(.bottom, DS.Spacing.md)

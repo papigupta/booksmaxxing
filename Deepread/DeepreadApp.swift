@@ -18,6 +18,8 @@ struct DeepreadApp: App {
     
     // Navigation state
     @StateObject private var navigationState = NavigationState()
+    // Streak state
+    @StateObject private var streakManager = StreakManager()
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -131,6 +133,7 @@ struct DeepreadApp: App {
                 } else {
                     MainView(openAIService: openAIService)
                         .environmentObject(navigationState)
+                        .environmentObject(streakManager)
                         .transition(.opacity)
                 }
             }
