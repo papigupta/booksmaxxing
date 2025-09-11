@@ -8,6 +8,7 @@ struct BookOverviewView: View {
     @State private var showingDebugInfo = false
     @State private var navigateToOnboarding = false
     @State private var showingDailyPractice = false
+    @State private var didPrefetchLesson1 = false
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var streakManager: StreakManager
@@ -93,6 +94,13 @@ struct BookOverviewView: View {
                 print("DEBUG: extractedIdeas count: \(viewModel.extractedIdeas.count)")
                 print("DEBUG: FAB should be visible: \(!viewModel.extractedIdeas.isEmpty)")
             }
+            // If ideas already loaded here, fire prefetch once
+            if !viewModel.extractedIdeas.isEmpty, !didPrefetchLesson1, let book = viewModel.currentBook {
+                didPrefetchLesson1 = true
+                let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+                prefetcher.prefetchLesson(book: book, lessonNumber: 1)
+                print("DEBUG: Prefetch for Lesson 1 triggered from BookOverviewView.task")
+            }
         }
         .onAppear {
             print("DEBUG: BookOverviewView appeared")
@@ -104,6 +112,26 @@ struct BookOverviewView: View {
                     await viewModel.refreshIdeasIfNeeded()
                 }
             }
+        }
+        .onChange(of: viewModel.extractedIdeas.count) { _, newCount in
+            // As soon as ideas are available, prefetch Lesson 1 once
+            guard newCount > 0, didPrefetchLesson1 == false else { return }
+            if let book = viewModel.currentBook {
+                didPrefetchLesson1 = true
+                let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+                prefetcher.prefetchLesson(book: book, lessonNumber: 1)
+                print("DEBUG: Prefetch for Lesson 1 triggered from BookOverviewView (ideas count change)")
+            } else {
+                print("DEBUG: Ideas loaded but currentBook nil; will prefetch when currentBook is set")
+            }
+        }
+        .onChange(of: viewModel.currentBook?.id) { _, _ in
+            // If currentBook becomes available after ideas, fire prefetch
+            guard !didPrefetchLesson1, let book = viewModel.currentBook, !viewModel.extractedIdeas.isEmpty else { return }
+            didPrefetchLesson1 = true
+            let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+            prefetcher.prefetchLesson(book: book, lessonNumber: 1)
+            print("DEBUG: Prefetch for Lesson 1 triggered from BookOverviewView (currentBook change)")
         }
         .sheet(isPresented: $showingDebugInfo) {
             DebugInfoView(bookTitle: bookTitle, viewModel: viewModel)

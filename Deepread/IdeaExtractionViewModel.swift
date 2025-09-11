@@ -84,6 +84,9 @@ class IdeaExtractionViewModel: ObservableObject {
                                 self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
                                 self.currentBook = existingBook
                             }
+                            // Prefetch Lesson 1 for existing book path (no save happening)
+                            let prefetcher = PracticePrefetcher(modelContext: self.bookService.modelContextRef, openAIService: self.openAIService)
+                            prefetcher.prefetchLesson(book: existingBook, lessonNumber: 1)
                             return
                         }
                     }
@@ -128,6 +131,9 @@ class IdeaExtractionViewModel: ObservableObject {
                                 self.errorMessage = nil
                                 self.currentBook = existingBook
                             }
+                            // Prefetch Lesson 1 for corrected-title existing book path
+                            let prefetcher = PracticePrefetcher(modelContext: self.bookService.modelContextRef, openAIService: self.openAIService)
+                            prefetcher.prefetchLesson(book: existingBook, lessonNumber: 1)
                             return
                         }
                     }
@@ -211,6 +217,10 @@ class IdeaExtractionViewModel: ObservableObject {
                     self.currentBook = book
                 }
                 print("DEBUG: Successfully saved ideas to database")
+                // Backend trigger: prefetch Lesson 1 immediately after ideas are saved
+                let prefetcher = PracticePrefetcher(modelContext: self.bookService.modelContextRef, openAIService: self.openAIService)
+                prefetcher.prefetchLesson(book: book, lessonNumber: 1)
+                print("DEBUG: Prefetch for Lesson 1 triggered from IdeaExtractionViewModel after save")
             } catch {
                 print("DEBUG: Error saving ideas: \(error)")
                 // Even if saving fails, show the ideas to the user

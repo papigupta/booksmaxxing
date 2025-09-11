@@ -68,11 +68,14 @@ struct DailyPracticeHomepage: View {
             .navigationBarHidden(true)
             .task {
                 await loadPracticeData()
+                // Prefetch the current lesson in background once data loads
+                await prefetchCurrentLessonIfNeeded()
             }
             .onAppear {
                 // Reload data when view appears (e.g., returning from lesson)
                 Task {
                     await loadPracticeData()
+                    await prefetchCurrentLessonIfNeeded()
                 }
             }
             .onChange(of: refreshID) { _, newValue in
@@ -365,6 +368,8 @@ struct DailyPracticeHomepage: View {
         Task {
             await loadPracticeData()
             print("DEBUG: ✅ Reloaded practice data - should now show lesson \(lesson.lessonNumber + 1) as current")
+            // Prefetch next lesson in background (lessonNumber + 1)
+            await prefetchLesson(number: lesson.lessonNumber + 1)
         }
     }
     
@@ -469,6 +474,18 @@ struct DailyPracticeHomepage: View {
             print("DEBUG: First milestone - ID: \(milestones.first?.id ?? 0), Current: \(milestones.first?.isCurrent ?? false), Completed: \(milestones.first?.isCompleted ?? false)")
             print("DEBUG: Stats - New: \(newIdeasCount), Review: \(reviewDueCount), Mastered: \(masteredCount)")
         }
+    }
+
+    // MARK: - Prefetch helpers
+    private func prefetchCurrentLessonIfNeeded() async {
+        // Identify current lesson from milestones
+        guard let current = practiceMilestones.first(where: { $0.isCurrent }) else { return }
+        await prefetchLesson(number: current.id)
+    }
+
+    private func prefetchLesson(number: Int) async {
+        let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+        prefetcher.prefetchLesson(book: book, lessonNumber: number)
     }
 }
 

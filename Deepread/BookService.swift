@@ -8,6 +8,9 @@ class BookService: ObservableObject {
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
     }
+
+    // Expose modelContext for helper services that must run on MainActor
+    var modelContextRef: ModelContext { modelContext }
     
     // MARK: - Helper Functions
     

@@ -91,6 +91,27 @@ struct DailyPracticeView: View {
                         test: test,
                         openAIService: openAIService,
                         onCompletion: handleTestCompletion,
+                        onSubmitted: { attempt in
+                            // Immediately record mistakes to queue (fresh only) to feed next lesson generation
+                            if let lesson = selectedLesson,
+                               let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) {
+                                let reviewManager = ReviewQueueManager(modelContext: modelContext)
+                                let freshResponses = attempt.responses.filter { response in
+                                    if let q = test.questions.first(where: { $0.id == response.questionId }) {
+                                        return q.ideaId == primaryIdea.id
+                                    }
+                                    return false
+                                }
+                                reviewManager.addMistakesToQueue(fromResponses: freshResponses, test: test, idea: primaryIdea)
+                            }
+                            // Prefetch the next lesson as soon as the user submits
+                            if let ln = selectedLesson?.lessonNumber {
+                                let next = ln + 1
+                                let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+                                prefetcher.prefetchLesson(book: book, lessonNumber: next)
+                                print("DEBUG: Prefetch for Lesson \(next) triggered from TestView.onSubmitted (after queuing mistakes)")
+                            }
+                        },
                         onExit: { showingTest = false }
                     )
                 }
@@ -334,6 +355,51 @@ struct DailyPracticeView: View {
                     throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
                 }
 
+                // 0) Check for any existing session (ready/generating/error) to honor prefetch state
+                if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
+                    if existingSession.status == "ready", let existingTest = existingSession.test, existingTest.questions.count >= 8 {
+                        print("DEBUG: Found READY session with \(existingTest.questions.count) questions")
+                        await MainActor.run {
+                            self.generatedTest = existingTest
+                            self.isGenerating = false
+                        }
+                        return
+                    } else if existingSession.status == "generating" {
+                        print("DEBUG: Found GENERATING session; waiting for readiness…")
+                        // Poll for up to ~25 seconds
+                        var attempts = 0
+                        while attempts < 25 {
+                            try await Task.sleep(nanoseconds: 1_000_000_000)
+                            if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
+                                if refreshed.status == "ready", let readyTest = refreshed.test, readyTest.questions.count >= 8 {
+                                    await MainActor.run {
+                                        self.generatedTest = readyTest
+                                        self.isGenerating = false
+                                    }
+                                    return
+                                } else if refreshed.status == "error" {
+                                    let msg = String(data: refreshed.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
+                                    await MainActor.run {
+                                        self.errorMessage = msg
+                                        self.isGenerating = false
+                                    }
+                                    return
+                                }
+                            }
+                            attempts += 1
+                        }
+                        // Timed out; proceed to generate inline as fallback
+                        print("DEBUG: GENERATING session timed out; generating inline…")
+                    } else if existingSession.status == "error" {
+                        let msg = String(data: existingSession.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
+                        await MainActor.run {
+                            self.errorMessage = msg
+                            self.isGenerating = false
+                        }
+                        return
+                    }
+                }
+
                 // 1) Try to reuse an existing practice session (persisted mixed test)
                 if let existingSession = try await fetchExistingSession(for: primaryIdea.id, type: "lesson_practice"),
                    let existingTest = existingSession.test,
@@ -521,11 +587,8 @@ struct DailyPracticeView: View {
                 return false
             }
             
-            // Create a temporary attempt with only fresh responses
-            let freshAttempt = TestAttempt(testId: test.id)
-            freshAttempt.responses = freshResponses
-            
-            reviewManager.addMistakesToQueue(from: freshAttempt, test: test, idea: primaryIdea)
+            // Add mistakes directly from responses (no temp attempt to avoid SwiftData crashes)
+            reviewManager.addMistakesToQueue(fromResponses: freshResponses, test: test, idea: primaryIdea)
             
             // Mark review questions as completed if answered correctly
             let reviewResponses = attempt.responses.filter { response in
@@ -711,6 +774,16 @@ struct DailyPracticeView: View {
         } catch {
             print("Error saving mastery: \(error)")
         }
+
+        // Trigger prefetch for the next lesson immediately after finishing
+        if let currentLessonNumber = selectedLesson?.lessonNumber {
+            let nextLessonNumber = currentLessonNumber + 1
+            Task {
+                let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+                prefetcher.prefetchLesson(book: book, lessonNumber: nextLessonNumber)
+                print("DEBUG: Prefetch for Lesson \(nextLessonNumber) triggered from handleTestCompletion")
+            }
+        }
     }
     
     private func getIdeaTitle(for ideaId: String) -> String? {
@@ -777,6 +850,18 @@ struct DailyPracticeView: View {
             let descriptor = FetchDescriptor<PracticeSession>(
                 predicate: #Predicate { s in
                     s.ideaId == ideaId && s.type == type && s.status == "ready"
+                },
+                sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+            )
+            return try self.modelContext.fetch(descriptor).first
+        }
+    }
+
+    private func fetchSessionAnyStatus(for ideaId: String, type: String) async throws -> PracticeSession? {
+        try await MainActor.run {
+            let descriptor = FetchDescriptor<PracticeSession>(
+                predicate: #Predicate { s in
+                    s.ideaId == ideaId && s.type == type
                 },
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )

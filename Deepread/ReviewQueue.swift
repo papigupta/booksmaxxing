@@ -62,6 +62,11 @@ class ReviewQueueManager {
     
     func addMistakesToQueue(from attempt: TestAttempt, test: Test, idea: Idea) {
         let incorrectResponses = attempt.responses.filter { !$0.isCorrect }
+        addMistakesToQueue(fromResponses: incorrectResponses, test: test, idea: idea)
+    }
+
+    /// Adds mistakes from a raw list of responses without requiring a TestAttempt container
+    func addMistakesToQueue(fromResponses incorrectResponses: [QuestionResponse], test: Test, idea: Idea) {
         
         for response in incorrectResponses {
             // Find the original question
