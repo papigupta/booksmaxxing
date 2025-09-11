@@ -475,7 +475,7 @@ struct DailyPracticeView: View {
         }
     }
     
-    private func handleTestCompletion(_ attempt: TestAttempt) {
+    private func handleTestCompletion(_ attempt: TestAttempt, _ didIncrementStreak: Bool) {
         completedAttempt = attempt
         showingTest = false
         
@@ -583,14 +583,21 @@ struct DailyPracticeView: View {
             print("DEBUG: WARNING - Cannot update coverage: test or lesson is nil")
         }
         
-        // Go straight to streak view after test completion
-        print("DEBUG: Test completed - going to streak view")
+        // Decide whether to show streak view based on today's first completion
+        print("DEBUG: Test completed - didIncrementStreak=\(didIncrementStreak)")
         print("DEBUG: Attempt score: \(attempt.score), responses: \(attempt.responses.count)")
-        
-        // Show streak view
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation {
-                currentView = .streak
+
+        if didIncrementStreak {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation { currentView = .streak }
+            }
+        } else {
+            // No streak celebration today; finish flow immediately
+            if let onComplete = onPracticeComplete {
+                print("DEBUG: ✅ Completing practice without streak overlay")
+                onComplete()
+            } else {
+                print("DEBUG: ❌ onPracticeComplete callback is nil!")
             }
         }
     }

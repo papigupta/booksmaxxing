@@ -704,7 +704,7 @@ struct ActiveIdeaCard: View {
                     idea: idea,
                     test: test,
                     openAIService: openAIService,
-                    onCompletion: { attempt in
+                    onCompletion: { attempt, _ in
                         showingTest = false
                         currentIncompleteAttempt = nil  // Clear the incomplete attempt reference
                         // Test completed, mastery will be updated by TestResultsView

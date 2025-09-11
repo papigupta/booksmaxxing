@@ -201,7 +201,7 @@ struct TestResultsView: View {
                         idea: idea,
                         test: retryTest,
                         openAIService: OpenAIService(apiKey: Secrets.openAIAPIKey),
-                        onCompletion: { newAttempt in
+                        onCompletion: { newAttempt, _ in
                             // After retry, show results again
                             showingRetryTest = false
                             Task {

@@ -21,6 +21,7 @@ struct DailyPracticeWithReviewView: View {
     @State private var showingPrimer = false
     @State private var completedAttempt: TestAttempt?
     @State private var currentView: PracticeFlowState = .none
+    @State private var shouldShowStreakToday: Bool = false
     
     enum PracticeFlowState {
         case none
@@ -93,8 +94,11 @@ struct DailyPracticeWithReviewView: View {
                         test: test,
                         book: book,
                         onContinue: {
-                            withAnimation {
-                                currentView = .streak
+                            if shouldShowStreakToday {
+                                withAnimation { currentView = .streak }
+                            } else {
+                                currentView = .none
+                                onPracticeComplete?()
                             }
                         }
                     )
@@ -462,9 +466,10 @@ struct DailyPracticeWithReviewView: View {
         )
     }
     
-    private func handleTestCompletion(_ attempt: TestAttempt) {
+    private func handleTestCompletion(_ attempt: TestAttempt, _ didIncrementStreak: Bool) {
         completedAttempt = attempt
         showingTest = false
+        shouldShowStreakToday = didIncrementStreak
         
         // Record mistakes to review queue
         if let test = combinedTest {

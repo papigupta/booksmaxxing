@@ -31,13 +31,14 @@ final class StreakManager: ObservableObject {
         return Calendar.current.isDateInToday(last)
     }
 
-    func markActivity(on date: Date = Date()) {
+    @discardableResult
+    func markActivity(on date: Date = Date()) -> Bool {
         let cal = Calendar.current
         let today = cal.startOfDay(for: date)
 
         // If already marked today, no-op
         if let last = lastActiveDay, cal.isDate(last, inSameDayAs: today) {
-            return
+            return false
         }
 
         if let last = lastActiveDay {
@@ -54,6 +55,7 @@ final class StreakManager: ObservableObject {
         lastActiveDay = today
         if currentStreak > bestStreak { bestStreak = currentStreak }
         persist()
+        return true
     }
 
     private func persist() {
@@ -64,4 +66,3 @@ final class StreakManager: ObservableObject {
         defaults.synchronize()
     }
 }
-

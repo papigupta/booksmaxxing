@@ -15,7 +15,7 @@ struct TestView: View {
     let idea: Idea
     let test: Test
     let openAIService: OpenAIService
-    let onCompletion: (TestAttempt) -> Void
+    let onCompletion: (TestAttempt, Bool) -> Void
     var onExit: (() -> Void)? = nil
     var existingAttempt: TestAttempt? = nil  // Allow resuming from existing attempt
     
@@ -30,6 +30,7 @@ struct TestView: View {
     @State private var isSubmitting = false
     @State private var evaluationResult: TestEvaluationResult?
     @State private var showingPrimer = false
+    @State private var didMarkStreakToday: Bool = false
     
     // Immediate feedback states
     @State private var showingFeedback = false
@@ -194,7 +195,7 @@ struct TestView: View {
                         attempt: attempt,
                         result: result,
                         onContinue: { attempt in
-                            onCompletion(attempt)
+                            onCompletion(attempt, didMarkStreakToday)
                             dismiss()
                         }
                     )
@@ -555,7 +556,7 @@ struct TestView: View {
                     evaluationResult = result
                     isSubmitting = false
                     // Mark daily streak on successful test completion (idempotent per day)
-                    streakManager.markActivity()
+                    didMarkStreakToday = streakManager.markActivity()
                 }
             } catch {
                 print("Error submitting test: \(error)")
