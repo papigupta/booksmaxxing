@@ -58,6 +58,15 @@ struct DeepreadApp: App {
                 UserDefaults.standard.set(true, forKey: migrationKey)
             }
 
+            // One-time cleanup of legacy 'fragile' mastery state
+            let fragileCleanupKey = "fragileMasteryCleanupV1Done"
+            let fragileCleaned = UserDefaults.standard.bool(forKey: fragileCleanupKey)
+            if !fragileCleaned {
+                let fragileService = FragileMasteryMigrationService(modelContext: container.mainContext)
+                fragileService.cleanupFragileMastery()
+                UserDefaults.standard.set(true, forKey: fragileCleanupKey)
+            }
+
             // Backfill bookId for any legacy ReviewQueueItems missing it
             do {
                 let ctx = container.mainContext

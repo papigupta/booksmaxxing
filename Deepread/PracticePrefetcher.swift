@@ -22,10 +22,10 @@ final class PracticePrefetcher {
         let bookId = book.id.uuidString
         let bookTitle = book.title
 
-        Task.detached { [modelContext, openAIService] in
+        Task { @MainActor in
             let start = Date()
             // If a session already exists and is ready or generating, no-op
-            let existing: PracticeSession? = await MainActor.run { () -> PracticeSession? in
+            let existing: PracticeSession? = {
                 do {
                     let descriptor = FetchDescriptor<PracticeSession>(
                         predicate: #Predicate { s in
@@ -35,7 +35,7 @@ final class PracticePrefetcher {
                     )
                     return try modelContext.fetch(descriptor).first
                 } catch { return nil }
-            }
+            }()
             if let existing = existing {
                 if existing.status == "ready" || existing.status == "generating" {
                     print("PREFETCH: Existing session for idea \(ideaId) is \(existing.status). Skipping.")
@@ -44,25 +44,23 @@ final class PracticePrefetcher {
             }
 
             // Create a generating session as a lock
-            let session: PracticeSession = await MainActor.run {
+            let session: PracticeSession = {
                 let s = PracticeSession(ideaId: ideaId, bookId: bookId, type: "lesson_practice", status: "generating", configVersion: 1)
                 modelContext.insert(s)
                 try? modelContext.save()
                 print("PREFETCH: Created GENERATING session for idea \(ideaId)")
                 return s
-            }
+            }()
 
             do {
                 // Build mixed test similar to DailyPracticeView.generatePractice()
-                let testGen = await MainActor.run { TestGenerationService(openAI: openAIService, modelContext: modelContext) }
+                let testGen = TestGenerationService(openAI: openAIService, modelContext: modelContext)
 
                 // Fetch the Idea by id on MainActor to avoid crossing non-sendable references
-                let targetIdea: Idea? = await MainActor.run { () -> Idea? in
-                    let descriptor = FetchDescriptor<Idea>(
-                        predicate: #Predicate { i in i.id == ideaId }
-                    )
-                    return try? modelContext.fetch(descriptor).first
-                }
+                let descriptor = FetchDescriptor<Idea>(
+                    predicate: #Predicate { i in i.id == ideaId }
+                )
+                let targetIdea: Idea? = try? modelContext.fetch(descriptor).first
                 guard let targetIdea = targetIdea else {
                     print("PREFETCH: Could not fetch idea \(ideaId); aborting prefetch")
                     return
@@ -73,17 +71,13 @@ final class PracticePrefetcher {
                 let freshTest = try await testGen.generateTest(for: targetIdea, testType: "initial")
 
                 // Ensure curveballs are queued for this specific book
-                await MainActor.run {
-                    let curveballService = CurveballService(modelContext: modelContext)
-                    curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
-                }
+                let curveballService = CurveballService(modelContext: modelContext)
+                curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
 
                 // Pull review items (max 3 MCQ + 1 OEQ) and generate review questions
-                let (mcqItemsRaw, openEndedItemsRaw): ([ReviewQueueItem], [ReviewQueueItem]) = await MainActor.run {
-                    let manager = ReviewQueueManager(modelContext: modelContext)
-                    let result = manager.getDailyReviewItems(bookId: bookId)
-                    return (result.mcqs, result.openEnded)
-                }
+                let manager = ReviewQueueManager(modelContext: modelContext)
+                let result = manager.getDailyReviewItems(bookId: bookId)
+                let (mcqItemsRaw, openEndedItemsRaw): ([ReviewQueueItem], [ReviewQueueItem]) = (result.mcqs, result.openEnded)
                 let allReviewItems = mcqItemsRaw + openEndedItemsRaw
                 print("PREFETCH: Review queue items selected: \(allReviewItems.count)")
 
@@ -138,29 +132,25 @@ final class PracticePrefetcher {
                     )
                 }
 
-                await MainActor.run {
-                    modelContext.insert(mixedTest)
-                    for cloned in clonedQuestions {
-                        cloned.test = mixedTest
-                        mixedTest.questions.append(cloned)
-                        modelContext.insert(cloned)
-                    }
+                modelContext.insert(mixedTest)
+                for cloned in clonedQuestions {
+                    cloned.test = mixedTest
+                    mixedTest.questions.append(cloned)
+                    modelContext.insert(cloned)
+                }
 
-                    session.test = mixedTest
-                    session.status = "ready"
-                    session.updatedAt = Date()
-                    try? modelContext.save()
-                    let elapsed = Date().timeIntervalSince(start)
-                    print("PREFETCH: Session READY for idea \(ideaId) with \(clonedQuestions.count) questions in \(String(format: "%.2f", elapsed))s")
-                }
+                session.test = mixedTest
+                session.status = "ready"
+                session.updatedAt = Date()
+                try? modelContext.save()
+                let elapsed = Date().timeIntervalSince(start)
+                print("PREFETCH: Session READY for idea \(ideaId) with \(clonedQuestions.count) questions in \(String(format: "%.2f", elapsed))s")
             } catch {
-                await MainActor.run {
-                    session.status = "error"
-                    session.updatedAt = Date()
-                    session.configData = "\(error.localizedDescription)".data(using: .utf8)
-                    try? modelContext.save()
-                    print("PREFETCH: ERROR for idea \(ideaId): \(error.localizedDescription)")
-                }
+                session.status = "error"
+                session.updatedAt = Date()
+                session.configData = "\(error.localizedDescription)".data(using: .utf8)
+                try? modelContext.save()
+                print("PREFETCH: ERROR for idea \(ideaId): \(error.localizedDescription)")
             }
         }
     }
@@ -174,28 +164,26 @@ final class PracticePrefetcher {
         let targetIdea = sortedIdeas[lessonNumber - 1]
         let ideaId = targetIdea.id
 
-        Task.detached { [modelContext, openAIService] in
+        Task { @MainActor in
             // If an initial test already exists with >=8 questions, skip
-            let hasInitial: Bool = await MainActor.run {
-                let descriptor = FetchDescriptor<Test>(
-                    predicate: #Predicate<Test> { t in t.ideaId == ideaId && t.testType == "initial" },
-                    sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-                )
+            let descriptor = FetchDescriptor<Test>(
+                predicate: #Predicate<Test> { t in t.ideaId == ideaId && t.testType == "initial" },
+                sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            )
+            let hasInitial: Bool = {
                 if let existing = try? modelContext.fetch(descriptor).first { return existing.questions.count >= 8 }
                 return false
-            }
+            }()
             if hasInitial {
                 print("PREFETCH: Initial 8 already present for idea \(ideaId); skipping prewarm")
                 return
             }
 
             // Generate and store the initial 8 test so later calls hit cache
-            let testGen = await MainActor.run { TestGenerationService(openAI: openAIService, modelContext: modelContext) }
+            let testGen = TestGenerationService(openAI: openAIService, modelContext: modelContext)
             // Fetch Idea on main actor to avoid crossing non-sendable references
-            let idea: Idea? = await MainActor.run { () -> Idea? in
-                let descriptor = FetchDescriptor<Idea>(predicate: #Predicate<Idea> { $0.id == ideaId })
-                return try? modelContext.fetch(descriptor).first
-            }
+            let descriptorIdea = FetchDescriptor<Idea>(predicate: #Predicate<Idea> { $0.id == ideaId })
+            let idea: Idea? = try? modelContext.fetch(descriptorIdea).first
             guard let idea = idea else {
                 print("PREFETCH: Could not fetch idea for prewarm \(ideaId)")
                 return

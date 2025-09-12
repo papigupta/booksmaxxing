@@ -17,9 +17,9 @@ class SpacedRepetitionService {
         
         switch masteryType {
         case .fragile:
-            // Schedule review in 3 days for fragile mastery
-            testProgress.nextReviewDate = Calendar.current.date(byAdding: .day, value: 3, to: Date())
-            idea.masteryLevel = 1 // Fragile mastery
+            // Legacy path deprecated: treat as .none (no scheduling)
+            testProgress.nextReviewDate = nil
+            idea.masteryLevel = 0
             
         case .solid:
             // No more reviews needed for solid mastery

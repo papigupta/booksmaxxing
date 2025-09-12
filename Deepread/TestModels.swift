@@ -296,9 +296,6 @@ final class TestProgress {
             masteryType = attempt.masteryAchieved
         }
         
-        // Schedule next review if achieved fragile mastery
-        if masteryType == .fragile {
-            nextReviewDate = Calendar.current.date(byAdding: .day, value: 3, to: Date())
-        }
+        // Legacy fragile scheduling removed
     }
 }
