@@ -6,6 +6,10 @@
 	<array>
 		<dict/>
 	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+	<key>UISupportsDocumentBrowser</key>
+	<false/>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Fraunces-Variable.ttf</string>

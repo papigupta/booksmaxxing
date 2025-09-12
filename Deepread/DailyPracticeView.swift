@@ -91,27 +91,7 @@ struct DailyPracticeView: View {
                         test: test,
                         openAIService: openAIService,
                         onCompletion: handleTestCompletion,
-                        onSubmitted: { attempt in
-                            // Immediately record mistakes to queue (fresh only) to feed next lesson generation
-                            if let lesson = selectedLesson,
-                               let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) {
-                                let reviewManager = ReviewQueueManager(modelContext: modelContext)
-                                let freshResponses = attempt.responses.filter { response in
-                                    if let q = test.questions.first(where: { $0.id == response.questionId }) {
-                                        return q.ideaId == primaryIdea.id
-                                    }
-                                    return false
-                                }
-                                reviewManager.addMistakesToQueue(fromResponses: freshResponses, test: test, idea: primaryIdea)
-                            }
-                            // Prefetch the next lesson as soon as the user submits
-                            if let ln = selectedLesson?.lessonNumber {
-                                let next = ln + 1
-                                let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
-                                prefetcher.prefetchLesson(book: book, lessonNumber: next)
-                                print("DEBUG: Prefetch for Lesson \(next) triggered from TestView.onSubmitted (after queuing mistakes)")
-                            }
-                        },
+                        onSubmitted: { _ in },
                         onExit: { showingTest = false }
                     )
                 }
@@ -349,6 +329,13 @@ struct DailyPracticeView: View {
             
             if let lesson = selectedLesson {
                 print("DEBUG: Generating practice test for lesson \(lesson.lessonNumber)")
+                // Proactively prewarm ONLY the initial 8 for the next lesson while user works on this lesson.
+                let next = lesson.lessonNumber + 1
+                Task {
+                    let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+                    prefetcher.prewarmInitialQuestions(book: book, lessonNumber: next)
+                    print("PREFETCH: Prewarmed initial 8 for upcoming lesson \(next) from generatePractice()")
+                }
                 
                 // Get the primary idea for this lesson
                 guard let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) else {
@@ -366,9 +353,9 @@ struct DailyPracticeView: View {
                         return
                     } else if existingSession.status == "generating" {
                         print("DEBUG: Found GENERATING session; waiting for readiness…")
-                        // Poll for up to ~25 seconds
+                        // Poll for up to ~40 seconds (batching can take longer)
                         var attempts = 0
-                        while attempts < 25 {
+                        while attempts < 40 {
                             try await Task.sleep(nanoseconds: 1_000_000_000)
                             if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
                                 if refreshed.status == "ready", let readyTest = refreshed.test, readyTest.questions.count >= 8 {
@@ -582,7 +569,7 @@ struct DailyPracticeView: View {
             let freshResponses = attempt.responses.filter { response in
                 if let question = test.questions.first(where: { $0.id == response.questionId }) {
                     // Check if this is a fresh question (from the primary idea)
-                    return question.ideaId == primaryIdea.id
+                    return question.ideaId == primaryIdea.id && (response.isCorrect == false)
                 }
                 return false
             }

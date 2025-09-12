@@ -4,6 +4,7 @@ import OSLog
 
 // MARK: - Test Generation Service
 
+@MainActor
 class TestGenerationService {
     private let logger = Logger(subsystem: "com.deepread.app", category: "TestGeneration")
     // Helper function to randomize options and update correct answer index
@@ -174,8 +175,220 @@ class TestGenerationService {
     }
     
     // MARK: - Initial Test Generation (8 questions)
-    
+
+    // Batched generation: single call for 8 items with strict validation and fallback
+    private func generateInitialQuestionsBatched(for idea: Idea) async throws -> [Question] {
+        let start = Date()
+        logger.debug("BATCH: Starting batched initial generation for idea: \(idea.title, privacy: .public)")
+
+        // Build system and user prompts. Keep a single, tight system prompt
+        // to minimize tokens while preserving quality instructions.
+        let systemPrompt = """
+        You are an expert educational content creator.
+        Create exactly 8 high-quality questions for one lesson from a non-fiction book idea.
+        Honor Bloom type, difficulty and question type for each slot. Match tone and clarity of expert test writers.
+
+        Requirements:
+        - MCQ: exactly 4 concise, plausible options; 1 correct index; avoid “all/none of the above/both/neither”.
+        - OpenEnded: omit options/correct; ask for specific, defensible responses.
+        - Stem: clear, unambiguous, tests understanding per Bloom intent; avoid fluff; prefer realistic contexts.
+        - Language: precise, book-appropriate, no chain-of-thought; no explanations.
+
+        Output only a valid JSON object per schema (no prose before/after).
+        """
+
+        // Fixed spec map for indices 0..7
+        let slotSpec: [(type: String, bloom: String, difficulty: String)] = [
+            ("MCQ","Recall","Easy"),
+            ("MCQ","Apply","Easy"),
+            ("MCQ","WhyImportant","Medium"),
+            ("MCQ","WhenUse","Medium"),
+            ("MCQ","Contrast","Medium"),
+            ("OpenEnded","Reframe","Medium"),
+            ("MCQ","Critique","Hard"),
+            ("OpenEnded","HowWield","Hard")
+        ]
+
+        // Schema contract text for the model
+        let schemaText = """
+        Strictly follow this JSON schema and rules:
+        {
+          "questions": [
+            {
+              "orderIndex": 0..7,
+              "type": "MCQ" | "OpenEnded",
+              "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|Reframe|Critique|HowWield",
+              "difficulty": "Easy|Medium|Hard",
+              "question": "string",
+              "options": ["A","B","C","D"],
+              "correct": [0]
+            }
+          ]
+        }
+        Rules:
+        - MCQ must have exactly 4 options and a single correct index (0-3).
+        - OpenEnded must omit options and correct.
+        - Avoid phrases like "all of the above".
+        Output only JSON. No prose.
+        """
+
+        // Assemble user prompt with concise slot specs to reduce tokens.
+        var specLines: [String] = []
+        for (idx, s) in slotSpec.enumerated() {
+            specLines.append("- orderIndex=\(idx), type=\(s.type), bloom=\(s.bloom), difficulty=\(s.difficulty)")
+        }
+
+        let userPrompt = """
+        Idea title: \(idea.title)
+        Idea description: \(idea.ideaDescription)
+        Book: \(idea.bookTitle)
+
+        Create the 8 questions in this exact distribution and order:\n\(specLines.joined(separator: "\n"))
+
+        \(schemaText)
+        """
+
+        // Call model with retry via OpenAIService
+        // Use the high-quality model, but keep the prompt compact for speed.
+        let aiResponse = try await openAI.chat(
+            systemPrompt: systemPrompt,
+            userPrompt: userPrompt,
+            model: "gpt-4.1",
+            temperature: 0.7,
+            maxTokens: 1200
+        )
+
+        // Extract JSON and decode
+        let jsonString = SharedUtils.extractJSONObjectString(aiResponse)
+
+        struct BatchedQuestionsResponse: Decodable { let questions: [BatchedItem] }
+        struct BatchedItem: Decodable {
+            let orderIndex: Int
+            let type: String
+            let bloom: String
+            let difficulty: String
+            let question: String
+            let options: [String]?
+            let correct: [Int]?
+        }
+
+        func decode(_ s: String) throws -> BatchedQuestionsResponse {
+            guard let d = s.data(using: .utf8) else { throw TestGenerationError.generationFailed("BATCH: Invalid JSON string") }
+            return try JSONDecoder().decode(BatchedQuestionsResponse.self, from: d)
+        }
+
+        var decoded: BatchedQuestionsResponse
+        do {
+            decoded = try decode(jsonString)
+        } catch {
+            // Retry once with the same model to recover from transient formatting issues
+            logger.debug("BATCH: Primary decode failed; retrying generation with compact prompt")
+            let retryResponse = try await openAI.chat(
+                systemPrompt: systemPrompt,
+                userPrompt: userPrompt,
+                model: "gpt-4.1",
+                temperature: 0.7,
+                maxTokens: 1200
+            )
+            let retryJson = SharedUtils.extractJSONObjectString(retryResponse)
+            decoded = try decode(retryJson)
+        }
+
+        // Validate and normalize
+        let items = decoded.questions
+        guard items.count == 8 else {
+            throw TestGenerationError.generationFailed("BATCH: Expected 8 items, got \(items.count)")
+        }
+        let indexSet = Set(items.map { $0.orderIndex })
+        guard indexSet == Set(0...7) else {
+            throw TestGenerationError.generationFailed("BATCH: orderIndex must be 0..7 unique")
+        }
+
+        // Build mapping by index
+        var byIndex: [Int: BatchedItem] = [:]
+        for item in items { byIndex[item.orderIndex] = item }
+
+        // Helper functions
+        func norm(_ s: String) -> String {
+            return s.lowercased()
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "[^a-z0-9 ]", with: "", options: .regularExpression)
+        }
+        let disallowed = Set(["all of the above", "none of the above", "both a and b", "neither of the above"]) 
+
+        // Validate each slot against fixed spec
+        for i in 0...7 {
+            guard let item = byIndex[i] else { continue }
+            let expected = slotSpec[i]
+            guard item.type == expected.type && item.bloom == expected.bloom && item.difficulty == expected.difficulty else {
+                throw TestGenerationError.generationFailed("BATCH: Slot \(i) spec mismatch")
+            }
+            guard !item.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw TestGenerationError.generationFailed("BATCH: Slot \(i) empty question")
+            }
+            if expected.type == "MCQ" {
+                guard let options = item.options, let correct = item.correct, options.count == 4, correct.count == 1 else {
+                    throw TestGenerationError.generationFailed("BATCH: Slot \(i) MCQ shape invalid")
+                }
+                // Option sanity
+                let normalized = options.map { norm($0) }
+                if Set(normalized).count != 4 { throw TestGenerationError.generationFailed("BATCH: Slot \(i) duplicate options") }
+                if normalized.contains(where: { disallowed.contains($0) }) { throw TestGenerationError.generationFailed("BATCH: Slot \(i) disallowed option") }
+                if !(0...3).contains(correct[0]) { throw TestGenerationError.generationFailed("BATCH: Slot \(i) correct index out of range") }
+            } else { // OpenEnded
+                if item.options != nil || item.correct != nil {
+                    throw TestGenerationError.generationFailed("BATCH: Slot \(i) OpenEnded must not include options/correct")
+                }
+            }
+        }
+
+        // Convert to internal Question objects with option shuffle
+        var out: [Question] = []
+        var randomizedCount = 0
+        for i in 0...7 {
+            guard let item = byIndex[i] else { continue }
+
+            let type: QuestionType = (item.type == "OpenEnded") ? .openEnded : .mcq
+            guard let bloom = BloomCategory(rawValue: item.bloom), let difficulty = QuestionDifficulty(rawValue: item.difficulty) else {
+                throw TestGenerationError.generationFailed("BATCH: Slot \(i) unknown enums")
+            }
+
+            var options: [String]? = item.options
+            var correct: [Int]? = item.correct
+            if type != .openEnded, let opts = options, let corr = correct {
+                let (shuffled, newIdx) = randomizeOptions(opts, correctIndices: corr)
+                options = shuffled
+                correct = newIdx
+                randomizedCount += 1
+            }
+
+            out.append(Question(
+                ideaId: idea.id,
+                type: type,
+                difficulty: difficulty,
+                bloomCategory: bloom,
+                questionText: item.question,
+                options: options,
+                correctAnswers: correct,
+                orderIndex: i
+            ))
+        }
+
+        let elapsed = Date().timeIntervalSince(start)
+        logger.debug("BATCH: Parsed batch in \(String(format: "%.2f", elapsed))s; randomized MCQs: \(randomizedCount)")
+        return out.sorted { $0.orderIndex < $1.orderIndex }
+    }
+
     private func generateInitialQuestions(for idea: Idea) async throws -> [Question] {
+        // Try batched path first when flag is enabled; fallback to legacy per-question if anything fails
+        if DebugFlags.useBatchedInitialGeneration {
+            do {
+                let batched = try await generateInitialQuestionsBatched(for: idea)
+                return batched
+            } catch {
+                logger.debug("BATCH: Falling back to legacy per-question generation due to: \(error.localizedDescription)")
+            }
+        }
         var questions: [Question] = []
         
         // Fixed order with specific question types and difficulties:

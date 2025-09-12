@@ -480,7 +480,14 @@ struct DailyPracticeHomepage: View {
     private func prefetchCurrentLessonIfNeeded() async {
         // Identify current lesson from milestones
         guard let current = practiceMilestones.first(where: { $0.isCurrent }) else { return }
+        // Full prefetch for the current lesson (mixed with review)
         await prefetchLesson(number: current.id)
+        // Prewarm only the initial 8 for the next lesson; reviews depend on results of current.
+        let next = min(current.id + 1, practiceMilestones.count)
+        if next != current.id {
+            let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+            prefetcher.prewarmInitialQuestions(book: book, lessonNumber: next)
+        }
     }
 
     private func prefetchLesson(number: Int) async {

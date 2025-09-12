@@ -27,6 +27,7 @@ struct QuestionDistribution {
 }
 
 // MARK: - Lesson Generation Service
+@MainActor
 final class LessonGenerationService {
     
     // Helper function to randomize options and update correct answer index

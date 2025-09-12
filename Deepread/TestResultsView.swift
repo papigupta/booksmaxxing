@@ -288,18 +288,9 @@ struct TestResultsView: View {
     }
     
     private func completeTest() {
-        // Add mistakes to review queue before completing
-        if hasIncorrectAnswers {
-            addMistakesToReviewQueue()
-        }
-        
+        // Mistake queueing is owned by the lesson flow (DailyPracticeView)
         updateIdeaCoverage()
         onContinue(attempt)
-    }
-    
-    private func addMistakesToReviewQueue() {
-        let reviewManager = ReviewQueueManager(modelContext: modelContext)
-        reviewManager.addMistakesToQueue(from: attempt, test: test, idea: idea)
     }
 }
 

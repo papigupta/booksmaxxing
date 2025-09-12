@@ -125,6 +125,7 @@ class ReviewQueueManager {
         
         do {
             let allPendingItems = try modelContext.fetch(descriptor)
+            print("🔍 REVIEW QUEUE: pending items for book=\(bookId): \(allPendingItems.count)")
 
             // Curveball prioritization: pick at most 1 curveball first
             let curveballSelected: ReviewQueueItem? = allPendingItems.first(where: { $0.isCurveball })
@@ -193,6 +194,7 @@ class ReviewQueueManager {
                 usedKeys.insert(key)
             }
 
+            print("🔍 REVIEW QUEUE: selected for today → MCQ=\(selectedMCQs.count), OEQ=\(selectedOpen.count)")
             return (mcqs: selectedMCQs, openEnded: selectedOpen)
         } catch {
             print("Error fetching review queue items: \(error)")
