@@ -442,10 +442,11 @@ struct DailyPracticeHomepage: View {
         
         for idea in ideas {
             let coverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
-            
+
             if coverage.coveragePercentage == 0 {
                 newIdeasCount += 1
-            } else if coverage.isFullyCovered {
+            } else if coverage.isFullyCovered && coverage.curveballPassed {
+                // Mastery requires both full coverage and passing the curveball
                 masteredCount += 1
             }
         }

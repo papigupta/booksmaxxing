@@ -54,7 +54,8 @@ class TestEvaluationService {
             if test.testType == "review" {
                 attempt.masteryAchieved = .solid
             } else {
-                attempt.masteryAchieved = .fragile
+                // No longer using 'fragile' mastery; keep as .none for initial tests
+                attempt.masteryAchieved = .none
             }
         }
         

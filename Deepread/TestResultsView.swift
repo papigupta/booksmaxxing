@@ -55,12 +55,12 @@ struct TestResultsView: View {
                             
                             Spacer()
                             
-                            // Mastery badge
-                            if masteryAchieved {
+                            // Mastery badge (only show for solid mastery)
+                            if result.masteryAchieved == .solid {
                                 VStack(alignment: .center, spacing: DS.Spacing.xs) {
                                     DSIcon("star.fill", size: 24)
                                         .foregroundStyle(.yellow)
-                                    Text(result.masteryAchieved == .solid ? "SOLID MASTERY" : "FRAGILE MASTERY")
+                                    Text("SOLID MASTERY")
                                         .font(DS.Typography.captionBold)
                                         .foregroundStyle(DS.Colors.primaryText)
                                         .multilineTextAlignment(.center)
@@ -131,12 +131,12 @@ struct TestResultsView: View {
                             Text("Review the incorrect answers and try again to achieve mastery.")
                                 .font(DS.Typography.body)
                                 .foregroundStyle(DS.Colors.secondaryText)
-                        } else if result.masteryAchieved == .fragile {
-                            Text("Great job! You'll get a review test in 3 days to achieve solid mastery.")
+                        } else if result.masteryAchieved == .solid {
+                            Text("Perfect! You've achieved solid mastery of this idea.")
                                 .font(DS.Typography.body)
                                 .foregroundStyle(DS.Colors.secondaryText)
                         } else {
-                            Text("Perfect! You've achieved solid mastery of this idea.")
+                            Text("Great job! Keep practicing to solidify your understanding.")
                                 .font(DS.Typography.body)
                                 .foregroundStyle(DS.Colors.secondaryText)
                         }
@@ -260,8 +260,8 @@ struct TestResultsView: View {
             if test.testType == "review" {
                 attempt.masteryAchieved = .solid
             } else {
-                attempt.masteryAchieved = .fragile
-                scheduleReviewTest()
+                // No 'fragile' mastery; do not schedule a review here
+                attempt.masteryAchieved = .none
             }
         }
         
@@ -276,10 +276,7 @@ struct TestResultsView: View {
         }
     }
     
-    private func scheduleReviewTest() {
-        let spacedRepetitionService = SpacedRepetitionService(modelContext: modelContext)
-        spacedRepetitionService.scheduleReviewTest(for: idea, after: attempt.masteryAchieved)
-    }
+    // Removed fragile mastery scheduling; review/curveballs manage consolidation
     
     private func updateIdeaCoverage() {
         // Coverage is now tracked through CoverageService based on question types answered

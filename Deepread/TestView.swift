@@ -537,7 +537,8 @@ struct TestView: View {
                     if test.testType == "review" {
                         attempt.masteryAchieved = .solid
                     } else {
-                        attempt.masteryAchieved = .fragile
+                        // Drop 'fragile' mastery; do not set mastery on initial
+                        attempt.masteryAchieved = .none
                     }
                 }
                 
