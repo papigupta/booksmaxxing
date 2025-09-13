@@ -3,15 +3,15 @@ import SwiftData
 
 @Model
 final class Progress {
-    var id: UUID
-    var ideaId: String  // Now uses book-specific IDs like "b1i1", "b2i3"
-    var level: Int
-    var score: Int
-    var masteryLevel: Int
-    var timestamp: Date
+    var id: UUID = UUID()
+    var ideaId: String = ""  // Now uses book-specific IDs like "b1i1", "b2i3"
+    var level: Int = 1
+    var score: Int = 0
+    var masteryLevel: Int = 0
+    var timestamp: Date = Date.now
     
     // Relationship back to Idea
-    @Relationship(deleteRule: .cascade) var idea: Idea?
+    @Relationship var idea: Idea?
     
     init(ideaId: String, level: Int, score: Int, masteryLevel: Int = 0) {
         self.id = UUID()

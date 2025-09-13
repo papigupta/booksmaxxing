@@ -89,7 +89,7 @@ struct TestResultsView: View {
                                 QuestionResultCard(
                                     questionNumber: index + 1,
                                     evaluation: evaluation,
-                                    question: test.questions.first { $0.id == evaluation.questionId }
+                                    question: (test.questions ?? []).first { $0.id == evaluation.questionId }
                                 )
                             }
                         }

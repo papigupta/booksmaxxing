@@ -20,119 +20,72 @@ struct DeepreadApp: App {
     @StateObject private var navigationState = NavigationState()
     // Streak state
     @StateObject private var streakManager = StreakManager()
+    // Auth state
+    @StateObject private var authManager = AuthManager()
+    
+    // Track if we should try CloudKit sync
+    @State private var shouldEnableCloudKit = false
+    @State private var cloudKitContainer: ModelContainer?
+    @State private var persistentContainer: ModelContainer?
     
     var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Book.self,
-            Idea.self,
-            Progress.self,
-            Primer.self,
-            // Test system models
-            Question.self,
-            Test.self,
-            TestAttempt.self,
-            QuestionResponse.self,
-            TestProgress.self,
-            PracticeSession.self,
-            // Review queue models
-            ReviewQueueItem.self,
-            // Coverage tracking models
-            IdeaCoverage.self,
-            MissedQuestionRecord.self,
-            // Legacy model for migration
-            IdeaMastery.self
-        ])
-        
         do {
-            // Try to create persistent container with default configuration
-            let modelConfiguration = ModelConfiguration(isStoredInMemoryOnly: false)
-            let container = try ModelContainer(for: schema, configurations: modelConfiguration)
-            print("✅ Successfully created persistent ModelContainer")
-            
-            // One-time migration from old mastery to new coverage system
-            let migrationKey = "coverageMigrationV1Done"
-            let alreadyMigrated = UserDefaults.standard.bool(forKey: migrationKey)
-            if !alreadyMigrated {
-                let migrationService = CoverageMigrationService(modelContext: container.mainContext)
-                migrationService.migrateOldMasteryToCoverage()
-                UserDefaults.standard.set(true, forKey: migrationKey)
-            }
-
-            // One-time cleanup of legacy 'fragile' mastery state
-            let fragileCleanupKey = "fragileMasteryCleanupV1Done"
-            let fragileCleaned = UserDefaults.standard.bool(forKey: fragileCleanupKey)
-            if !fragileCleaned {
-                let fragileService = FragileMasteryMigrationService(modelContext: container.mainContext)
-                fragileService.cleanupFragileMastery()
-                UserDefaults.standard.set(true, forKey: fragileCleanupKey)
-            }
-
-            // Backfill bookId for any legacy ReviewQueueItems missing it
-            do {
-                let ctx = container.mainContext
-                let descriptor = FetchDescriptor<ReviewQueueItem>(
-                    predicate: #Predicate<ReviewQueueItem> { item in item.bookId == nil }
-                )
-                let legacyItems = try ctx.fetch(descriptor)
-                if !legacyItems.isEmpty {
-                    let bookService = BookService(modelContext: ctx)
-                    for item in legacyItems {
-                        if let book = try? bookService.getBook(withTitle: item.bookTitle) {
-                            item.bookId = book.id.uuidString
-                        }
-                    }
-                    try? ctx.save()
-                    print("✅ Backfilled bookId for \(legacyItems.count) ReviewQueueItems")
-                }
-            } catch {
-                print("⚠️  Backfill for ReviewQueueItem.bookId failed: \(error)")
-            }
-            
+            // Try simplest API first
+            let container = try ModelContainer(
+                for: Book.self,
+                     Idea.self,
+                     Progress.self,
+                     Primer.self,
+                     Question.self,
+                     Test.self,
+                     TestAttempt.self,
+                     QuestionResponse.self,
+                     TestProgress.self,
+                     PracticeSession.self,
+                     ReviewQueueItem.self,
+                     IdeaCoverage.self,
+                     MissedQuestionRecord.self
+            )
+            print("✅ Created persistent ModelContainer")
             return container
         } catch {
-            print("⚠️  Failed to create persistent ModelContainer: \(error)")
-            
-            // Only reset for actual incompatible schema changes, not for generic errors
-            // Check for specific CoreData/SwiftData migration errors
-            let errorString = String(describing: error)
-            if errorString.contains("The model used to open the store is incompatible") ||
-               errorString.contains("Failed to find a unique match for an NSEntityDescription") ||
-               errorString.contains("Cannot migrate store in-place") ||
-               errorString.contains("loadIssueModelContainer") {
-                print("🔄 Detected incompatible schema change - attempting controlled migration")
-                
-                // Try to get the default store location and delete it
-                let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-                if let storeDirectory = appSupportURL?.appendingPathComponent("default.store") {
-                    try? FileManager.default.removeItem(at: storeDirectory)
-                    print("🗑️  Deleted existing incompatible data store")
-                }
-                
-                // Also try deleting common SwiftData store locations
-                if let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-                    let swiftDataStore = documentsURL.appendingPathComponent("default.store")
-                    try? FileManager.default.removeItem(at: swiftDataStore)
-                }
-                
-                // Try creating container again with fresh store
-                do {
-                    let freshConfig = ModelConfiguration(isStoredInMemoryOnly: false)
-                    let freshContainer = try ModelContainer(for: schema, configurations: freshConfig)
-                    print("✅ Successfully created fresh persistent ModelContainer after migration")
-                    return freshContainer
-                } catch {
-                    print("❌ Failed to create container even after migration: \(error)")
-                    // Fall through to fatal error - don't use in-memory as fallback
-                    fatalError("CRITICAL: Cannot create ModelContainer after migration: \(error)")
-                }
+            print("❌ Persistent container failed: \(error)")
+            // Fallback to in-memory only
+            do {
+                let inMemory = ModelConfiguration(isStoredInMemoryOnly: true)
+                let container = try ModelContainer(
+                    for: Book.self,
+                         Idea.self,
+                         Progress.self,
+                         Primer.self,
+                         Question.self,
+                         Test.self,
+                         TestAttempt.self,
+                         QuestionResponse.self,
+                         TestProgress.self,
+                         PracticeSession.self,
+                         ReviewQueueItem.self,
+                         IdeaCoverage.self,
+                         MissedQuestionRecord.self,
+                    configurations: inMemory
+                )
+                print("✅ Created in-memory ModelContainer")
+                return container
+            } catch {
+                print("❌ In-memory container failed: \(error)")
+                fatalError("Cannot create any ModelContainer at all")
             }
-            
-            // For other errors, don't fall back to in-memory - fail fast
-            // This ensures we catch persistence issues during development
-            fatalError("CRITICAL: Cannot create ModelContainer: \(error)")
         }
     }()
 
+    private func setupCloudKitIfNeeded() {
+        // Temporarily disabled to isolate the ModelContainer issue
+        print("ℹ️ CloudKit setup temporarily disabled")
+        return
+    }
+    
+    private func setupPersistentStorage() {}
+    
     var body: some Scene {
         WindowGroup {
             ZStack {
@@ -140,10 +93,16 @@ struct DeepreadApp: App {
                     SplashScreenView()
                         .transition(.opacity)
                 } else {
-                    MainView(openAIService: openAIService)
-                        .environmentObject(navigationState)
-                        .environmentObject(streakManager)
-                        .transition(.opacity)
+                    if authManager.isSignedIn {
+                        MainView(openAIService: openAIService)
+                            .environmentObject(navigationState)
+                            .environmentObject(streakManager)
+                            .environmentObject(authManager)
+                            .transition(.opacity)
+                    } else {
+                        AuthView(authManager: authManager)
+                            .transition(.opacity)
+                    }
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: isShowingSplash)
@@ -154,6 +113,7 @@ struct DeepreadApp: App {
                         isShowingSplash = false
                     }
                 }
+                // Storage already initialized via sharedModelContainer
             }
         }
         .modelContainer(sharedModelContainer)

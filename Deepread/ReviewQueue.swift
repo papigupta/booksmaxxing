@@ -5,20 +5,20 @@ import SwiftData
 
 @Model
 final class ReviewQueueItem {
-    var id: UUID
-    var ideaId: String
-    var ideaTitle: String
-    var bookTitle: String
+    var id: UUID = UUID()
+    var ideaId: String = ""
+    var ideaTitle: String = ""
+    var bookTitle: String = ""
     var bookId: String? // Prefer bookId; bookTitle kept for backward compat
-    var questionType: QuestionType
-    var conceptTested: String
-    var difficulty: QuestionDifficulty
-    var bloomCategory: BloomCategory
-    var originalQuestionText: String
+    var questionType: QuestionType = QuestionType.mcq
+    var conceptTested: String = ""
+    var difficulty: QuestionDifficulty = QuestionDifficulty.easy
+    var bloomCategory: BloomCategory = BloomCategory.recall
+    var originalQuestionText: String = ""
     // Curveball support
-    var isCurveball: Bool
-    var addedDate: Date
-    var isCompleted: Bool
+    var isCurveball: Bool = false
+    var addedDate: Date = Date.now
+    var isCompleted: Bool = false
     
     init(
         ideaId: String,
@@ -61,7 +61,7 @@ class ReviewQueueManager {
     // MARK: - Add Mistakes to Queue
     
     func addMistakesToQueue(from attempt: TestAttempt, test: Test, idea: Idea) {
-        let incorrectResponses = attempt.responses.filter { !$0.isCorrect }
+        let incorrectResponses = (attempt.responses ?? []).filter { !$0.isCorrect }
         addMistakesToQueue(fromResponses: incorrectResponses, test: test, idea: idea)
     }
 
@@ -70,7 +70,7 @@ class ReviewQueueManager {
         
         for response in incorrectResponses {
             // Find the original question
-            guard let question = test.questions.first(where: { $0.id == response.questionId }) else {
+            guard let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) else {
                 continue
             }
             // Skip if a similar pending item already exists (dedupe by concept and type)

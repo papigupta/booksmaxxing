@@ -281,7 +281,7 @@ struct DailyPracticeHomepage: View {
                                             let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
                                             
                                             // Get the actual idea for this lesson to set primaryIdeaId
-                                            let sortedIdeas = book.ideas.sortedByNumericId()
+                                            let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
                                             
                                             let primaryIdeaId: String
                                             if milestone.id > 0 && milestone.id <= sortedIdeas.count {
@@ -434,7 +434,7 @@ struct DailyPracticeHomepage: View {
         let totalReviewItems = queueStats.totalMCQs + queueStats.totalOpenEnded
         
         // Calculate practice stats
-        let ideas = book.ideas
+        let ideas = (book.ideas ?? [])
         
         var newIdeasCount = 0
         let reviewDueCount = totalReviewItems  // Use actual queue count

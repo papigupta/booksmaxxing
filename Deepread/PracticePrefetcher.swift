@@ -14,7 +14,7 @@ final class PracticePrefetcher {
     func prefetchLesson(book: Book, lessonNumber: Int) {
         print("PREFETCH: Request to prefetch lesson \(lessonNumber) for book: \(book.title)")
         // Guard valid lesson number
-        let sortedIdeas = book.ideas.sortedByNumericId()
+        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
         guard lessonNumber > 0, lessonNumber <= sortedIdeas.count else { return }
 
         let primaryIdea = sortedIdeas[lessonNumber - 1]
@@ -135,7 +135,8 @@ final class PracticePrefetcher {
                 modelContext.insert(mixedTest)
                 for cloned in clonedQuestions {
                     cloned.test = mixedTest
-                    mixedTest.questions.append(cloned)
+                    if mixedTest.questions == nil { mixedTest.questions = [] }
+                    mixedTest.questions?.append(cloned)
                     modelContext.insert(cloned)
                 }
 
@@ -158,7 +159,7 @@ final class PracticePrefetcher {
     // Phase A prewarm: generate and persist only the initial 8 questions for lesson N (no session, no reviews)
     func prewarmInitialQuestions(book: Book, lessonNumber: Int) {
         print("PREFETCH: Prewarm request for initial questions of lesson \(lessonNumber) for book: \(book.title)")
-        let sortedIdeas = book.ideas.sortedByNumericId()
+        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
         guard lessonNumber > 0, lessonNumber <= sortedIdeas.count else { return }
 
         let targetIdea = sortedIdeas[lessonNumber - 1]
@@ -171,7 +172,7 @@ final class PracticePrefetcher {
                 sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
             )
             let hasInitial: Bool = {
-                if let existing = try? modelContext.fetch(descriptor).first { return existing.questions.count >= 8 }
+                if let existing = try? modelContext.fetch(descriptor).first { return (existing.questions ?? []).count >= 8 }
                 return false
             }()
             if hasInitial {

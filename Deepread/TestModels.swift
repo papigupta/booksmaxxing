@@ -57,23 +57,24 @@ enum MasteryType: String, Codable {
 
 @Model
 final class Question {
-    var id: UUID
+    var id: UUID = UUID()
     var testId: UUID?  // Reference to parent test
-    var ideaId: String
-    var type: QuestionType
-    var difficulty: QuestionDifficulty
-    var bloomCategory: BloomCategory
-    var questionText: String
+    var ideaId: String = ""
+    var type: QuestionType = QuestionType.mcq
+    var difficulty: QuestionDifficulty = QuestionDifficulty.easy
+    var bloomCategory: BloomCategory = BloomCategory.recall
+    var questionText: String = ""
     var options: [String]?  // For MCQ/MSQ - exactly 4 options
     var correctAnswers: [Int]?  // Indices of correct answers (1 for MCQ, multiple for MSQ)
-    var orderIndex: Int  // Position in test (0-8)
-    var createdAt: Date
+    var orderIndex: Int = 0  // Position in test (0-8)
+    var createdAt: Date = Date.now
     var isCurveball: Bool = false
     // Persist mapping to source review queue item for reliable completion marking
     var sourceQueueItemId: UUID?
     
-    // Relationship to test
-    var test: Test?
+    // Relationships
+    @Relationship(inverse: \Test.questions) var test: Test?
+    @Relationship(deleteRule: .cascade, inverse: \QuestionResponse.question) var responses: [QuestionResponse]?
     
     init(
         ideaId: String,
@@ -106,18 +107,20 @@ final class Question {
 
 @Model
 final class Test {
-    var id: UUID
-    var ideaId: String
-    var ideaTitle: String
-    var bookTitle: String
-    var testType: String  // "initial" or "review"
-    var createdAt: Date
+    var id: UUID = UUID()
+    var ideaId: String = ""
+    var ideaTitle: String = ""
+    var bookTitle: String = ""
+    var testType: String = "initial"  // "initial" or "review"
+    var createdAt: Date = Date.now
     var scheduledFor: Date?  // For review tests
     
     // Relationships
-    @Relationship(deleteRule: .cascade) var questions: [Question]
-    @Relationship(deleteRule: .cascade) var attempts: [TestAttempt]
-    var idea: Idea?
+    @Relationship(deleteRule: .cascade) var questions: [Question]?
+    @Relationship(deleteRule: .cascade) var attempts: [TestAttempt]?
+    @Relationship(inverse: \Idea.tests) var idea: Idea?
+    // Backlink to PracticeSession (for CloudKit inverse)
+    @Relationship var practiceSession: PracticeSession?
     
     init(
         ideaId: String,
@@ -131,18 +134,18 @@ final class Test {
         self.bookTitle = bookTitle
         self.testType = testType
         self.createdAt = Date()
-        self.questions = []
-        self.attempts = []
+        self.questions = nil
+        self.attempts = nil
     }
     
     // Helper to get questions by difficulty
     func questions(for difficulty: QuestionDifficulty) -> [Question] {
-        questions.filter { $0.difficulty == difficulty }.sorted { $0.orderIndex < $1.orderIndex }
+        (questions ?? []).filter { $0.difficulty == difficulty }.sorted { $0.orderIndex < $1.orderIndex }
     }
     
     // Helper to get questions in order
     var orderedQuestions: [Question] {
-        questions.sorted { $0.orderIndex < $1.orderIndex }
+        (questions ?? []).sorted { $0.orderIndex < $1.orderIndex }
     }
 }
 
@@ -150,19 +153,19 @@ final class Test {
 
 @Model
 final class TestAttempt {
-    var id: UUID
-    var testId: UUID
-    var startedAt: Date
+    var id: UUID = UUID()
+    var testId: UUID = UUID()
+    var startedAt: Date = Date.now
     var completedAt: Date?
-    var score: Int  // Out of 150
-    var isComplete: Bool
-    var masteryAchieved: MasteryType
-    var retryCount: Int  // Number of retry loops completed
-    var currentQuestionIndex: Int  // Track where user left off
+    var score: Int = 0  // Out of 150
+    var isComplete: Bool = false
+    var masteryAchieved: MasteryType = MasteryType.none
+    var retryCount: Int = 0  // Number of retry loops completed
+    var currentQuestionIndex: Int = 0  // Track where user left off
     
     // Relationships
-    @Relationship(deleteRule: .cascade) var responses: [QuestionResponse]
-    var test: Test?
+    @Relationship var responses: [QuestionResponse]?
+    @Relationship var test: Test?
     
     init(testId: UUID) {
         self.id = UUID()
@@ -173,22 +176,22 @@ final class TestAttempt {
         self.masteryAchieved = .none
         self.retryCount = 0
         self.currentQuestionIndex = 0
-        self.responses = []
+        self.responses = nil
     }
     
     // Calculate score from responses
     func calculateScore() -> Int {
-        responses.compactMap { $0.pointsEarned }.reduce(0, +)
+        (responses ?? []).compactMap { $0.pointsEarned }.reduce(0, +)
     }
     
     // Get incorrect responses
     var incorrectResponses: [QuestionResponse] {
-        responses.filter { !$0.isCorrect }
+        (responses ?? []).filter { !$0.isCorrect }
     }
     
     // Get response for a specific question
     func response(for questionId: UUID) -> QuestionResponse? {
-        responses.first { $0.questionId == questionId }
+        (responses ?? []).first { $0.questionId == questionId }
     }
 }
 
@@ -196,22 +199,22 @@ final class TestAttempt {
 
 @Model
 final class QuestionResponse {
-    var id: UUID
-    var attemptId: UUID
-    var questionId: UUID
-    var questionType: QuestionType
-    var userAnswer: String  // JSON encoded based on type
-    var isCorrect: Bool
-    var pointsEarned: Int
-    var answeredAt: Date
-    var retryNumber: Int  // Which retry attempt (0 = initial)
+    var id: UUID = UUID()
+    var attemptId: UUID = UUID()
+    var questionId: UUID = UUID()
+    var questionType: QuestionType = QuestionType.mcq
+    var userAnswer: String = ""  // JSON encoded based on type
+    var isCorrect: Bool = false
+    var pointsEarned: Int = 0
+    var answeredAt: Date = Date.now
+    var retryNumber: Int = 0  // Which retry attempt (0 = initial)
     
     // For evaluation feedback
     var evaluationData: Data?  // JSON encoded evaluation result
     
     // Relationships
-    var attempt: TestAttempt?
-    var question: Question?
+    @Relationship var attempt: TestAttempt?
+    @Relationship var question: Question?
     
     init(
         attemptId: UUID,
@@ -255,20 +258,20 @@ final class QuestionResponse {
 
 @Model
 final class TestProgress {
-    var id: UUID
-    var ideaId: String
+    var id: UUID = UUID()
+    var ideaId: String = ""
     var currentTestId: UUID?
     var lastTestDate: Date?
     var nextReviewDate: Date?
-    var masteryType: MasteryType
-    var totalTestsTaken: Int
-    var averageScore: Double
+    var masteryType: MasteryType = MasteryType.none
+    var totalTestsTaken: Int = 0
+    var averageScore: Double = 0
     
     // Track mistakes for focused review
     var mistakePatterns: Data?  // JSON encoded mistake analysis
     
     // Relationships
-    var idea: Idea?
+    @Relationship(inverse: \Idea.testProgresses) var idea: Idea?
     
     init(ideaId: String) {
         self.id = UUID()

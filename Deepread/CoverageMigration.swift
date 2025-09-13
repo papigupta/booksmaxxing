@@ -5,13 +5,13 @@ import SwiftData
 // This represents the old IdeaMastery model structure
 @Model
 final class IdeaMastery {
-    var ideaId: String
-    var bookId: String
+    var ideaId: String = ""
+    var bookId: String = ""
     var totalQuestionsSeen: Int = 0
     var totalQuestionsCorrect: Int = 0
     var mistakesCount: Int = 0
     var mistakesCorrected: Int = 0
-    var missedQuestions: [MissedQuestionRecord] = []
+    var missedQuestions: [MissedQuestionRecord]?
     var currentAccuracy: Double = 0.0
     var masteryPercentage: Double = 0.0
     var isFullyMastered: Bool = false

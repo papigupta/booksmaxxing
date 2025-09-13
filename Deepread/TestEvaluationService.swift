@@ -24,8 +24,8 @@ class TestEvaluationService {
         var evaluationDetails: [QuestionEvaluation] = []
         
         // Evaluate each response
-        for response in attempt.responses {
-            guard let question = test.questions.first(where: { $0.id == response.questionId }) else {
+        for response in (attempt.responses ?? []) {
+            guard let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) else {
                 continue
             }
             
@@ -49,7 +49,7 @@ class TestEvaluationService {
         attempt.isComplete = true
         
         // Determine mastery
-        let allCorrect = correctCount == test.questions.count
+        let allCorrect = correctCount == (test.questions ?? []).count
         if allCorrect {
             if test.testType == "review" {
                 attempt.masteryAchieved = .solid
@@ -66,7 +66,7 @@ class TestEvaluationService {
             totalScore: totalScore,
             maxScore: 150,
             correctCount: correctCount,
-            totalQuestions: test.questions.count,
+            totalQuestions: (test.questions ?? []).count,
             masteryAchieved: attempt.masteryAchieved,
             evaluationDetails: evaluationDetails
         )

@@ -3,28 +3,28 @@ import SwiftData
 
 @Model
 final class Primer {
-    var id: UUID
-    var ideaId: String  // Now uses book-specific IDs like "b1i1", "b2i3"
+    var id: UUID = UUID()
+    var ideaId: String = ""  // Now uses book-specific IDs like "b1i1", "b2i3"
     
     // New structure fields
-    var thesis: String
+    var thesis: String = ""
     var story: String = ""  // Default value for backward compatibility
-     var useItWhen: [String]
-    var howToApply: [String]
-    var edgesAndLimits: [String]
-    var oneLineRecall: String
-    var furtherLearning: [PrimerLink]
+    var useItWhen: [String] = []
+    var howToApply: [String] = []
+    var edgesAndLimits: [String] = []
+    var oneLineRecall: String = ""
+    var furtherLearning: [PrimerLink] = []
     
     // Legacy fields for backward compatibility (deprecated)
-    var overview: String
-    var keyNuances: [String]
-    var digDeeperLinks: [PrimerLink]
+    var overview: String = ""
+    var keyNuances: [String] = []
+    var digDeeperLinks: [PrimerLink] = []
     
-    var createdAt: Date
+    var createdAt: Date = Date.now
     var lastAccessed: Date?
     
     // Relationship back to Idea
-    @Relationship(deleteRule: .cascade) var idea: Idea?
+    @Relationship var idea: Idea?
     
     init(ideaId: String, thesis: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
         self.id = UUID()

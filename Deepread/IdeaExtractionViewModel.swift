@@ -59,10 +59,10 @@ class IdeaExtractionViewModel: ObservableObject {
                 print("DEBUG: Checking for exact match with input: '\(input)'")
                 do {
                     if let existingBook = try self.bookService.getBook(withTitle: input) {
-                        print("DEBUG: Found exact match! Loading existing book with \(existingBook.ideas.count) ideas")
+                        print("DEBUG: Found exact match! Loading existing book with \(((existingBook.ideas ?? []).count)) ideas")
                         
                         // If book exists but has no ideas, continue with idea extraction
-                        if existingBook.ideas.isEmpty {
+                        if (existingBook.ideas ?? []).isEmpty {
                             print("DEBUG: Book exists but has no ideas, continuing with extraction")
                             await MainActor.run {
                                 self.currentBookTitle = existingBook.title
@@ -73,10 +73,10 @@ class IdeaExtractionViewModel: ObservableObject {
                             // Continue to idea extraction below
                         } else {
                             // Sort the book's ideas to ensure consistency
-                            existingBook.ideas = existingBook.ideas.sortedByNumericId()
+                            existingBook.ideas = (existingBook.ideas ?? []).sortedByNumericId()
                             
                             await MainActor.run {
-                                self.updateExtractedIdeas(existingBook.ideas, source: "exact match")
+                                self.updateExtractedIdeas((existingBook.ideas ?? []), source: "exact match")
                                 self.isLoading = false
                                 self.errorMessage = nil
                                 self.currentBookTitle = existingBook.title
@@ -112,10 +112,10 @@ class IdeaExtractionViewModel: ObservableObject {
                 // Step 2: Try to load existing ideas with corrected title
                 do {
                     if let existingBook = try self.bookService.getBook(withTitle: extractedBookInfo.title) {
-                        print("DEBUG: Found existing book with corrected title with \(existingBook.ideas.count) ideas")
+                        print("DEBUG: Found existing book with corrected title with \(((existingBook.ideas ?? []).count)) ideas")
                         
                         // If book exists but has no ideas, continue with idea extraction
-                        if existingBook.ideas.isEmpty {
+                        if (existingBook.ideas ?? []).isEmpty {
                             print("DEBUG: Book with corrected title exists but has no ideas, continuing with extraction")
                             await MainActor.run {
                                 self.currentBook = existingBook
@@ -123,10 +123,10 @@ class IdeaExtractionViewModel: ObservableObject {
                             // Continue to idea extraction below
                         } else {
                             // Sort the book's ideas to ensure consistency
-                            existingBook.ideas = existingBook.ideas.sortedByNumericId()
+                            existingBook.ideas = (existingBook.ideas ?? []).sortedByNumericId()
                             
                             await MainActor.run {
-                                self.updateExtractedIdeas(existingBook.ideas, source: "corrected title match")
+                                self.updateExtractedIdeas((existingBook.ideas ?? []), source: "corrected title match")
                                 self.isLoading = false
                                 self.errorMessage = nil
                                 self.currentBook = existingBook
@@ -211,7 +211,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 )
                 try bookService.saveIdeas(parsedIdeas, for: book)
                 // Ensure book.ideas is sorted after saving
-                book.ideas = book.ideas.sortedByNumericId()
+                book.ideas = (book.ideas ?? []).sortedByNumericId()
                 await MainActor.run {
                     self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")
                     self.currentBook = book
@@ -247,7 +247,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 do {
                     if let existingBook = try self.bookService.getBook(withTitle: self.currentBookTitle) {
                         print("DEBUG: Loading existing ideas as fallback")
-                        self.updateExtractedIdeas(existingBook.ideas, source: "error fallback")
+                        self.updateExtractedIdeas((existingBook.ideas ?? []), source: "error fallback")
                         self.errorMessage = nil
                     }
                 } catch {
@@ -270,7 +270,7 @@ class IdeaExtractionViewModel: ObservableObject {
         do {
             if let existingBook = try bookService.getBook(withTitle: currentBookTitle) {
                 print("DEBUG: Refreshing ideas from database")
-                self.updateExtractedIdeas(existingBook.ideas, source: "refresh")
+                self.updateExtractedIdeas((existingBook.ideas ?? []), source: "refresh")
                 self.isLoading = false
                 self.errorMessage = nil
             }
@@ -287,14 +287,14 @@ class IdeaExtractionViewModel: ObservableObject {
             if let existingBook = try bookService.getBook(withTitle: currentBookTitle) {
                 // Only refresh if any idea has different mastery level or last practiced date
                 let currentIdeaMap = Dictionary(uniqueKeysWithValues: extractedIdeas.map { ($0.id, ($0.masteryLevel, $0.lastPracticed)) })
-                let needsRefresh = existingBook.ideas.contains { idea in
+                let needsRefresh = (existingBook.ideas ?? []).contains { idea in
                     guard let current = currentIdeaMap[idea.id] else { return true }
                     return current.0 != idea.masteryLevel || current.1 != idea.lastPracticed
                 }
                 
                 if needsRefresh {
                     print("DEBUG: Ideas have changed, refreshing from database")
-                    self.updateExtractedIdeas(existingBook.ideas, source: "conditional refresh")
+                    self.updateExtractedIdeas((existingBook.ideas ?? []), source: "conditional refresh")
                 } else {
                     print("DEBUG: Ideas unchanged, skipping refresh")
                 }

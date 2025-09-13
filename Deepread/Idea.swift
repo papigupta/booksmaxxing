@@ -18,22 +18,31 @@ enum ImportanceLevel: String, CaseIterable, Codable {
 /// Immutable concept wrapper with a book-specific ID (`b1i1`, `b2i1`, etc.).
 @Model
 final class Idea {
-    var id: String     // e.g. "b1i1" (book1, idea1) or "b2i3" (book2, idea3)
-    var title: String  // e.g. "Godel's Incompleteness Theorem"
-    var ideaDescription: String  // e.g. "Mathematical systems cannot prove their own consistency."
-    var bookTitle: String  // e.g. "Godel, Escher, Bach"
-    var depthTarget: Int  // 1 = Do, 2 = Question, 3 = Reinvent
-    var masteryLevel: Int // 0 = not started, 1 = basic, 2 = intermediate, 3 = mastered
+    var id: String = ""     // e.g. "b1i1" (book1, idea1) or "b2i3" (book2, idea3)
+    var title: String = ""  // e.g. "Godel's Incompleteness Theorem"
+    var ideaDescription: String = ""  // e.g. "Mathematical systems cannot prove their own consistency."
+    var bookTitle: String = ""  // e.g. "Godel, Escher, Bach"
+    var depthTarget: Int = 1  // 1 = Do, 2 = Question, 3 = Reinvent
+    var masteryLevel: Int = 0 // 0 = not started, 1 = basic, 2 = intermediate, 3 = mastered
     var lastPracticed: Date?
     var currentLevel: Int? // The exact level user was on when they left
     var importance: ImportanceLevel? // Foundation, Building Block, or Enhancement
     var reviewStateData: Data? // FSRS review state data
     
     // Relationship back to Book
-    @Relationship(deleteRule: .cascade) var book: Book?
+    @Relationship(deleteRule: .cascade, inverse: \Book.ideas) var book: Book?
     
     // Relationship to Progress
-    @Relationship(deleteRule: .cascade) var progress: [Progress]
+    @Relationship(deleteRule: .cascade) var progress: [Progress]?
+    
+    // Relationship to Primer (one-to-one)
+    @Relationship(deleteRule: .cascade) var primer: Primer?
+    
+    // Relationship to Tests
+    @Relationship(deleteRule: .cascade) var tests: [Test]?
+    
+    // Relationship to TestProgress records
+    @Relationship(deleteRule: .cascade) var testProgresses: [TestProgress]?
     
     init(id: String, title: String, description: String, bookTitle: String, depthTarget: Int, masteryLevel: Int = 0, lastPracticed: Date? = nil, currentLevel: Int? = nil, importance: ImportanceLevel? = .buildingBlock) {
         self.id = id
@@ -46,7 +55,7 @@ final class Idea {
         self.currentLevel = currentLevel
         self.importance = importance
         self.reviewStateData = nil
-        self.progress = []
+        self.progress = nil
         print("DEBUG: Created Idea with id: \(id), title: \(title), bookTitle: \(bookTitle)")
     }
     

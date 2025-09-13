@@ -3,13 +3,13 @@ import SwiftData
 
 @Model
 final class Book {
-    var id: UUID
-    var title: String
+    var id: UUID = UUID()
+    var title: String = ""
     var author: String?
-    var bookNumber: Int  // NEW: Sequential book number (1, 2, 3...)
-    var createdAt: Date
-    @Relationship(deleteRule: .cascade) var ideas: [Idea]
-    var lastAccessed: Date
+    var bookNumber: Int = 0  // NEW: Sequential book number (1, 2, 3...)
+    var createdAt: Date = Date.now
+    @Relationship(deleteRule: .cascade) var ideas: [Idea]?
+    var lastAccessed: Date = Date.now
     
     // Google Books metadata
     var googleBooksId: String?
@@ -24,13 +24,13 @@ final class Book {
     var previewLink: String?
     var infoLink: String?
 
-    init(title: String, author: String? = nil, createdAt: Date = .now) {
+    init(title: String, author: String? = nil, createdAt: Date = Date.now) {
         self.id = UUID()
         self.title = title
         self.author = author
         self.bookNumber = 0  // Will be set by BookService
         self.createdAt = createdAt
         self.lastAccessed = createdAt
-        self.ideas = []
+        self.ideas = nil
     }
 }

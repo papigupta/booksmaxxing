@@ -4,13 +4,13 @@ import SwiftData
 // MARK: - Stored Lesson Model
 @Model
 final class StoredLesson {
-    var bookId: String
-    var lessonNumber: Int
-    var primaryIdeaId: String
-    var primaryIdeaTitle: String
-    var createdAt: Date
-    var isCompleted: Bool
-    var coveragePercentage: Double
+    var bookId: String = ""
+    var lessonNumber: Int = 1
+    var primaryIdeaId: String = ""
+    var primaryIdeaTitle: String = ""
+    var createdAt: Date = Date.now
+    var isCompleted: Bool = false
+    var coveragePercentage: Double = 0.0
     
     // The actual test data (generated questions)
     @Relationship(deleteRule: .cascade) var test: Test?
@@ -101,9 +101,9 @@ final class LessonStorageService {
         var lessonInfo: [(Int, String, Bool, Bool)] = []
         
         print("DEBUG: LessonStorage.getAllLessonInfo called for book: \(book.title)")
-        print("DEBUG: Book has \(book.ideas.count) ideas")
+        print("DEBUG: Book has \((book.ideas ?? []).count) ideas")
         
-        let sortedIdeas = book.ideas.sortedByNumericId()
+        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
         
         print("DEBUG: Sorted ideas: \(sortedIdeas.map { $0.id })")
         
@@ -203,7 +203,7 @@ final class LessonStorageService {
     }
     
     private func getIdeaForLesson(book: Book, lessonNumber: Int) -> Idea? {
-        let sortedIdeas = book.ideas.sortedByNumericId()
+        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
         
         guard lessonNumber > 0 && lessonNumber <= sortedIdeas.count else {
             return nil

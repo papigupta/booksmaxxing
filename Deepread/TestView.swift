@@ -44,8 +44,9 @@ struct TestView: View {
     }
     
     private var progress: Double {
-        guard test.questions.count > 0 else { return 0.0 }
-        return Double(currentQuestionIndex) / Double(test.questions.count)
+        let count = (test.questions ?? []).count
+        guard count > 0 else { return 0.0 }
+        return Double(currentQuestionIndex) / Double(count)
     }
     
     private var shouldShowResults: Bool {
@@ -56,7 +57,7 @@ struct TestView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Progress Bar
-                ProgressBar(progress: progress, currentQuestion: currentQuestionIndex + 1, totalQuestions: test.questions.count)
+                ProgressBar(progress: progress, currentQuestion: currentQuestionIndex + 1, totalQuestions: (test.questions ?? []).count)
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.vertical, DS.Spacing.md)
                 
@@ -95,7 +96,7 @@ struct TestView: View {
                     
                     Spacer()
                     
-                    if currentQuestionIndex < test.questions.count - 1 {
+                    if currentQuestionIndex < (test.questions ?? []).count - 1 {
                         if showingFeedback {
                             Button(action: nextQuestion) {
                                 HStack(spacing: DS.Spacing.xs) {
@@ -207,11 +208,11 @@ struct TestView: View {
                 if let feedback = currentFeedback {
                     FeedbackFullScreen(
                         feedback: feedback,
-                        isLastQuestion: currentQuestionIndex >= test.questions.count - 1,
+                        isLastQuestion: currentQuestionIndex >= (test.questions ?? []).count - 1,
                         onPrimaryAction: {
                             // Dismiss and continue/finish
                             showingFeedback = false
-                            if currentQuestionIndex >= test.questions.count - 1 {
+                            if currentQuestionIndex >= (test.questions ?? []).count - 1 {
                                 submitTest()
                             } else {
                                 nextQuestion()
@@ -236,7 +237,7 @@ struct TestView: View {
             currentQuestionIndex = existing.currentQuestionIndex
             
             // Restore previous responses
-            for response in existing.responses {
+            for response in (existing.responses ?? []) {
                 switch response.questionType {
                 case .mcq:
                     if let index = Int(response.userAnswer) {
@@ -262,7 +263,8 @@ struct TestView: View {
             // Create new attempt
             let attempt = TestAttempt(testId: test.id)
             attempt.test = test  // Set the relationship
-            test.attempts.append(attempt)  // Add to test's attempts array
+            if test.attempts == nil { test.attempts = [] }
+            test.attempts?.append(attempt)  // Add to test's attempts array
             modelContext.insert(attempt)
             currentAttempt = attempt
         }
@@ -349,7 +351,7 @@ struct TestView: View {
         withAnimation {
             showingFeedback = false
             currentFeedback = nil
-            currentQuestionIndex = min(currentQuestionIndex + 1, test.questions.count - 1)
+            currentQuestionIndex = min(currentQuestionIndex + 1, max((test.questions ?? []).count - 1, 0))
             // Save progress
             if let attempt = currentAttempt {
                 attempt.currentQuestionIndex = currentQuestionIndex
@@ -375,7 +377,7 @@ struct TestView: View {
               let attempt = currentAttempt else { return }
         
         // Check if response already exists
-        if let existingResponse = attempt.responses.first(where: { $0.questionId == question.id }) {
+        if let existingResponse = (attempt.responses ?? []).first(where: { $0.questionId == question.id }) {
             // Update existing response
             updateResponse(existingResponse, for: question)
         } else {
@@ -430,8 +432,9 @@ struct TestView: View {
         )
         
         modelContext.insert(response)
-        attempt.responses.append(response)
-        print("DEBUG: Created and saved response for question \(question.id), total responses now: \(attempt.responses.count)")
+        if attempt.responses == nil { attempt.responses = [] }
+        attempt.responses?.append(response)
+        print("DEBUG: Created and saved response for question \(question.id), total responses now: \((attempt.responses ?? []).count)")
     }
     
     private func evaluateCurrentQuestion(_ question: Question) async throws -> QuestionEvaluation {
@@ -476,7 +479,7 @@ struct TestView: View {
         // Also ensure all responses are saved for all questions
         for question in test.orderedQuestions {
             // Check if response already exists
-            if attempt.responses.first(where: { $0.questionId == question.id }) == nil {
+            if (attempt.responses ?? []).first(where: { $0.questionId == question.id }) == nil {
                 // Create response if it doesn't exist but we have an answer
                 switch question.type {
                 case .mcq, .msq:
@@ -494,8 +497,8 @@ struct TestView: View {
         // Save all responses to persistent storage
         try? modelContext.save()
         
-        print("DEBUG: About to submit test - attempt has \(attempt.responses.count) responses")
-        for (index, response) in attempt.responses.enumerated() {
+        print("DEBUG: About to submit test - attempt has \((attempt.responses ?? []).count) responses")
+        for (index, response) in (attempt.responses ?? []).enumerated() {
             print("DEBUG: Response \(index): questionId=\(response.questionId)")
         }
         
@@ -518,7 +521,7 @@ struct TestView: View {
                         }
                         
                         // Update the actual response in the attempt
-                        if let response = attempt.responses.first(where: { $0.questionId == question.id }) {
+                        if let response = (attempt.responses ?? []).first(where: { $0.questionId == question.id }) {
                             response.isCorrect = evaluation.isCorrect
                             response.pointsEarned = evaluation.pointsEarned
                             response.evaluationData = try? JSONEncoder().encode(evaluation)
@@ -532,7 +535,7 @@ struct TestView: View {
                 attempt.isComplete = true
                 
                 // Determine mastery
-                let allCorrect = correctCount == test.questions.count
+                let allCorrect = correctCount == (test.questions ?? []).count
                 if allCorrect {
                     if test.testType == "review" {
                         attempt.masteryAchieved = .solid
@@ -549,7 +552,7 @@ struct TestView: View {
                     totalScore: totalScore,
                     maxScore: 130, // 2×10 (easy) + 4×15 (medium) + 2×25 (hard) = 20 + 60 + 50 = 130
                     correctCount: correctCount,
-                    totalQuestions: test.questions.count,
+                    totalQuestions: (test.questions ?? []).count,
                     masteryAchieved: attempt.masteryAchieved,
                     evaluationDetails: evaluationDetails
                 )

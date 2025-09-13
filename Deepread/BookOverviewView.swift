@@ -12,6 +12,7 @@ struct BookOverviewView: View {
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var streakManager: StreakManager
+    @EnvironmentObject private var authManager: AuthManager
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -258,6 +259,14 @@ struct BookOverviewView: View {
                         }
                     }
                     Button("Debug Info") { showingDebugInfo = true }
+                    Divider()
+                    Button(role: .destructive) {
+                        authManager.signOut()
+                        // Toggle app back to auth screen immediately
+                        navigationState.shouldShowBookSelection = false
+                    } label: {
+                        Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 18, weight: .semibold))
@@ -916,7 +925,8 @@ struct ActiveIdeaCard: View {
             
             // Find the most recent test with an incomplete attempt
             for test in tests {
-                if let lastAttempt = test.attempts.last(where: { !$0.isComplete }) {
+                let attempts = test.attempts ?? []
+                if let lastAttempt = attempts.last(where: { !$0.isComplete }) {
                     currentTest = test
                     currentIncompleteAttempt = lastAttempt
                     return
@@ -1126,7 +1136,8 @@ struct InactiveIdeaCard: View {
             
             // Check if there's any incomplete attempt
             for test in tests {
-                if test.attempts.contains(where: { !$0.isComplete }) {
+                let attempts = test.attempts ?? []
+                if attempts.contains(where: { !$0.isComplete }) {
                     hasIncompleteTest = true
                     return
                 }

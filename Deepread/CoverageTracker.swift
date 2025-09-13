@@ -7,8 +7,8 @@ import OSLog
 
 @Model
 final class IdeaCoverage {
-    var ideaId: String
-    var bookId: String
+    var ideaId: String = ""
+    var bookId: String = ""
     
     // Core metrics
     var totalQuestionsSeen: Int = 0
@@ -20,7 +20,7 @@ final class IdeaCoverage {
     var coveredCategories: [String] = [] // Stores BloomCategory raw values that have been answered correctly
     
     // Question history for mistake tracking
-    @Relationship(deleteRule: .cascade) var missedQuestions: [MissedQuestionRecord] = []
+    @Relationship(deleteRule: .cascade) var missedQuestions: [MissedQuestionRecord]?
     
     // Coverage calculation (not mastery - just whether questions have been answered)
     var currentAccuracy: Double = 0.0
@@ -101,19 +101,21 @@ final class IdeaCoverage {
             }
             
             // Check if this was a correction of a previous mistake
-            if let missedIndex = missedQuestions.firstIndex(where: { $0.originalQuestionId == questionId || $0.conceptTested == conceptTested }) {
-                if !missedQuestions[missedIndex].isCorrected {
-                    missedQuestions[missedIndex].isCorrected = true
-                    missedQuestions[missedIndex].correctedDate = Date()
+            if let list = missedQuestions, let missedIndex = list.firstIndex(where: { $0.originalQuestionId == questionId || $0.conceptTested == conceptTested }) {
+                if !list[missedIndex].isCorrected {
+                    list[missedIndex].isCorrected = true
+                    list[missedIndex].correctedDate = Date()
                     mistakesCorrected += 1
+                    missedQuestions = list
                 }
             }
         } else {
             mistakesCount += 1
             
             // Record the missed question if not already recorded, else increment retry count
-            if let idx = missedQuestions.firstIndex(where: { $0.conceptTested == conceptTested }) {
-                missedQuestions[idx].retryCount += 1
+            if let list = missedQuestions, let idx = list.firstIndex(where: { $0.conceptTested == conceptTested }) {
+                list[idx].retryCount += 1
+                missedQuestions = list
             } else {
                 let missedRecord = MissedQuestionRecord(
                     originalQuestionId: questionId,
@@ -122,7 +124,8 @@ final class IdeaCoverage {
                     attemptDate: Date()
                 )
                 missedRecord.retryCount = 1
-                missedQuestions.append(missedRecord)
+                if missedQuestions == nil { missedQuestions = [] }
+                missedQuestions?.append(missedRecord)
             }
         }
         
@@ -146,20 +149,23 @@ final class IdeaCoverage {
     
     /// Get uncorrected mistakes for review
     var uncorrectedMistakes: [MissedQuestionRecord] {
-        missedQuestions.filter { !$0.isCorrected }
+        (missedQuestions ?? []).filter { !$0.isCorrected }
     }
 }
 
 // MARK: - Missed Question Record
 @Model
 final class MissedQuestionRecord {
-    var originalQuestionId: String
-    var questionText: String
-    var conceptTested: String
-    var attemptDate: Date
+    var originalQuestionId: String = ""
+    var questionText: String = ""
+    var conceptTested: String = ""
+    var attemptDate: Date = Date.now
     var isCorrected: Bool = false
     var correctedDate: Date?
     var retryCount: Int = 0
+    
+    // Backlink to coverage owner
+    @Relationship(inverse: \IdeaCoverage.missedQuestions) var coverage: IdeaCoverage?
     
     init(originalQuestionId: String, questionText: String, conceptTested: String, attemptDate: Date) {
         self.originalQuestionId = originalQuestionId

@@ -50,11 +50,11 @@ class TestGenerationService {
             let sorted = tests.sorted { $0.createdAt > $1.createdAt }
             if let candidate = sorted.first {
                 let minCount = (testType == "review") ? 1 : 8
-                if candidate.questions.count >= minCount {
+                if (candidate.questions ?? []).count >= minCount {
                     return candidate
                 } else {
                     // Delete incomplete/invalid test to avoid getting stuck with partial data
-                    logger.debug("Discarding invalid existing test (\(candidate.questions.count) questions); regenerating…")
+                    logger.debug("Discarding invalid existing test (\((candidate.questions ?? []).count) questions); regenerating…")
                     modelContext.delete(candidate)
                     try? modelContext.save()
                 }
@@ -73,7 +73,7 @@ class TestGenerationService {
         
         // Check if test already exists
         if let existingTest = getTest(for: idea, testType: testType) {
-            logger.debug("Found existing test with \(existingTest.questions.count) questions, created at \(existingTest.createdAt, privacy: .public)")
+            logger.debug("Found existing test with \((existingTest.questions ?? []).count) questions, created at \(existingTest.createdAt, privacy: .public)")
             
             // Log the order of questions in the existing test
             logger.debug("Existing test question order:")

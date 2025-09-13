@@ -220,7 +220,7 @@ struct SavedBookCard: View {
                     }
                     
                     HStack(spacing: DS.Spacing.xs) {
-                        Text("\(book.ideas.count) ideas")
+                        Text("\((book.ideas ?? []).count) ideas")
                             .font(DS.Typography.small)
                             .foregroundColor(DS.Colors.tertiaryText)
                         

@@ -62,7 +62,7 @@ final class LessonGenerationService {
     
     /// Generate lesson structure based on book's ideas
     func generateLessonsForBook(_ book: Book) -> [GeneratedLesson] {
-        let ideas = book.ideas.sortedByNumericId()
+        let ideas = (book.ideas ?? []).sortedByNumericId()
         
         var lessons: [GeneratedLesson] = []
         let bookId = book.id.uuidString
@@ -132,7 +132,7 @@ final class LessonGenerationService {
         
         // 1. Generate new questions from primary idea
         if lesson.questionDistribution.newQuestions > 0 {
-            let primaryIdea = book.ideas.first { $0.id == lesson.primaryIdeaId }!
+            let primaryIdea = (book.ideas ?? []).first { $0.id == lesson.primaryIdeaId }!
             let newQuestions = try await generateQuestionsForIdea(
                 primaryIdea,
                 count: lesson.questionDistribution.newQuestions,
@@ -146,7 +146,7 @@ final class LessonGenerationService {
         // 2. Generate review questions from FSRS-scheduled ideas
         if lesson.questionDistribution.reviewQuestions > 0 && !lesson.reviewIdeaIds.isEmpty {
             for reviewId in lesson.reviewIdeaIds {
-                if let reviewIdea = book.ideas.first(where: { $0.id == reviewId }) {
+                if let reviewIdea = (book.ideas ?? []).first(where: { $0.id == reviewId }) {
                     let reviewCount = min(2, lesson.questionDistribution.reviewQuestions / max(1, lesson.reviewIdeaIds.count))
                     let reviewQuestions = try await generateQuestionsForIdea(
                         reviewIdea,
@@ -164,7 +164,7 @@ final class LessonGenerationService {
         // 3. Generate correction questions for mistakes
         if lesson.questionDistribution.correctionQuestions > 0 && !lesson.mistakeCorrections.isEmpty {
             for (ideaId, concepts) in lesson.mistakeCorrections {
-                if let idea = book.ideas.first(where: { $0.id == ideaId }) {
+                if let idea = (book.ideas ?? []).first(where: { $0.id == ideaId }) {
                     for concept in concepts.prefix(lesson.questionDistribution.correctionQuestions) {
                         let correctionQuestion = try await generateCorrectionQuestion(
                             for: idea,
@@ -182,7 +182,7 @@ final class LessonGenerationService {
         // Ensure we have exactly 8 questions
         while allQuestions.count < 8 && lesson.questionDistribution.newQuestions > 0 {
             // Fill remaining with more questions from primary idea
-            if let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) {
+            if let primaryIdea = (book.ideas ?? []).first(where: { $0.id == lesson.primaryIdeaId }) {
                 let additionalQuestion = try await generateQuestionsForIdea(
                     primaryIdea,
                     count: 1,
@@ -195,13 +195,14 @@ final class LessonGenerationService {
         
         // Add questions to test
         for question in allQuestions {
-            test.questions.append(question)
+            if test.questions == nil { test.questions = [] }
+            test.questions?.append(question)
             question.test = test
         }
         
         // Don't save to SwiftData to avoid schema issues
         // The test will be used in memory only
-        print("DEBUG: Practice test created with \(test.questions.count) questions")
+        print("DEBUG: Practice test created with \((test.questions ?? []).count) questions")
         return test
     }
     

@@ -3,17 +3,17 @@ import SwiftData
 
 @Model
 final class PracticeSession {
-    var id: UUID
-    var ideaId: String
-    var bookId: String
-    var type: String // e.g., "lesson_practice", "review_practice"
-    var status: String // e.g., "ready", "in_progress", "completed", "expired"
-    var configVersion: Int
+    var id: UUID = UUID()
+    var ideaId: String = ""
+    var bookId: String = ""
+    var type: String = "lesson_practice" // e.g., "lesson_practice", "review_practice"
+    var status: String = "ready" // e.g., "ready", "in_progress", "completed", "expired"
+    var configVersion: Int = 1
     var configData: Data?
-    var createdAt: Date
-    var updatedAt: Date
+    var createdAt: Date = Date.now
+    var updatedAt: Date = Date.now
 
-    @Relationship(deleteRule: .cascade) var test: Test?
+    @Relationship(deleteRule: .cascade, inverse: \Test.practiceSession) var test: Test?
 
     init(ideaId: String, bookId: String, type: String, status: String = "ready", configVersion: Int = 1, configData: Data? = nil) {
         self.id = UUID()
@@ -27,4 +27,3 @@ final class PracticeSession {
         self.updatedAt = Date()
     }
 }
-

@@ -47,7 +47,7 @@ struct DailyPracticeView: View {
     
     private var ideaForTest: Idea {
         if let primaryIdeaId = selectedLesson?.primaryIdeaId,
-           let idea = book.ideas.first(where: { $0.id == primaryIdeaId }) {
+           let idea = (book.ideas ?? []).first(where: { $0.id == primaryIdeaId }) {
             return idea
         }
         
@@ -199,7 +199,7 @@ struct DailyPracticeView: View {
                     .font(DS.Typography.largeTitle)
                     .foregroundColor(DS.Colors.black)
                 
-                Text("\(test.questions.count) questions selected")
+                Text("\((test.questions ?? []).count) questions selected")
                     .font(DS.Typography.body)
                     .foregroundColor(DS.Colors.secondaryText)
             }
@@ -255,7 +255,7 @@ struct DailyPracticeView: View {
                 Text("Questions")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
-                Text("\(test.questions.count)")
+                Text("\((test.questions ?? []).count)")
                     .font(DS.Typography.headline)
                     .foregroundColor(DS.Colors.black)
             }
@@ -264,7 +264,7 @@ struct DailyPracticeView: View {
                 Text("Est. Time")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
-                Text("\(test.questions.count * 2) min")
+                Text("\(((test.questions ?? []).count * 2)) min")
                     .font(DS.Typography.headline)
                     .foregroundColor(DS.Colors.black)
             }
@@ -273,7 +273,7 @@ struct DailyPracticeView: View {
                 Text("Max Points")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
-                Text("\(test.questions.reduce(0) { $0 + $1.difficulty.pointValue })")
+                Text("\(((test.questions ?? []).reduce(0) { $0 + $1.difficulty.pointValue }))")
                     .font(DS.Typography.headline)
                     .foregroundColor(DS.Colors.black)
             }
@@ -290,7 +290,7 @@ struct DailyPracticeView: View {
                 .foregroundColor(DS.Colors.secondaryText)
             
             // Group questions by idea
-            let questionsByIdea = Dictionary(grouping: test.questions) { $0.ideaId }
+            let questionsByIdea = Dictionary(grouping: (test.questions ?? [])) { $0.ideaId }
             
             ForEach(Array(questionsByIdea.keys.sorted()), id: \.self) { ideaId in
                 if let questions = questionsByIdea[ideaId] {
@@ -338,14 +338,14 @@ struct DailyPracticeView: View {
                 }
                 
                 // Get the primary idea for this lesson
-                guard let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) else {
+                guard let primaryIdea = (book.ideas ?? []).first(where: { $0.id == lesson.primaryIdeaId }) else {
                     throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
                 }
 
                 // 0) Check for any existing session (ready/generating/error) to honor prefetch state
                 if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
-                    if existingSession.status == "ready", let existingTest = existingSession.test, existingTest.questions.count >= 8 {
-                        print("DEBUG: Found READY session with \(existingTest.questions.count) questions")
+                    if existingSession.status == "ready", let existingTest = existingSession.test, (existingTest.questions ?? []).count >= 8 {
+                        print("DEBUG: Found READY session with \((existingTest.questions ?? []).count) questions")
                         await MainActor.run {
                             self.generatedTest = existingTest
                             self.isGenerating = false
@@ -358,7 +358,7 @@ struct DailyPracticeView: View {
                         while attempts < 40 {
                             try await Task.sleep(nanoseconds: 1_000_000_000)
                             if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
-                                if refreshed.status == "ready", let readyTest = refreshed.test, readyTest.questions.count >= 8 {
+                                if refreshed.status == "ready", let readyTest = refreshed.test, (readyTest.questions ?? []).count >= 8 {
                                     await MainActor.run {
                                         self.generatedTest = readyTest
                                         self.isGenerating = false
@@ -390,8 +390,8 @@ struct DailyPracticeView: View {
                 // 1) Try to reuse an existing practice session (persisted mixed test)
                 if let existingSession = try await fetchExistingSession(for: primaryIdea.id, type: "lesson_practice"),
                    let existingTest = existingSession.test,
-                   existingTest.questions.count >= 8 {
-                    print("DEBUG: Reusing existing practice session with \(existingTest.questions.count) questions")
+                   (existingTest.questions ?? []).count >= 8 {
+                    print("DEBUG: Reusing existing practice session with \((existingTest.questions ?? []).count) questions")
                     await MainActor.run {
                         self.generatedTest = existingTest
                         self.isGenerating = false
@@ -493,7 +493,8 @@ struct DailyPracticeView: View {
                     self.modelContext.insert(test)
                     for q in combined {
                         q.test = test
-                        test.questions.append(q)
+                        if test.questions == nil { test.questions = [] }
+                        test.questions?.append(q)
                         self.modelContext.insert(q)
                     }
                     try self.modelContext.save()
@@ -510,7 +511,7 @@ struct DailyPracticeView: View {
                     try self.modelContext.save()
                 }
 
-                print("DEBUG: Generated and saved mixed test with \(test.questions.count) questions (\(freshTest.questions.count) fresh + \(combined.count - freshTest.questions.count) review)")
+                print("DEBUG: Generated and saved mixed test with \((test.questions ?? []).count) questions (\(freshTest.orderedQuestions.count) fresh + \(combined.count - freshTest.orderedQuestions.count) review)")
             } else {
                 throw NSError(domain: "LessonGeneration", code: 2, userInfo: [NSLocalizedDescriptionKey: "No lesson selected"])
             }
@@ -552,22 +553,22 @@ struct DailyPracticeView: View {
             
             // Force save to ensure the relationship is persisted
             try? modelContext.save()
-            print("DEBUG: Saved attempt with \(attempt.responses.count) responses")
+            print("DEBUG: Saved attempt with \((attempt.responses ?? []).count) responses")
         } else {
             print("DEBUG: Failed to fetch responses for attempt \(attempt.id)")
         }
         
         // Add NEW mistakes to review queue (only from fresh questions)
-        if let test = generatedTest, let primaryIdea = book.ideas.first(where: { $0.id == selectedLesson?.primaryIdeaId }) {
+        if let test = generatedTest, let primaryIdea = (book.ideas ?? []).first(where: { $0.id == selectedLesson?.primaryIdeaId }) {
             let reviewManager = ReviewQueueManager(modelContext: modelContext)
             
             // Determine how many fresh questions we had (they come first in the ordered list)
             // Fresh questions are from the primary idea
-            let freshQuestionCount = test.questions.filter { $0.ideaId == primaryIdea.id }.count
+            let freshQuestionCount = (test.questions ?? []).filter { $0.ideaId == primaryIdea.id }.count
             
             // Only add mistakes from fresh questions to the queue
-            let freshResponses = attempt.responses.filter { response in
-                if let question = test.questions.first(where: { $0.id == response.questionId }) {
+            let freshResponses = (attempt.responses ?? []).filter { response in
+                if let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) {
                     // Check if this is a fresh question (from the primary idea)
                     return question.ideaId == primaryIdea.id && (response.isCorrect == false)
                 }
@@ -578,8 +579,8 @@ struct DailyPracticeView: View {
             reviewManager.addMistakesToQueue(fromResponses: freshResponses, test: test, idea: primaryIdea)
             
             // Mark review questions as completed if answered correctly
-            let reviewResponses = attempt.responses.filter { response in
-                if let question = test.questions.first(where: { $0.id == response.questionId }) {
+            let reviewResponses = (attempt.responses ?? []).filter { response in
+                if let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) {
                     return question.orderIndex >= freshQuestionCount
                 }
                 return false
@@ -589,7 +590,7 @@ struct DailyPracticeView: View {
             for response in reviewResponses where response.isCorrect {
                 if let item = reviewQuestionToQueueItem[response.questionId] {
                     completedItems.append(item)
-                } else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                } else if let q = (test.questions ?? []).first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
                     let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
                     if let item = try? modelContext.fetch(fetch).first { completedItems.append(item) }
                 }
@@ -601,7 +602,7 @@ struct DailyPracticeView: View {
             for response in reviewResponses {
                 var mapped: ReviewQueueItem?
                 if let m = reviewQuestionToQueueItem[response.questionId] { mapped = m }
-                else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                else if let q = (test.questions ?? []).first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
                     let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
                     mapped = try? modelContext.fetch(fetch).first
                 }
@@ -635,7 +636,7 @@ struct DailyPracticeView: View {
         
         // Decide whether to show streak view based on today's first completion
         print("DEBUG: Test completed - didIncrementStreak=\(didIncrementStreak)")
-        print("DEBUG: Attempt score: \(attempt.score), responses: \(attempt.responses.count)")
+        print("DEBUG: Attempt score: \(attempt.score), responses: \((attempt.responses ?? []).count)")
 
         if didIncrementStreak {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -657,12 +658,12 @@ struct DailyPracticeView: View {
         print("DEBUG: updateCoverageFromAttempt called")
         print("DEBUG: Updating coverage for lesson \(lesson.lessonNumber), book \(bookId)")
         print("DEBUG: Attempt ID: \(attempt.id)")
-        print("DEBUG: Attempt has \(attempt.responses.count) responses")
+        print("DEBUG: Attempt has \((attempt.responses ?? []).count) responses")
         print("DEBUG: fetchedResponses has \(fetchedResponses.count) responses")
-        print("DEBUG: Test has \(test.questions.count) questions")
+        print("DEBUG: Test has \((test.questions ?? []).count) questions")
         
         // Use fetched responses if available, otherwise fall back to attempt.responses
-        let responsesToUse = fetchedResponses.isEmpty ? attempt.responses : fetchedResponses
+        let responsesToUse: [QuestionResponse] = fetchedResponses.isEmpty ? (attempt.responses ?? []) : fetchedResponses
         print("DEBUG: Using \(responsesToUse.count) responses for coverage calculation")
         
         // Debug: Print all responses
@@ -671,7 +672,7 @@ struct DailyPracticeView: View {
         }
         
         // Debug: Print all question IDs in the test
-        for question in test.questions {
+        for question in (test.questions ?? []) {
             print("DEBUG: Test question - id: \(question.id), ideaId: '\(question.ideaId)', bloom: \(question.bloomCategory.rawValue)")
         }
         
@@ -680,7 +681,7 @@ struct DailyPracticeView: View {
         
         for response in responsesToUse {
             print("DEBUG: Processing response with questionId: \(response.questionId), isCorrect: \(response.isCorrect)")
-            if let question = test.questions.first(where: { $0.id == response.questionId }) {
+            if let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) {
                 let ideaId = question.ideaId
                 print("DEBUG: Found matching question - ideaId: '\(ideaId)', bloom: \(question.bloomCategory.rawValue)")
                 if responsesByIdea[ideaId] == nil {
@@ -796,7 +797,7 @@ struct DailyPracticeView: View {
                 print("DEBUG: Refreshing practice test for lesson \(lesson.lessonNumber)")
                 
                 // Get the primary idea for this lesson
-                guard let primaryIdea = book.ideas.first(where: { $0.id == lesson.primaryIdeaId }) else {
+                guard let primaryIdea = (book.ideas ?? []).first(where: { $0.id == lesson.primaryIdeaId }) else {
                     throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
                 }
                 // Invalidate existing session if present
@@ -815,7 +816,7 @@ struct DailyPracticeView: View {
                     testType: "initial"
                 )
                 
-                print("DEBUG: Refreshed test with \(test.questions.count) new questions")
+                print("DEBUG: Refreshed test with \((test.questions ?? []).count) new questions")
             } else {
                 throw NSError(domain: "LessonGeneration", code: 2, userInfo: [NSLocalizedDescriptionKey: "No lesson selected"])
             }

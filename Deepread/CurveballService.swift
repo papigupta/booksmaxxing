@@ -99,7 +99,7 @@ final class CurveballService {
         }
 
         // Case 2: Less than 100% accuracy at some point — pick category with highest retryCount
-        let mostRetried = coverage.missedQuestions.max { lhs, rhs in
+        let mostRetried = (coverage.missedQuestions ?? []).max { lhs, rhs in
             lhs.retryCount < rhs.retryCount
         }
         if let concept = mostRetried?.conceptTested,
@@ -116,7 +116,7 @@ final class CurveballService {
 
     private func latestMissedQuestion(for coverage: IdeaCoverage, bloomRaw: String) -> String? {
         // Find the most recent missed question text for that bloom category
-        return coverage.missedQuestions
+        return (coverage.missedQuestions ?? [])
             .reversed()
             .first(where: { $0.conceptTested.hasPrefix(bloomRaw) })?
             .questionText

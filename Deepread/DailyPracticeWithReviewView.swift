@@ -476,8 +476,8 @@ struct DailyPracticeWithReviewView: View {
             let reviewManager = ReviewQueueManager(modelContext: modelContext)
             
             // Only add mistakes from fresh questions to queue
-            let freshAttemptResponses = attempt.responses.filter { response in
-                test.questions.first { $0.id == response.questionId }?.orderIndex ?? 0 < freshQuestions.count
+            let freshAttemptResponses = (attempt.responses ?? []).filter { response in
+                (test.questions ?? []).first { $0.id == response.questionId }?.orderIndex ?? 0 < freshQuestions.count
             }
             
             // Create a fresh attempt for recording purposes
@@ -489,8 +489,8 @@ struct DailyPracticeWithReviewView: View {
             }
             
             // Mark review items as completed if answered correctly
-            let reviewResponses = attempt.responses.filter { response in
-                test.questions.first { $0.id == response.questionId }?.orderIndex ?? 0 >= freshQuestions.count
+            let reviewResponses = (attempt.responses ?? []).filter { response in
+                (test.questions ?? []).first { $0.id == response.questionId }?.orderIndex ?? 0 >= freshQuestions.count
             }
             
             var completedItems: [ReviewQueueItem] = []
@@ -498,7 +498,7 @@ struct DailyPracticeWithReviewView: View {
                 if response.isCorrect {
                     if let item = reviewQuestionToQueueItem[response.questionId] {
                         completedItems.append(item)
-                    } else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                    } else if let q = (test.questions ?? []).first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
                         let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
                         if let item = try? modelContext.fetch(fetch).first { completedItems.append(item) }
                     }
@@ -512,7 +512,7 @@ struct DailyPracticeWithReviewView: View {
             for response in reviewResponses {
                 var curveItem: ReviewQueueItem?
                 if let item = reviewQuestionToQueueItem[response.questionId] { curveItem = item }
-                else if let q = test.questions.first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
+                else if let q = (test.questions ?? []).first(where: { $0.id == response.questionId }), let srcId = q.sourceQueueItemId {
                     let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
                     curveItem = try? modelContext.fetch(fetch).first
                 }
@@ -599,11 +599,11 @@ private struct ReviewTestResultsView: View {
     }
     
     private var totalQuestions: Int {
-        attempt.responses.count
+        (attempt.responses ?? []).count
     }
     
     private var correctCount: Int {
-        attempt.responses.filter { $0.isCorrect }.count
+        (attempt.responses ?? []).filter { $0.isCorrect }.count
     }
     
     private var incorrectCount: Int {

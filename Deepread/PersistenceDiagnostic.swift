@@ -20,7 +20,7 @@ class PersistenceDiagnostic {
             // Check Books
             let books = try modelContext.fetch(FetchDescriptor<Book>())
             report.bookCount = books.count
-            report.booksWithIdeas = books.filter { !$0.ideas.isEmpty }.count
+            report.booksWithIdeas = books.filter { !($0.ideas ?? []).isEmpty }.count
             
             // Check Ideas
             let ideas = try modelContext.fetch(FetchDescriptor<Idea>())
@@ -80,7 +80,8 @@ class PersistenceDiagnostic {
             
             if let idea = try modelContext.fetch(ideaDescriptor).first {
                 progress.idea = idea
-                idea.progress.append(progress)
+                if idea.progress == nil { idea.progress = [] }
+                idea.progress?.append(progress)
                 print("🔗 Linked orphaned progress to idea: \(idea.title)")
             } else {
                 print("🗑️ Deleting orphaned progress for non-existent idea: \(progress.ideaId)")
@@ -102,8 +103,9 @@ class PersistenceDiagnostic {
                 
                 if let book = try modelContext.fetch(bookDescriptor).first {
                     idea.book = book
-                    if !book.ideas.contains(idea) {
-                        book.ideas.append(idea)
+                    if !(book.ideas ?? []).contains(idea) {
+                        if book.ideas == nil { book.ideas = [] }
+                        book.ideas?.append(idea)
                     }
                     print("🔗 Linked orphaned idea to book: \(book.title)")
                 }

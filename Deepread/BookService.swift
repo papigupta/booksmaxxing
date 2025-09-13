@@ -23,9 +23,8 @@ class BookService: ObservableObject {
     
     /// Ensures consistent ordering of ideas by ID (b1i1, b1i2, b1i3, etc.)
     private func sortIdeasById(_ book: Book) {
-        book.ideas.sort { idea1, idea2 in
-            idea1.id < idea2.id
-        }
+        let sorted = (book.ideas ?? []).sorted { $0.id < $1.id }
+        book.ideas = sorted
     }
     
     func findOrCreateBook(title: String, author: String? = nil) throws -> Book {
@@ -42,7 +41,7 @@ class BookService: ObservableObject {
         print("DEBUG: Found \(existingBooks.count) existing books")
         
         if let existingBook = existingBooks.first {
-            print("DEBUG: Using existing book: '\(existingBook.title)' with \(existingBook.ideas.count) ideas")
+            print("DEBUG: Using existing book: '\(existingBook.title)' with \((existingBook.ideas ?? []).count) ideas")
             existingBook.lastAccessed = Date()
             try modelContext.save()
             return existingBook
@@ -154,7 +153,7 @@ class BookService: ObservableObject {
         print("DEBUG: Saving \(ideas.count) ideas for book: '\(book.title)'")
         
         // Clear existing ideas and set up new ones with proper relationships
-        book.ideas.removeAll()
+        book.ideas = []
         
         for idea in ideas {
             // Generate book-specific ID if it's not already book-specific
@@ -162,7 +161,8 @@ class BookService: ObservableObject {
                 idea.id = generateBookSpecificIdeaId(book: book, originalId: idea.id)
             }
             idea.book = book
-            book.ideas.append(idea)
+            if book.ideas == nil { book.ideas = [] }
+            book.ideas?.append(idea)
             modelContext.insert(idea)
         }
         
@@ -177,7 +177,7 @@ class BookService: ObservableObject {
         // Verify the save worked
         let savedBook = try getBook(withTitle: book.title)
         if let savedBook = savedBook {
-            print("DEBUG: Verification - saved book has \(savedBook.ideas.count) ideas")
+            print("DEBUG: Verification - saved book has \((savedBook.ideas ?? []).count) ideas")
         } else {
             print("DEBUG: WARNING - Could not verify saved book!")
         }
@@ -197,10 +197,10 @@ class BookService: ObservableObject {
         print("DEBUG: Found \(books.count) books matching title")
         
         if let book = books.first {
-            print("DEBUG: Retrieved book: '\(book.title)' with \(book.ideas.count) ideas")
+            print("DEBUG: Retrieved book: '\(book.title)' with \((book.ideas ?? []).count) ideas")
             // CRITICAL: Sort ideas by ID to maintain consistent order
             sortIdeasById(book)
-            print("DEBUG: Ideas sorted by ID: \(book.ideas.map { $0.id })")
+            print("DEBUG: Ideas sorted by ID: \(((book.ideas ?? []).map { $0.id }))")
         } else {
             print("DEBUG: No book found with title: '\(normalizedTitle)'")
         }
@@ -267,7 +267,7 @@ class BookService: ObservableObject {
         let books = try modelContext.fetch(descriptor)
         print("DEBUG: Total books in database: \(books.count)")
         for book in books {
-            print("DEBUG: - '\(book.title)' with \(book.ideas.count) ideas")
+            print("DEBUG: - '\(book.title)' with \((book.ideas ?? []).count) ideas")
         }
         return books
     }
@@ -280,17 +280,17 @@ class BookService: ObservableObject {
         
         for book in allBooks {
             // If this book has 0 ideas, check if there's another book with similar title that has ideas
-            if book.ideas.isEmpty {
+            if (book.ideas ?? []).isEmpty {
                 // Find potential duplicate with ideas
                 let potentialDuplicates = allBooks.filter { otherBook in
                     otherBook.id != book.id && 
-                    !otherBook.ideas.isEmpty &&
+                    !(otherBook.ideas ?? []).isEmpty &&
                     (otherBook.title.localizedCaseInsensitiveContains(book.title) || 
                      book.title.localizedCaseInsensitiveContains(otherBook.title))
                 }
                 
                 if !potentialDuplicates.isEmpty {
-                    print("DEBUG: Found duplicate book to delete: '\(book.title)' (0 ideas) - duplicate of '\(potentialDuplicates.first!.title)' (\(potentialDuplicates.first!.ideas.count) ideas)")
+                    print("DEBUG: Found duplicate book to delete: '\(book.title)' (0 ideas) - duplicate of '\(potentialDuplicates.first!.title)' (\(((potentialDuplicates.first!.ideas ?? []).count)) ideas)")
                     booksToDelete.append(book)
                 }
             }
@@ -373,15 +373,15 @@ class BookService: ObservableObject {
     
     func validateBookRelationships(_ book: Book) throws {
         // Ensure all ideas have proper relationships
-        for idea in book.ideas {
+        for idea in (book.ideas ?? []) {
             guard idea.book == book else {
                 throw BookServiceError.invalidRelationship
             }
         }
         
         // Validate idea relationships
-        for idea in book.ideas {
-            for progress in idea.progress {
+        for idea in (book.ideas ?? []) {
+            for progress in (idea.progress ?? []) {
                 guard progress.idea == idea else {
                     throw BookServiceError.invalidRelationship
                 }
@@ -428,7 +428,7 @@ class BookService: ObservableObject {
         
         for book in books {
             // Ensure all ideas in the book have the correct book reference
-            for idea in book.ideas {
+            for idea in (book.ideas ?? []) {
                 if idea.book != book {
                     idea.book = book
                     print("DEBUG: Fixed book relationship for idea: \(idea.title)")
@@ -436,8 +436,8 @@ class BookService: ObservableObject {
             }
             
             // Validate and fix idea relationships
-            for idea in book.ideas {
-                for progress in idea.progress {
+            for idea in (book.ideas ?? []) {
+                for progress in (idea.progress ?? []) {
                     if progress.idea != idea {
                         progress.idea = idea
                         print("DEBUG: Fixed progress relationship for idea: \(idea.title)")
@@ -470,7 +470,7 @@ class BookService: ObservableObject {
         for book in allBooks {
             print("DEBUG: Migrating ideas for book: \(book.title) (book #\(book.bookNumber))")
             
-            for idea in book.ideas {
+            for idea in (book.ideas ?? []) {
                 // Only migrate if the ID is not already book-specific
                 if !idea.id.hasPrefix("b") {
                     let oldId = idea.id
@@ -483,7 +483,7 @@ class BookService: ObservableObject {
                     
                     
                     // Update all related Progress records
-                    for progress in idea.progress {
+                    for progress in (idea.progress ?? []) {
                         progress.ideaId = newId
                     }
                     
