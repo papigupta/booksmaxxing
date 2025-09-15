@@ -5,6 +5,7 @@ struct MainView: View {
     let openAIService: OpenAIService
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var navigationState: NavigationState
+    @EnvironmentObject var streakManager: StreakManager
     @Query(sort: \Book.lastAccessed, order: .reverse) private var books: [Book]
     
     var body: some View {
@@ -61,6 +62,12 @@ struct MainView: View {
                     print("DEBUG: Cleanup failed: \(error)")
                 }
             }
+
+            // Attach model context to streak manager for SwiftData-backed persistence
+            streakManager.attachModelContext(modelContext)
+
+            // Warm CloudKit-backed fetches right after app becomes active
+            CloudSyncRefresh(modelContext: modelContext).warmFetches()
         }
     }
 }

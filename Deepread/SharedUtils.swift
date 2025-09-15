@@ -1,4 +1,33 @@
 import Foundation
+import SwiftData
+
+final class CloudSyncRefresh {
+    private let modelContext: ModelContext
+    
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
+    
+    func warmFetches() {
+        Task { @MainActor in
+            _ = try? modelContext.fetch(FetchDescriptor<Book>(sortBy: [SortDescriptor(\.createdAt)]))
+            var ideas = FetchDescriptor<Idea>()
+            ideas.fetchLimit = 50
+            _ = try? modelContext.fetch(ideas)
+            var progress = FetchDescriptor<Progress>()
+            progress.fetchLimit = 50
+            _ = try? modelContext.fetch(progress)
+            var primers = FetchDescriptor<Primer>()
+            primers.fetchLimit = 20
+            _ = try? modelContext.fetch(primers)
+            var tests = FetchDescriptor<Test>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+            tests.fetchLimit = 10
+            _ = try? modelContext.fetch(tests)
+        }
+    }
+}
+
+import Foundation
 
 enum SharedUtils {
     /// Extracts the outermost JSON object substring from a response string.

@@ -9,15 +9,19 @@ final class Primer {
     // New structure fields
     var thesis: String = ""
     var story: String = ""  // Default value for backward compatibility
-    var useItWhen: [String] = []
-    var howToApply: [String] = []
-    var edgesAndLimits: [String] = []
+    // Data-backed arrays for CloudKit compatibility
+    var useItWhenData: Data = Data()
+    var howToApplyData: Data = Data()
+    var edgesAndLimitsData: Data = Data()
     var oneLineRecall: String = ""
     var furtherLearning: [PrimerLink] = []
     
+    // CloudKit-friendly relationship for links
+    @Relationship(deleteRule: .cascade) var links: [PrimerLinkItem]?
+    
     // Legacy fields for backward compatibility (deprecated)
     var overview: String = ""
-    var keyNuances: [String] = []
+    var keyNuancesData: Data = Data()
     var digDeeperLinks: [PrimerLink] = []
     
     var createdAt: Date = Date.now
@@ -26,6 +30,27 @@ final class Primer {
     // Relationship back to Idea
     @Relationship var idea: Idea?
     
+    // MARK: - Computed accessors for Data-backed arrays
+    var useItWhen: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: useItWhenData)) ?? [] }
+        set { useItWhenData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+    
+    var howToApply: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: howToApplyData)) ?? [] }
+        set { howToApplyData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+    
+    var edgesAndLimits: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: edgesAndLimitsData)) ?? [] }
+        set { edgesAndLimitsData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+    
+    var keyNuances: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: keyNuancesData)) ?? [] }
+        set { keyNuancesData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+
     init(ideaId: String, thesis: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
         self.id = UUID()
         self.ideaId = ideaId
@@ -71,3 +96,22 @@ struct PrimerLink: Codable {
     let title: String
     let url: String
 } 
+
+// MARK: - CloudKit-friendly Primer Link Entity
+@Model
+final class PrimerLinkItem {
+    var id: UUID = UUID()
+    var title: String = ""
+    var url: String = ""
+    var createdAt: Date = Date.now
+    
+    // Back reference to Primer
+    @Relationship(inverse: \Primer.links) var primer: Primer?
+    
+    init(title: String, url: String) {
+        self.id = UUID()
+        self.title = title
+        self.url = url
+        self.createdAt = Date()
+    }
+}

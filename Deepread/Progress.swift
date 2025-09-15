@@ -54,3 +54,20 @@ extension Progress {
         }
     }
 } 
+
+// MARK: - Streak State (CloudKit-synced)
+@Model
+final class StreakState {
+    // Use a deterministic ID to avoid creating multiple streak records per user/device
+    var id: String = "streak_singleton"
+    var currentStreak: Int = 0
+    var bestStreak: Int = 0
+    var lastActiveDay: Date?
+    
+    init() {
+        self.id = "streak_singleton"
+        self.currentStreak = 0
+        self.bestStreak = 0
+        self.lastActiveDay = nil
+    }
+}

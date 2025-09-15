@@ -251,6 +251,11 @@ struct BookOverviewView: View {
                         }
                         if DebugFlags.enableDevControls {
                             Button(action: {
+                                CloudSyncRefresh(modelContext: modelContext).warmFetches()
+                            }) {
+                                Label("Refresh from Cloud", systemImage: "arrow.clockwise")
+                            }
+                            Button(action: {
                                 let service = CurveballService(modelContext: modelContext)
                                 service.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
                             }) {

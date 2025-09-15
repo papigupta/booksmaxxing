@@ -260,13 +260,25 @@ struct TestView: View {
                 }
             }
         } else {
-            // Create new attempt
-            let attempt = TestAttempt(testId: test.id)
-            attempt.test = test  // Set the relationship
-            if test.attempts == nil { test.attempts = [] }
-            test.attempts?.append(attempt)  // Add to test's attempts array
-            modelContext.insert(attempt)
-            currentAttempt = attempt
+            // Ensure test is valid (regenerate if needed)
+            let service = TestGenerationService(openAI: openAIService, modelContext: modelContext)
+            Task {
+                let validated: Test
+                if service.isValid(test) == false {
+                    validated = try await service.refreshTest(for: idea, testType: test.testType)
+                } else {
+                    validated = test
+                }
+                await MainActor.run {
+                    // Create new attempt
+                    let attempt = TestAttempt(testId: validated.id)
+                    attempt.test = validated
+                    if validated.attempts == nil { validated.attempts = [] }
+                    validated.attempts?.append(attempt)
+                    modelContext.insert(attempt)
+                    currentAttempt = attempt
+                }
+            }
         }
     }
     

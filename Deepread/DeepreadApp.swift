@@ -30,7 +30,9 @@ struct DeepreadApp: App {
     
     var sharedModelContainer: ModelContainer = {
         do {
-            // Try simplest API first
+            let cloudConfig = ModelConfiguration(
+                cloudKitDatabase: .automatic
+            )
             let container = try ModelContainer(
                 for: Book.self,
                      Idea.self,
@@ -44,12 +46,16 @@ struct DeepreadApp: App {
                      PracticeSession.self,
                      ReviewQueueItem.self,
                      IdeaCoverage.self,
-                     MissedQuestionRecord.self
+                     MissedQuestionRecord.self,
+                     StoredLesson.self,
+                     PrimerLinkItem.self,
+                     StreakState.self,
+                configurations: cloudConfig
             )
-            print("✅ Created persistent ModelContainer")
+            print("✅ Created CloudKit-backed ModelContainer")
             return container
         } catch {
-            print("❌ Persistent container failed: \(error)")
+            print("❌ CloudKit container failed: \(error)")
             // Fallback to in-memory only
             do {
                 let inMemory = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -67,6 +73,9 @@ struct DeepreadApp: App {
                          ReviewQueueItem.self,
                          IdeaCoverage.self,
                          MissedQuestionRecord.self,
+                         StoredLesson.self,
+                         PrimerLinkItem.self,
+                         StreakState.self,
                     configurations: inMemory
                 )
                 print("✅ Created in-memory ModelContainer")
@@ -78,11 +87,7 @@ struct DeepreadApp: App {
         }
     }()
 
-    private func setupCloudKitIfNeeded() {
-        // Temporarily disabled to isolate the ModelContainer issue
-        print("ℹ️ CloudKit setup temporarily disabled")
-        return
-    }
+    private func setupCloudKitIfNeeded() {}
     
     private func setupPersistentStorage() {}
     

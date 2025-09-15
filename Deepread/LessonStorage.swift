@@ -1,30 +1,7 @@
 import Foundation
 import SwiftData
 
-// MARK: - Stored Lesson Model
-@Model
-final class StoredLesson {
-    var bookId: String = ""
-    var lessonNumber: Int = 1
-    var primaryIdeaId: String = ""
-    var primaryIdeaTitle: String = ""
-    var createdAt: Date = Date.now
-    var isCompleted: Bool = false
-    var coveragePercentage: Double = 0.0
-    
-    // The actual test data (generated questions)
-    @Relationship(deleteRule: .cascade) var test: Test?
-    
-    init(bookId: String, lessonNumber: Int, primaryIdeaId: String, primaryIdeaTitle: String) {
-        self.bookId = bookId
-        self.lessonNumber = lessonNumber
-        self.primaryIdeaId = primaryIdeaId
-        self.primaryIdeaTitle = primaryIdeaTitle
-        self.createdAt = Date()
-        self.isCompleted = false
-        self.coveragePercentage = 0.0
-    }
-}
+// StoredLesson model moved into TestModels.swift to resolve macro inverses cleanly.
 
 // MARK: - Lesson Storage Service
 final class LessonStorageService {
@@ -167,14 +144,11 @@ final class LessonStorageService {
     }
     
     private func isLessonCompleted(book: Book, lessonNumber: Int) -> Bool {
-        let bookId = book.id.uuidString
-        
-        // Use UserDefaults as a reliable persistence mechanism
-        let completionKey = "lesson_completed_\(bookId)_\(lessonNumber)"
-        let isCompleted = UserDefaults.standard.bool(forKey: completionKey)
-        
-        print("DEBUG: isLessonCompleted - Lesson \(lessonNumber) completed: \(isCompleted) (from UserDefaults)")
-        return isCompleted
+        // Prefer SwiftData state on StoredLesson
+        if let existing = findExistingLesson(bookId: book.id.uuidString, lessonNumber: lessonNumber) {
+            return existing.isCompleted
+        }
+        return false
     }
     
     private func createNewLesson(bookId: String, lessonNumber: Int, book: Book) -> StoredLesson? {
@@ -226,19 +200,17 @@ final class LessonStorageService {
     func markLessonCompleted(bookId: String, lessonNumber: Int, book: Book) {
         print("DEBUG: markLessonCompleted called - lesson \(lessonNumber) for book \(bookId)")
         
-        // Save to UserDefaults for reliable persistence
-        let completionKey = "lesson_completed_\(bookId)_\(lessonNumber)"
-        UserDefaults.standard.set(true, forKey: completionKey)
-        UserDefaults.standard.synchronize()
+        let lesson = findExistingLesson(bookId: bookId, lessonNumber: lessonNumber)
+            ?? createNewLesson(bookId: bookId, lessonNumber: lessonNumber, book: book)
         
-        print("DEBUG: ✅ Marked lesson \(lessonNumber) as completed in UserDefaults")
+        guard let lesson else { return }
         
-        // Also save the completion date
-        let dateKey = "lesson_completed_date_\(bookId)_\(lessonNumber)"
-        UserDefaults.standard.set(Date(), forKey: dateKey)
-        
-        // Verify it was saved
-        let isCompleted = UserDefaults.standard.bool(forKey: completionKey)
-        print("DEBUG: Verification - Lesson \(lessonNumber) isCompleted: \(isCompleted)")
+        lesson.isCompleted = true
+        do {
+            try modelContext.save()
+            print("DEBUG: ✅ Marked lesson \(lessonNumber) as completed in SwiftData")
+        } catch {
+            print("ERROR: Failed saving lesson completion: \(error)")
+        }
     }
 }

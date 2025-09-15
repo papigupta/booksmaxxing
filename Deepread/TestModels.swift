@@ -64,8 +64,30 @@ final class Question {
     var difficulty: QuestionDifficulty = QuestionDifficulty.easy
     var bloomCategory: BloomCategory = BloomCategory.recall
     var questionText: String = ""
-    var options: [String]?  // For MCQ/MSQ - exactly 4 options
-    var correctAnswers: [Int]?  // Indices of correct answers (1 for MCQ, multiple for MSQ)
+    // Data-backed arrays for CloudKit compatibility
+    var optionsData: Data?
+    var correctAnswersData: Data?
+    
+    // Computed accessors
+    var options: [String]? {
+        get {
+            guard let data = optionsData else { return nil }
+            return try? JSONDecoder().decode([String].self, from: data)
+        }
+        set {
+            optionsData = try? JSONEncoder().encode(newValue)
+        }
+    }
+    
+    var correctAnswers: [Int]? {
+        get {
+            guard let data = correctAnswersData else { return nil }
+            return try? JSONDecoder().decode([Int].self, from: data)
+        }
+        set {
+            correctAnswersData = try? JSONEncoder().encode(newValue)
+        }
+    }
     var orderIndex: Int = 0  // Position in test (0-8)
     var createdAt: Date = Date.now
     var isCurveball: Bool = false
@@ -121,6 +143,7 @@ final class Test {
     @Relationship(inverse: \Idea.tests) var idea: Idea?
     // Backlink to PracticeSession (for CloudKit inverse)
     @Relationship var practiceSession: PracticeSession?
+    // Backlink to StoredLesson is removed to avoid macro circular resolution.
     
     init(
         ideaId: String,
@@ -300,5 +323,30 @@ final class TestProgress {
         }
         
         // Legacy fragile scheduling removed
+    }
+}
+
+// MARK: - Stored Lesson Model
+@Model
+final class StoredLesson {
+    var bookId: String = ""
+    var lessonNumber: Int = 1
+    var primaryIdeaId: String = ""
+    var primaryIdeaTitle: String = ""
+    var createdAt: Date = Date.now
+    var isCompleted: Bool = false
+    var coveragePercentage: Double = 0.0
+    
+    // The actual test data (generated questions) reference by ID (avoid relationship to satisfy CloudKit without inverse)
+    var testId: UUID?
+    
+    init(bookId: String, lessonNumber: Int, primaryIdeaId: String, primaryIdeaTitle: String) {
+        self.bookId = bookId
+        self.lessonNumber = lessonNumber
+        self.primaryIdeaId = primaryIdeaId
+        self.primaryIdeaTitle = primaryIdeaTitle
+        self.createdAt = Date()
+        self.isCompleted = false
+        self.coveragePercentage = 0.0
     }
 }

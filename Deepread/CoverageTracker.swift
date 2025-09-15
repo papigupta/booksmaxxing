@@ -17,7 +17,7 @@ final class IdeaCoverage {
     var mistakesCorrected: Int = 0
     
     // Track which BloomCategory questions have been answered correctly  
-    var coveredCategories: [String] = [] // Stores BloomCategory raw values that have been answered correctly
+    var coveredCategoriesData: Data = Data() // JSON array of strings
     
     // Question history for mistake tracking
     @Relationship(deleteRule: .cascade) var missedQuestions: [MissedQuestionRecord]?
@@ -46,6 +46,12 @@ final class IdeaCoverage {
     }
     
     /// Calculate and update coverage percentage
+    // Computed accessor for coveredCategories
+    var coveredCategories: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: coveredCategoriesData)) ?? [] }
+        set { coveredCategoriesData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+    
     func updateCoverage() {
         // Coverage is based on 8 BloomCategory types
         // Each correctly answered type = 12.5% coverage

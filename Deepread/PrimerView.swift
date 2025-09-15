@@ -337,7 +337,8 @@ struct PrimerView: View {
     
     @ViewBuilder
     private func furtherLearningSection(_ primer: Primer) -> some View {
-        if !primer.furtherLearning.isEmpty {
+        let linkItems = (primer.links ?? []).sorted { $0.createdAt < $1.createdAt }
+        if !linkItems.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack {
                     DSIcon("link.circle.fill")
@@ -346,13 +347,13 @@ struct PrimerView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    ForEach(primer.furtherLearning, id: \.title) { link in
+                    ForEach(linkItems, id: \.id) { item in
                         Button(action: {
-                            openURL(link.url)
+                            openURL(item.url)
                         }) {
                             HStack {
                                 DSIcon("link", size: 14)
-                                Text(link.title)
+                                Text(item.title)
                                     .font(DS.Typography.body)
                                     .foregroundStyle(DS.Colors.primaryText)
                                     .underline()

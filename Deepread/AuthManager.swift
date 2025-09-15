@@ -15,7 +15,7 @@ final class AuthManager: NSObject, ObservableObject {
         super.init()
         self.userIdentifier = KeychainHelper.shared.get(userIdKey)
         self.isSignedIn = (self.userIdentifier != nil)
-        checkICloudAccountStatus()
+        startAccountStatusMonitoring()
     }
 
     func signOut() {
@@ -47,8 +47,47 @@ final class AuthManager: NSObject, ObservableObject {
         let container = CKContainer(identifier: CloudKitConfig.containerIdentifier)
         container.accountStatus { status, _ in
             DispatchQueue.main.async {
-                self.iCloudAccountAvailable = (status == .available)
+                switch status {
+                case .available:
+                    self.iCloudAccountAvailable = true
+                case .couldNotDetermine, .temporarilyUnavailable:
+                    // Treat transient states as available to avoid false negatives on launch
+                    self.iCloudAccountAvailable = true
+                default:
+                    // Fall back to default container in case the specific container hasn’t finished provisioning
+                    CKContainer.default().accountStatus { fallback, _ in
+                        DispatchQueue.main.async {
+                            switch fallback {
+                            case .available, .couldNotDetermine, .temporarilyUnavailable:
+                                self.iCloudAccountAvailable = true
+                            default:
+                                self.iCloudAccountAvailable = false
+                            }
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    private func startAccountStatusMonitoring() {
+        // Initial check
+        checkICloudAccountStatus()
+        // React to iCloud account changes
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name.CKAccountChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.checkICloudAccountStatus()
+        }
+        // Re-check on foreground
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.checkICloudAccountStatus()
         }
     }
 }

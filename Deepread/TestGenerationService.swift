@@ -50,20 +50,43 @@ class TestGenerationService {
             let sorted = tests.sorted { $0.createdAt > $1.createdAt }
             if let candidate = sorted.first {
                 let minCount = (testType == "review") ? 1 : 8
-                if (candidate.questions ?? []).count >= minCount {
+                let qs = candidate.questions ?? []
+                let hasMin = qs.count >= minCount
+                let hasValidOptions = isValid(candidate)
+                if hasMin && hasValidOptions {
                     return candidate
-                } else {
-                    // Delete incomplete/invalid test to avoid getting stuck with partial data
-                    logger.debug("Discarding invalid existing test (\((candidate.questions ?? []).count) questions); regenerating…")
-                    modelContext.delete(candidate)
-                    try? modelContext.save()
                 }
+                // Delete incomplete/invalid test to avoid getting stuck with partial/migrated data
+                logger.debug("Discarding invalid existing test (count=\(qs.count), validOptions=\(hasValidOptions)) ; regenerating…")
+                modelContext.delete(candidate)
+                try? modelContext.save()
             }
             return nil
         } catch {
             logger.error("Error fetching test: \(String(describing: error))")
             return nil
         }
+    }
+
+    // MARK: - Validation Helpers
+    func isValid(_ test: Test) -> Bool {
+        let qs = test.questions ?? []
+        return qs.allSatisfy { q in
+            switch q.type {
+            case .openEnded:
+                return true
+            case .mcq, .msq:
+                guard let opts = q.options, let correct = q.correctAnswers else { return false }
+                return opts.count == 4 && !correct.isEmpty
+            }
+        }
+    }
+    
+    func ensureValidTest(for idea: Idea, testType: String = "initial") async throws -> Test {
+        if let existing = getTest(for: idea, testType: testType), isValid(existing) {
+            return existing
+        }
+        return try await generateTest(for: idea, testType: testType)
     }
     
     // MARK: - Main Test Generation

@@ -48,6 +48,15 @@ class PrimerService: ObservableObject {
         )
         
         primer.idea = idea
+        // Create CloudKit-friendly link items
+        var linkItems: [PrimerLinkItem] = []
+        for link in parsedPrimer.furtherLearning {
+            let item = PrimerLinkItem(title: link.title, url: link.url)
+            item.primer = primer
+            linkItems.append(item)
+            modelContext.insert(item)
+        }
+        primer.links = linkItems
         modelContext.insert(primer)
         try modelContext.save()
         

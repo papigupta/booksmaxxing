@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftData
 
 final class StreakManager: ObservableObject {
     @Published private(set) var currentStreak: Int
@@ -7,23 +8,19 @@ final class StreakManager: ObservableObject {
     @Published private(set) var lastActiveDay: Date?
     @Published var isTestingActive: Bool = false
 
-    private let currentKey = "streak_current"
-    private let bestKey = "streak_best"
-    private let lastDayKey = "streak_last_day"
+    // Persisted via SwiftData
+    private var modelContext: ModelContext?
+    private var state: StreakState?
 
     init() {
-        let defaults = UserDefaults.standard
-        self.currentStreak = defaults.integer(forKey: currentKey)
-        self.bestStreak = defaults.integer(forKey: bestKey)
-        if let date = defaults.object(forKey: lastDayKey) as? Date {
-            self.lastActiveDay = date
-        } else {
-            self.lastActiveDay = nil
-        }
-        // Normalize: if there's a last day but current is 0, set to 1
-        if lastActiveDay != nil && currentStreak == 0 {
-            self.currentStreak = 1
-        }
+        self.currentStreak = 0
+        self.bestStreak = 0
+        self.lastActiveDay = nil
+    }
+
+    func attachModelContext(_ modelContext: ModelContext) {
+        self.modelContext = modelContext
+        loadOrCreateState()
     }
 
     var isLitToday: Bool {
@@ -59,10 +56,39 @@ final class StreakManager: ObservableObject {
     }
 
     private func persist() {
-        let defaults = UserDefaults.standard
-        defaults.set(currentStreak, forKey: currentKey)
-        defaults.set(bestStreak, forKey: bestKey)
-        defaults.set(lastActiveDay, forKey: lastDayKey)
-        defaults.synchronize()
+        guard let modelContext else { return }
+        if state == nil {
+            state = StreakState()
+        }
+        state?.currentStreak = currentStreak
+        state?.bestStreak = bestStreak
+        state?.lastActiveDay = lastActiveDay
+        if let state, state.persistentModelID == nil {
+            modelContext.insert(state)
+        }
+        do { try modelContext.save() } catch { print("Streak persist error: \(error)") }
+    }
+
+    private func loadOrCreateState() {
+        guard let modelContext else { return }
+        do {
+            let existing = try modelContext.fetch(FetchDescriptor<StreakState>())
+            if let first = existing.first {
+                state = first
+                currentStreak = first.currentStreak
+                bestStreak = first.bestStreak
+                lastActiveDay = first.lastActiveDay
+            } else {
+                let newState = StreakState()
+                modelContext.insert(newState)
+                try modelContext.save()
+                state = newState
+                currentStreak = newState.currentStreak
+                bestStreak = newState.bestStreak
+                lastActiveDay = newState.lastActiveDay
+            }
+        } catch {
+            print("Streak load error: \(error)")
+        }
     }
 }
