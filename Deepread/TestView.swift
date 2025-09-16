@@ -608,9 +608,12 @@ struct QuestionView: View {
                     
                     HStack(spacing: DS.Spacing.xs) {
                         DifficultyBadge(difficulty: question.difficulty)
-                        BloomBadge(category: question.bloomCategory)
+                        // For curveball questions, show 'Retrieval' instead of Bloom category label
                         if question.isCurveball {
+                            RetrievalBadge()
                             CurveballBadge()
+                        } else {
+                            BloomBadge(category: question.bloomCategory)
                         }
                     }
                 }
@@ -916,6 +919,21 @@ struct BloomBadge: View {
                 Rectangle()
                     .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
             )
+    }
+}
+
+struct RetrievalBadge: View {
+    var body: some View {
+        Text("Retrieval")
+            .font(DS.Typography.caption)
+            .foregroundStyle(DS.Colors.secondaryText)
+            .padding(.horizontal, DS.Spacing.xs)
+            .padding(.vertical, 2)
+            .overlay(
+                Rectangle()
+                    .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+            )
+            .accessibilityLabel("Retrieval")
     }
 }
 

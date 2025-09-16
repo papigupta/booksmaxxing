@@ -464,7 +464,18 @@ class TestGenerationService {
         var orderIndex = 0
         
         for item in queueItems {
-            // Generate a similar question testing the same concept
+            // Curveball path: always generate an open-ended retrieval prompt via LLM
+            if item.isCurveball {
+                let question = try await generateCurveballQuestion(
+                    from: item,
+                    orderIndex: orderIndex
+                )
+                questions.append(question)
+                orderIndex += 1
+                continue
+            }
+
+            // Generate a similar question testing the same concept for non-curveball items
             let question = try await generateSimilarQuestion(
                 from: item,
                 orderIndex: orderIndex
@@ -474,6 +485,70 @@ class TestGenerationService {
         }
         
         return questions
+    }
+
+    private func generateCurveballQuestion(from queueItem: ReviewQueueItem, orderIndex: Int) async throws -> Question {
+        // Fetch the idea for context
+        let targetIdeaId = queueItem.ideaId
+        let descriptor = FetchDescriptor<Idea>(
+            predicate: #Predicate<Idea> { idea in
+                idea.id == targetIdeaId
+            }
+        )
+        
+        guard let idea = try modelContext.fetch(descriptor).first else {
+            throw TestGenerationError.generationFailed("Idea not found")
+        }
+        
+        // System prompt: craft a single warm retrieval invitation
+        let systemPrompt = """
+        You are a learning‑science coach. Write a single open‑ended retrieval prompt for the learner about the idea titled '\(idea.title)'.
+        Requirements:
+        - 1–2 sentences maximum
+        - Warm, invitational tone
+        - Explicitly include the phrases "from memory" and "in your own words"
+        - Gently nudge depth (e.g., "follow your train of thought" or "go as deep as you can")
+        - Do NOT enumerate lists, angles, or sub‑questions
+        - Do NOT reveal definitions, examples, or hints in the prompt
+        - Avoid multi‑part questions and avoid bullet points
+        Output ONLY a JSON object: { "question": "..." }
+        """
+        
+        // User prompt: provide minimal context; do not echo it into the prompt
+        let shortDesc: String = {
+            let text = idea.ideaDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.count <= 220 { return text }
+            let idx = text.index(text.startIndex, offsetBy: 220)
+            return String(text[..<idx]) + "…"
+        }()
+        let userPrompt = """
+        Idea title: \(idea.title)
+        Optional context for the model (do not include in the prompt): \(shortDesc)
+        Generate the prompt.
+        """
+        
+        let response = try await openAI.complete(
+            prompt: "\(systemPrompt)\n\n\(userPrompt)",
+            model: "gpt-4.1",
+            temperature: 0.6,
+            maxTokens: 200
+        )
+        
+        // Parse minimal JSON containing just the question text
+        let (questionText, _, _) = try parseQuestionResponse(response, type: .openEnded)
+        
+        return Question(
+            ideaId: queueItem.ideaId,
+            type: .openEnded,
+            difficulty: .hard,
+            bloomCategory: .reframe,
+            questionText: questionText,
+            options: nil,
+            correctAnswers: nil,
+            orderIndex: orderIndex,
+            isCurveball: true,
+            sourceQueueItemId: queueItem.id
+        )
     }
     
     private func generateSimilarQuestion(from queueItem: ReviewQueueItem, orderIndex: Int) async throws -> Question {

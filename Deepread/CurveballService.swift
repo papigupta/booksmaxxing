@@ -92,26 +92,8 @@ final class CurveballService {
         return banned.contains { lower.contains($0) }
     }
     private func selectCurveballSpec(for coverage: IdeaCoverage) -> (BloomCategory, QuestionType) {
-        // Case 1: 100% accuracy path — no mistakes ever recorded
-        if coverage.mistakesCount == 0 {
-            // Choose the highest-order check
-            return (.howWield, .openEnded)
-        }
-
-        // Case 2: Less than 100% accuracy at some point — pick category with highest retryCount
-        let mostRetried = (coverage.missedQuestions ?? []).max { lhs, rhs in
-            lhs.retryCount < rhs.retryCount
-        }
-        if let concept = mostRetried?.conceptTested,
-           let raw = concept.split(separator: "-").first.map(String.init),
-           let bloom = BloomCategory(rawValue: raw) {
-            // Choose type: OEQ for high-level categories, otherwise MCQ
-            let type: QuestionType = (bloom == .howWield || bloom == .reframe) ? .openEnded : .mcq
-            return (bloom, type)
-        }
-
-        // Fallback
-        return (.howWield, .openEnded)
+        // Enforce open-ended retrieval-style curveballs targeting reframe (explain in own words)
+        return (.reframe, .openEnded)
     }
 
     private func latestMissedQuestion(for coverage: IdeaCoverage, bloomRaw: String) -> String? {
