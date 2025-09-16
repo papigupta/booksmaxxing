@@ -4,6 +4,7 @@ import SwiftData
 // StoredLesson model moved into TestModels.swift to resolve macro inverses cleanly.
 
 // MARK: - Lesson Storage Service
+@MainActor
 final class LessonStorageService {
     private let modelContext: ModelContext
     private let coverageService: CoverageService

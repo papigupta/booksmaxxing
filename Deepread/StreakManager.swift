@@ -57,15 +57,11 @@ final class StreakManager: ObservableObject {
 
     private func persist() {
         guard let modelContext else { return }
-        if state == nil {
-            state = StreakState()
-        }
+        if state == nil { state = StreakState() }
         state?.currentStreak = currentStreak
         state?.bestStreak = bestStreak
         state?.lastActiveDay = lastActiveDay
-        if let state, state.persistentModelID == nil {
-            modelContext.insert(state)
-        }
+        // State is created and inserted in loadOrCreateState(); no re-insert needed here
         do { try modelContext.save() } catch { print("Streak persist error: \(error)") }
     }
 

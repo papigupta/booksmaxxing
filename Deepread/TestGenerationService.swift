@@ -25,6 +25,78 @@ class TestGenerationService {
         
         return (newOptions, newCorrectIndices)
     }
+
+    // Normalize MCQ option verbosity: keep options parallel and similar length
+    // If disparity is high, ask the model to rewrite options concisely while preserving order and correctness.
+    private func normalizeOptionLengthsIfNeeded(options: [String], correctIndex: Int, difficulty: QuestionDifficulty, contextQuestion: String) async -> [String] {
+        // Heuristics for disparity thresholds by difficulty
+        let lengths = options.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).count }
+        guard let maxLen = lengths.max(), let minLen = lengths.min() else { return options }
+        let avg = max(1, lengths.reduce(0, +) / max(1, lengths.count))
+        let ratio = Double(maxLen) / Double(max(minLen, 1))
+
+        let absGapThreshold: Int
+        switch difficulty {
+        case .easy:   absGapThreshold = 25
+        case .medium: absGapThreshold = 35
+        case .hard:   absGapThreshold = 45
+        }
+
+        let isCorrectLongest = lengths.enumerated().max(by: { $0.element < $1.element })?.offset == correctIndex
+        let hasLargeGap = (maxLen - minLen) > absGapThreshold || Double(maxLen) > Double(avg) * 1.35 || ratio > 1.6
+        guard hasLargeGap || isCorrectLongest else { return options }
+
+        // Target word ranges by difficulty to keep options concise and comparable.
+        let wordRange: String
+        switch difficulty {
+        case .easy:   wordRange = "6-10"
+        case .medium: wordRange = "8-14"
+        case .hard:   wordRange = "10-16"
+        }
+
+        let optionsJSON = options.enumerated().map { "\"\($0.offset)\": \"\($0.element.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ", ")
+        let systemPrompt = """
+        You are a precise exam editor. Rewrite four multiple-choice options to be parallel, concise, and of similar length.
+        Maintain the same order and keep the same option as correct. Do not change meanings.
+        Constraints:
+        - Target \(wordRange) words per option
+        - No added hedges or caveats unless mirrored across options
+        - Keep order fixed; do NOT reorder
+        - Preserve the correct option semantically
+        Output ONLY JSON: { "options": ["...","...","...","..."] }
+        """
+
+        let userPrompt = """
+        Question: \(contextQuestion)
+        Current options (by index): { \(optionsJSON) }
+        Correct index: \(correctIndex)
+        Rewrite to meet the constraints while preserving correctness and order.
+        """
+
+        do {
+            let response = try await openAI.chat(
+                systemPrompt: systemPrompt,
+                userPrompt: userPrompt,
+                model: "gpt-4.1-mini",
+                temperature: 0.2,
+                maxTokens: 220
+            )
+            if let data = response.data(using: .utf8),
+               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let rewritten = json["options"] as? [String], rewritten.count == 4 {
+                // Quick sanity: keep them non-empty and not duplicates
+                let trimmed = rewritten.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                let unique = Set(trimmed.map { $0.lowercased() })
+                if trimmed.allSatisfy({ !$0.isEmpty }) && unique.count == 4 {
+                    logger.debug("Normalized MCQ option lengths via rewrite")
+                    return trimmed
+                }
+            }
+        } catch {
+            logger.debug("Option normalization skipped due to error: \(error.localizedDescription)")
+        }
+        return options
+    }
     
     private let openAI: OpenAIService
     private let modelContext: ModelContext
@@ -212,7 +284,7 @@ class TestGenerationService {
         Honor Bloom type, difficulty and question type for each slot. Match tone and clarity of expert test writers.
 
         Requirements:
-        - MCQ: exactly 4 concise, plausible options; 1 correct index; avoid “all/none of the above/both/neither”.
+        - MCQ: exactly 4 concise, plausible options; 1 correct index; avoid “all/none of the above/both/neither”. Keep options parallel in structure and similar in length; do not make the correct option notably longer.
         - OpenEnded: omit options/correct; ask for specific, defensible responses.
         - Stem: clear, unambiguous, tests understanding per Bloom intent; avoid fluff; prefer realistic contexts.
         - Language: precise, book-appropriate, no chain-of-thought; no explanations.
@@ -252,6 +324,7 @@ class TestGenerationService {
         - MCQ must have exactly 4 options and a single correct index (0-3).
         - OpenEnded must omit options and correct.
         - Avoid phrases like "all of the above".
+        - Make MCQ options similar length (±20% of average) and parallel; do not reveal correctness via verbosity.
         Output only JSON. No prose.
         """
 
@@ -379,8 +452,10 @@ class TestGenerationService {
             var options: [String]? = item.options
             var correct: [Int]? = item.correct
             if type != .openEnded, let opts = options, let corr = correct {
+                // First randomize, then normalize lengths if needed
                 let (shuffled, newIdx) = randomizeOptions(opts, correctIndices: corr)
-                options = shuffled
+                let normalized = await normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newIdx.first ?? 0, difficulty: difficulty, contextQuestion: item.question)
+                options = normalized
                 correct = newIdx
                 randomizedCount += 1
             }
@@ -711,7 +786,8 @@ class TestGenerationService {
         let finalCorrectAnswers: [Int]?
         if let opts = options, let correct = correctAnswers {
             let (shuffled, newCorrect) = randomizeOptions(opts, correctIndices: correct)
-            finalOptions = shuffled
+            let normalized = await normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newCorrect.first ?? 0, difficulty: difficulty, contextQuestion: questionText)
+            finalOptions = normalized
             finalCorrectAnswers = newCorrect
         } else {
             finalOptions = options
@@ -789,6 +865,7 @@ class TestGenerationService {
             - Avoid "all of the above" or "none of the above"
             - Question length: \(characterLimits.question) characters max
             - Each option: \(characterLimits.option) characters max
+            - Options must be parallel in structure and similar in length (±20% of average); do not make the correct answer longer than others
             """
         case .msq:
             return """
@@ -799,6 +876,7 @@ class TestGenerationService {
             - Clear indication that multiple answers are expected
             - Question length: \(characterLimits.question) characters max
             - Each option: \(characterLimits.option) characters max
+            - Options must be parallel in structure and similar in length (±20% of average)
             """
         case .openEnded:
             return """

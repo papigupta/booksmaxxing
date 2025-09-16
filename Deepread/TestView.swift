@@ -668,6 +668,8 @@ struct MCQOptions: View {
                             .font(DS.Typography.body)
                             .foregroundStyle(DS.Colors.primaryText)
                             .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                            .truncationMode(.tail)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(DS.Spacing.md)
@@ -717,6 +719,8 @@ struct MSQOptions: View {
                             .font(DS.Typography.body)
                             .foregroundStyle(DS.Colors.primaryText)
                             .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                            .truncationMode(.tail)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(DS.Spacing.md)

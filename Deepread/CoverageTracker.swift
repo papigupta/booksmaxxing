@@ -182,6 +182,7 @@ final class MissedQuestionRecord {
 }
 
 // MARK: - Coverage Service
+@MainActor
 final class CoverageService {
     private let modelContext: ModelContext
     private let logger = Logger(subsystem: "com.deepread.app", category: "Coverage")

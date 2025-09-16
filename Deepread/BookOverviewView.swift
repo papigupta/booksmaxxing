@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+@MainActor
 struct BookOverviewView: View {
     let bookTitle: String
     let openAIService: OpenAIService

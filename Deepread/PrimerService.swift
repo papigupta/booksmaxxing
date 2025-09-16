@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import OSLog
 
+@MainActor
 class PrimerService: ObservableObject {
     private let openAIService: OpenAIService
     private var modelContext: ModelContext

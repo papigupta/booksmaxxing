@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 
+@MainActor
 struct DailyPracticeView: View {
     let book: Book
     let openAIService: OpenAIService
