@@ -48,14 +48,14 @@
 			path = Booksmaxxing;
 			sourceTree = "<group>";
 		};
-		9501EA7C2E2949EB00E66525 /* DeepreadTests */ = {
+		9501EA7C2E2949EB00E66525 /* BooksmaxxingTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = DeepreadTests;
+			path = BooksmaxxingTests;
 			sourceTree = "<group>";
 		};
-		9501EA862E2949EB00E66525 /* DeepreadUITests */ = {
+		9501EA862E2949EB00E66525 /* BooksmaxxingUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = DeepreadUITests;
+			path = BooksmaxxingUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -89,8 +89,8 @@
 			isa = PBXGroup;
 			children = (
 				9501EA682E2949EA00E66525 /* Booksmaxxing */,
-				9501EA7C2E2949EB00E66525 /* DeepreadTests */,
-				9501EA862E2949EB00E66525 /* DeepreadUITests */,
+				9501EA7C2E2949EB00E66525 /* BooksmaxxingTests */,
+				9501EA862E2949EB00E66525 /* BooksmaxxingUITests */,
 				9501EA672E2949EA00E66525 /* Products */,
 			);
 			sourceTree = "<group>";
