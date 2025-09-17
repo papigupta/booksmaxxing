@@ -30,22 +30,22 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		95A408AA2E5CBDDA0058135C /* Exceptions for "Deepread" folder in "Deepread" target */ = {
+		95A408AA2E5CBDDA0058135C /* Exceptions for "Booksmaxxing" folder in "Booksmaxxing" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 9501EA652E2949EA00E66525 /* Deepread */;
+			target = 9501EA652E2949EA00E66525 /* Booksmaxxing */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		9501EA682E2949EA00E66525 /* Deepread */ = {
+		9501EA682E2949EA00E66525 /* Booksmaxxing */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				95A408AA2E5CBDDA0058135C /* Exceptions for "Deepread" folder in "Deepread" target */,
+				95A408AA2E5CBDDA0058135C /* Exceptions for "Booksmaxxing" folder in "Booksmaxxing" target */,
 			);
-			path = Deepread;
+			path = Booksmaxxing;
 			sourceTree = "<group>";
 		};
 		9501EA7C2E2949EB00E66525 /* DeepreadTests */ = {
@@ -88,7 +88,7 @@
 		9501EA5D2E2949EA00E66525 = {
 			isa = PBXGroup;
 			children = (
-				9501EA682E2949EA00E66525 /* Deepread */,
+				9501EA682E2949EA00E66525 /* Booksmaxxing */,
 				9501EA7C2E2949EB00E66525 /* DeepreadTests */,
 				9501EA862E2949EB00E66525 /* DeepreadUITests */,
 				9501EA672E2949EA00E66525 /* Products */,
@@ -110,7 +110,7 @@
 /* Begin PBXNativeTarget section */
 		9501EA652E2949EA00E66525 /* Booksmaxxing */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9501EA8D2E2949EB00E66525 /* Build configuration list for PBXNativeTarget "Deepread" */;
+			buildConfigurationList = 9501EA8D2E2949EB00E66525 /* Build configuration list for PBXNativeTarget "Booksmaxxing" */;
 			buildPhases = (
 				9501EA622E2949EA00E66525 /* Sources */,
 				9501EA632E2949EA00E66525 /* Frameworks */,
@@ -121,7 +121,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				9501EA682E2949EA00E66525 /* Deepread */,
+				9501EA682E2949EA00E66525 /* Booksmaxxing */,
 			);
 			name = Booksmaxxing;
 			packageProductDependencies = (
@@ -271,12 +271,12 @@
 /* Begin PBXTargetDependency section */
 		9501EA7B2E2949EB00E66525 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9501EA652E2949EA00E66525 /* Deepread */;
+			target = 9501EA652E2949EA00E66525 /* Booksmaxxing */;
 			targetProxy = 9501EA7A2E2949EB00E66525 /* PBXContainerItemProxy */;
 		};
 		9501EA852E2949EB00E66525 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 9501EA652E2949EA00E66525 /* Deepread */;
+			target = 9501EA652E2949EA00E66525 /* Booksmaxxing */;
 			targetProxy = 9501EA842E2949EB00E66525 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -401,15 +401,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Deepread/Deepread.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Deepread.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Deepread/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Booksmaxxing/Preview Content\"";
 				DEVELOPMENT_TEAM = 289MX5ASRJ;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Deepread/Info.plist;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Booksmaxxing/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Booksmaxxing;
 				INFOPLIST_KEY_CFBundleName = Booksmaxxing;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = NO;
@@ -446,15 +446,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Deepread/Deepread.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Deepread.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Deepread/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Booksmaxxing/Preview Content\"";
 				DEVELOPMENT_TEAM = 289MX5ASRJ;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Deepread/Info.plist;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Booksmaxxing/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Booksmaxxing;
 				INFOPLIST_KEY_CFBundleName = Booksmaxxing;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = NO;
@@ -584,7 +584,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9501EA8D2E2949EB00E66525 /* Build configuration list for PBXNativeTarget "Deepread" */ = {
+		9501EA8D2E2949EB00E66525 /* Build configuration list for PBXNativeTarget "Booksmaxxing" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9501EA8E2E2949EB00E66525 /* Debug */,
