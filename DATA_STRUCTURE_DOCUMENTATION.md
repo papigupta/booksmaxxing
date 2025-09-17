@@ -1,7 +1,7 @@
-# Deepread iOS - Complete Data Structure Documentation
+# Booksmaxxing iOS - Complete Data Structure Documentation
 
 ## Overview
-This document provides a comprehensive overview of all data models used in the Deepread iOS application, including their purpose, fields, and current usage status.
+This document provides a comprehensive overview of all data models used in the Booksmaxxing iOS application, including their purpose, fields, and current usage status.
 
 ---
 

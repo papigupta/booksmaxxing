@@ -7,7 +7,7 @@
 
 import XCTest
 
-final class DeepreadUITestsLaunchTests: XCTestCase {
+final class BooksmaxxingUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

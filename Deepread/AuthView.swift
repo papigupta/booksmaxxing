@@ -11,7 +11,7 @@ struct AuthView: View {
             Spacer()
 
             VStack(spacing: 8) {
-                Text("Welcome to Deepread")
+                Text("Welcome to Booksmaxxing")
                     .font(.largeTitle).bold()
                 Text("Sign in to sync with iCloud")
                     .foregroundStyle(.secondary)

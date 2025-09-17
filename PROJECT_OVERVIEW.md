@@ -1,8 +1,8 @@
-# Deepread iOS - Project Overview
+# Booksmaxxing iOS - Project Overview
 
 ## 🎯 Project Vision
 
-**Deepread** is an innovative iOS application designed to help users truly master non-fiction books by breaking them down into core ideas and guiding them through progressive levels of understanding. Instead of passive reading, users actively engage with concepts through AI-generated prompts and receive personalized feedback from the "author's perspective."
+**Booksmaxxing** is an innovative iOS application designed to help users truly master non-fiction books by breaking them down into core ideas and guiding them through progressive levels of understanding. Instead of passive reading, users actively engage with concepts through AI-generated prompts and receive personalized feedback from the "author's perspective."
 
 ## 🏗️ Core Architecture
 
@@ -303,7 +303,7 @@ enum EvaluationError: Error {
 
 ## 🏁 Conclusion
 
-Deepread represents a sophisticated approach to transforming passive reading into active learning. The application combines modern iOS development practices with cutting-edge AI to create a personalized learning experience that adapts to each user's pace and understanding level.
+Booksmaxxing represents a sophisticated approach to transforming passive reading into active learning. The application combines modern iOS development practices with cutting-edge AI to create a personalized learning experience that adapts to each user's pace and understanding level.
 
 The technical implementation demonstrates excellent software engineering practices:
 - **Clean Architecture**: Well-separated concerns and modular design

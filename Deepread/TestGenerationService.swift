@@ -6,7 +6,7 @@ import OSLog
 
 @MainActor
 class TestGenerationService {
-    private let logger = Logger(subsystem: "com.deepread.app", category: "TestGeneration")
+    private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "TestGeneration")
     // Helper function to randomize options and update correct answer index
     private func randomizeOptions(_ options: [String], correctIndices: [Int]) -> (options: [String], correctIndices: [Int]) {
         // Create array of indices paired with options

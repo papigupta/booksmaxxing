@@ -6,7 +6,7 @@ import OSLog
 class PrimerService: ObservableObject {
     private let openAIService: OpenAIService
     private var modelContext: ModelContext
-    private let logger = Logger(subsystem: "com.deepread.app", category: "Primer")
+    private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "Primer")
     
     init(openAIService: OpenAIService, modelContext: ModelContext) {
         self.openAIService = openAIService

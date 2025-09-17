@@ -7,7 +7,7 @@ import OSLog
 class TestEvaluationService {
     private let openAI: OpenAIService
     private let modelContext: ModelContext
-    private let logger = Logger(subsystem: "com.deepread.app", category: "TestEval")
+    private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "TestEval")
     
     init(openAI: OpenAIService, modelContext: ModelContext) {
         self.openAI = openAI

@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct DeepreadApp: App {
+struct BooksmaxxingApp: App {
     // Shared OpenAIService instance
     private let openAIService = OpenAIService(apiKey: Secrets.openAIAPIKey)
     

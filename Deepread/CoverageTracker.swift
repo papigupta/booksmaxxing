@@ -185,7 +185,7 @@ final class MissedQuestionRecord {
 @MainActor
 final class CoverageService {
     private let modelContext: ModelContext
-    private let logger = Logger(subsystem: "com.deepread.app", category: "Coverage")
+    private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "Coverage")
     
     init(modelContext: ModelContext) {
         self.modelContext = modelContext

@@ -14,7 +14,7 @@ class IdeaExtractionViewModel: ObservableObject {
     private let bookService: BookService
     private var currentTask: Task<Void, Never>?
     private var currentBookTitle: String = ""
-    private let logger = Logger(subsystem: "com.deepread.app", category: "IdeaExtraction")
+    private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "IdeaExtraction")
     
     init(openAIService: OpenAIService, bookService: BookService) {
         self.openAIService = openAIService

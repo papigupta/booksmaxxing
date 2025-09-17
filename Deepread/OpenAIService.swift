@@ -8,7 +8,7 @@ class NetworkMonitor: ObservableObject {
     @Published var isConnected = true
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "NetworkMonitor")
-    private let logger = Logger(subsystem: "com.deepread.app", category: "Network")
+    private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "Network")
     
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
@@ -33,7 +33,7 @@ struct BookInfo {
 }
 
 class OpenAIService {
-    private let logger = Logger(subsystem: "com.deepread.app", category: "OpenAI")
+    private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "OpenAI")
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
     private let session: URLSession
