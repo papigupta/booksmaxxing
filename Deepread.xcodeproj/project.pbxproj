@@ -12,19 +12,19 @@
 			containerPortal = 9501EA5E2E2949EA00E66525 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9501EA652E2949EA00E66525;
-			remoteInfo = Deepread;
+			remoteInfo = Booksmaxxing;
 		};
 		9501EA842E2949EB00E66525 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 9501EA5E2E2949EA00E66525 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 9501EA652E2949EA00E66525;
-			remoteInfo = Deepread;
+			remoteInfo = Booksmaxxing;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		9501EA662E2949EA00E66525 /* Deepread.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Deepread.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9501EA662E2949EA00E66525 /* Booksmaxxing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Booksmaxxing.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9501EA792E2949EB00E66525 /* DeepreadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeepreadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9501EA832E2949EB00E66525 /* DeepreadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeepreadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -98,7 +98,7 @@
 		9501EA672E2949EA00E66525 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9501EA662E2949EA00E66525 /* Deepread.app */,
+				9501EA662E2949EA00E66525 /* Booksmaxxing.app */,
 				9501EA792E2949EB00E66525 /* DeepreadTests.xctest */,
 				9501EA832E2949EB00E66525 /* DeepreadUITests.xctest */,
 			);
@@ -108,7 +108,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9501EA652E2949EA00E66525 /* Deepread */ = {
+		9501EA652E2949EA00E66525 /* Booksmaxxing */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9501EA8D2E2949EB00E66525 /* Build configuration list for PBXNativeTarget "Deepread" */;
 			buildPhases = (
@@ -123,11 +123,11 @@
 			fileSystemSynchronizedGroups = (
 				9501EA682E2949EA00E66525 /* Deepread */,
 			);
-			name = Deepread;
+			name = Booksmaxxing;
 			packageProductDependencies = (
 			);
-			productName = Deepread;
-			productReference = 9501EA662E2949EA00E66525 /* Deepread.app */;
+			productName = Booksmaxxing;
+			productReference = 9501EA662E2949EA00E66525 /* Booksmaxxing.app */;
 			productType = "com.apple.product-type.application";
 		};
 		9501EA782E2949EB00E66525 /* DeepreadTests */ = {
@@ -213,7 +213,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9501EA652E2949EA00E66525 /* Deepread */,
+				9501EA652E2949EA00E66525 /* Booksmaxxing */,
 				9501EA782E2949EB00E66525 /* DeepreadTests */,
 				9501EA822E2949EB00E66525 /* DeepreadUITests */,
 			);
@@ -496,14 +496,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = giraffestudio.DeepreadTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.booksmaxxing.Tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Deepread.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Deepread";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Booksmaxxing.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Booksmaxxing";
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};
 			name = Debug;
@@ -518,14 +518,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = giraffestudio.DeepreadTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.booksmaxxing.Tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Deepread.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Deepread";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Booksmaxxing.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Booksmaxxing";
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};
 			name = Release;
@@ -539,14 +539,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = giraffestudio.DeepreadUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.booksmaxxing.UITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = Deepread;
+				TEST_TARGET_NAME = Booksmaxxing;
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};
 			name = Debug;
@@ -560,14 +560,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = giraffestudio.DeepreadUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.booksmaxxing.UITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = Deepread;
+				TEST_TARGET_NAME = Booksmaxxing;
 				XROS_DEPLOYMENT_TARGET = 2.2;
 			};
 			name = Release;

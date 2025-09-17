@@ -5,7 +5,8 @@ final class KeychainHelper {
     static let shared = KeychainHelper()
     private init() {}
 
-    private let service = "DeepreadKeychainService"
+    private let service = "BooksmaxxingKeychainService"
+    private let legacyService = "DeepreadKeychainService"
 
     func set(_ value: String, forKey key: String) {
         let data = Data(value.utf8)
@@ -23,7 +24,8 @@ final class KeychainHelper {
     }
 
     func get(_ key: String) -> String? {
-        let query: [String: Any] = [
+        // Try current service first
+        let currentQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
@@ -32,9 +34,31 @@ final class KeychainHelper {
         ]
 
         var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        var status = SecItemCopyMatching(currentQuery as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data, let value = String(data: data, encoding: .utf8) {
+            return value
+        }
+
+        // Fallback: try legacy service, then migrate
+        let legacyQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: legacyService,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        item = nil
+        status = SecItemCopyMatching(legacyQuery as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data, let value = String(data: data, encoding: .utf8) {
+            // Migrate to new service
+            set(value, forKey: key)
+            // Optionally delete legacy item
+            SecItemDelete(legacyQuery as CFDictionary)
+            return value
+        }
+
+        return nil
     }
 
     func delete(_ key: String) {
@@ -46,4 +70,3 @@ final class KeychainHelper {
         SecItemDelete(query as CFDictionary)
     }
 }
-
