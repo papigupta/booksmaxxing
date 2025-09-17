@@ -25,8 +25,8 @@
 
 /* Begin PBXFileReference section */
 		9501EA662E2949EA00E66525 /* Booksmaxxing.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Booksmaxxing.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		9501EA792E2949EB00E66525 /* DeepreadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeepreadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9501EA832E2949EB00E66525 /* DeepreadUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeepreadUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9501EA792E2949EB00E66525 /* BooksmaxxingTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BooksmaxxingTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9501EA832E2949EB00E66525 /* BooksmaxxingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BooksmaxxingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -99,8 +99,8 @@
 			isa = PBXGroup;
 			children = (
 				9501EA662E2949EA00E66525 /* Booksmaxxing.app */,
-				9501EA792E2949EB00E66525 /* DeepreadTests.xctest */,
-				9501EA832E2949EB00E66525 /* DeepreadUITests.xctest */,
+				9501EA792E2949EB00E66525 /* BooksmaxxingTests.xctest */,
+				9501EA832E2949EB00E66525 /* BooksmaxxingUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -130,9 +130,9 @@
 			productReference = 9501EA662E2949EA00E66525 /* Booksmaxxing.app */;
 			productType = "com.apple.product-type.application";
 		};
-		9501EA782E2949EB00E66525 /* DeepreadTests */ = {
+		9501EA782E2949EB00E66525 /* BooksmaxxingTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9501EA902E2949EB00E66525 /* Build configuration list for PBXNativeTarget "DeepreadTests" */;
+			buildConfigurationList = 9501EA902E2949EB00E66525 /* Build configuration list for PBXNativeTarget "BooksmaxxingTests" */;
 			buildPhases = (
 				9501EA752E2949EB00E66525 /* Sources */,
 				9501EA762E2949EB00E66525 /* Frameworks */,
@@ -144,18 +144,18 @@
 				9501EA7B2E2949EB00E66525 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9501EA7C2E2949EB00E66525 /* DeepreadTests */,
+				9501EA7C2E2949EB00E66525 /* BooksmaxxingTests */,
 			);
-			name = DeepreadTests;
+			name = BooksmaxxingTests;
 			packageProductDependencies = (
 			);
-			productName = DeepreadTests;
-			productReference = 9501EA792E2949EB00E66525 /* DeepreadTests.xctest */;
+			productName = BooksmaxxingTests;
+			productReference = 9501EA792E2949EB00E66525 /* BooksmaxxingTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		9501EA822E2949EB00E66525 /* DeepreadUITests */ = {
+		9501EA822E2949EB00E66525 /* BooksmaxxingUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9501EA932E2949EB00E66525 /* Build configuration list for PBXNativeTarget "DeepreadUITests" */;
+			buildConfigurationList = 9501EA932E2949EB00E66525 /* Build configuration list for PBXNativeTarget "BooksmaxxingUITests" */;
 			buildPhases = (
 				9501EA7F2E2949EB00E66525 /* Sources */,
 				9501EA802E2949EB00E66525 /* Frameworks */,
@@ -167,13 +167,13 @@
 				9501EA852E2949EB00E66525 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				9501EA862E2949EB00E66525 /* DeepreadUITests */,
+				9501EA862E2949EB00E66525 /* BooksmaxxingUITests */,
 			);
-			name = DeepreadUITests;
+			name = BooksmaxxingUITests;
 			packageProductDependencies = (
 			);
-			productName = DeepreadUITests;
-			productReference = 9501EA832E2949EB00E66525 /* DeepreadUITests.xctest */;
+			productName = BooksmaxxingUITests;
+			productReference = 9501EA832E2949EB00E66525 /* BooksmaxxingUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -212,11 +212,11 @@
 			productRefGroup = 9501EA672E2949EA00E66525 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (
-				9501EA652E2949EA00E66525 /* Booksmaxxing */,
-				9501EA782E2949EB00E66525 /* DeepreadTests */,
-				9501EA822E2949EB00E66525 /* DeepreadUITests */,
-			);
+				targets = (
+					9501EA652E2949EA00E66525 /* Booksmaxxing */,
+					9501EA782E2949EB00E66525 /* BooksmaxxingTests */,
+					9501EA822E2949EB00E66525 /* BooksmaxxingUITests */,
+				);
 		};
 /* End PBXProject section */
 
@@ -401,7 +401,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Deepread.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Booksmaxxing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -446,7 +446,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Deepread.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Booksmaxxing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -593,7 +593,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9501EA902E2949EB00E66525 /* Build configuration list for PBXNativeTarget "DeepreadTests" */ = {
+		9501EA902E2949EB00E66525 /* Build configuration list for PBXNativeTarget "BooksmaxxingTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9501EA912E2949EB00E66525 /* Debug */,
@@ -602,7 +602,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		9501EA932E2949EB00E66525 /* Build configuration list for PBXNativeTarget "DeepreadUITests" */ = {
+		9501EA932E2949EB00E66525 /* Build configuration list for PBXNativeTarget "BooksmaxxingUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9501EA942E2949EB00E66525 /* Debug */,

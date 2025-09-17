@@ -14,7 +14,7 @@
 
 ### Key Directories
 ```
-Deepread/
+Booksmaxxing/
 ├── Models/           # Core data models (Book, Idea, UserResponse, etc.)
 ├── Views/            # SwiftUI view components
 ├── Services/         # Business logic and API integrations

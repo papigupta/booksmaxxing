@@ -1,6 +1,6 @@
 //
-//  DeepreadUITests.swift
-//  DeepreadUITests
+//  BooksmaxxingUITests.swift
+//  BooksmaxxingUITests
 //
 //  Created by Prakhar Gupta on 17/07/25.
 //

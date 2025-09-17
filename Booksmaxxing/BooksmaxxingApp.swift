@@ -1,6 +1,6 @@
 //
-//  DeepreadApp.swift
-//  Deepread
+//  BooksmaxxingApp.swift
+//  Booksmaxxing
 //
 //  Created by Prakhar Gupta on 17/07/25.
 //
