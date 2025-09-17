@@ -185,7 +185,7 @@ struct BookOverviewView: View {
             }
             
             ProgressView(value: bookCoverage / 100)
-                .progressViewStyle(LinearProgressViewStyle(tint: bookCoverageColor(bookCoverage)))
+                .progressViewStyle(LinearProgressViewStyle(tint: DS.Colors.black))
                 .frame(height: 6)
         }
         .padding(.horizontal, DS.Spacing.sm)
@@ -331,14 +331,13 @@ struct BookOverviewView: View {
                         }
                         .padding(.top, DS.Spacing.xxs)
                     }
-                    
-                    Spacer()
+
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.bottom, DS.Spacing.sm)
             
-            // Book Coverage Display
+            // Book Coverage Display (full-width)
             if !viewModel.extractedIdeas.isEmpty {
                 bookCoverageView
             }
@@ -358,8 +357,8 @@ struct UnifiedIdeaListItem: View {
             // Left: Idea Title
             VStack(alignment: .leading, spacing: 2) {
                 Text(idea.title)
-                    .font(DS.Typography.body)
-                    .fontWeight(.medium)
+                    .font(DS.Typography.caption)
+                    .fontWeight(.light)
                     .lineLimit(2)
                     .foregroundColor(DS.Colors.primaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -370,7 +369,8 @@ struct UnifiedIdeaListItem: View {
             VStack(alignment: .center, spacing: 4) {
                 if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
                     Text("\(Int(coverage.coveragePercentage))%")
-                        .font(DS.Typography.bodyBold)
+                        .font(DS.Typography.caption)
+                        .fontWeight(.light)
                         .foregroundColor(DS.Colors.primaryText)
                     
                     ProgressView(value: coverage.coveragePercentage / 100)
@@ -378,7 +378,8 @@ struct UnifiedIdeaListItem: View {
                         .frame(width: 60, height: 3)
                 } else {
                     Text("0%")
-                        .font(DS.Typography.bodyBold)
+                        .font(DS.Typography.caption)
+                        .fontWeight(.light)
                         .foregroundColor(DS.Colors.tertiaryText)
                     
                     ProgressView(value: 0)
@@ -393,7 +394,7 @@ struct UnifiedIdeaListItem: View {
                 let importanceLevel = idea.importance ?? .buildingBlock
                 Text(importanceLevel.rawValue)
                     .font(DS.Typography.caption)
-                    .fontWeight(.medium)
+                    .fontWeight(.light)
                     .foregroundColor(DS.Colors.secondaryText)
                 
                 HStack(spacing: 2) {
@@ -406,12 +407,14 @@ struct UnifiedIdeaListItem: View {
             }
             .frame(width: 100, alignment: .trailing)
         }
-        .padding(.horizontal, DS.Spacing.lg)
+        // Remove horizontal padding to feel like a simple list
         .padding(.vertical, DS.Spacing.md)
-        .background(DS.Colors.primaryBackground)
+        // Bottom divider only
         .overlay(
             Rectangle()
-                .stroke(DS.Colors.gray200, lineWidth: DS.BorderWidth.thin)
+                .frame(height: DS.BorderWidth.thin)
+                .foregroundColor(DS.Colors.subtleBorder),
+            alignment: .bottom
         )
         .onAppear {
             loadCoverageData()
