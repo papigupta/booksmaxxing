@@ -50,6 +50,7 @@ struct DeepreadApp: App {
                      StoredLesson.self,
                      PrimerLinkItem.self,
                      StreakState.self,
+                     UserProfile.self,
                 configurations: cloudConfig
             )
             print("✅ Created CloudKit-backed ModelContainer")
@@ -76,6 +77,7 @@ struct DeepreadApp: App {
                          StoredLesson.self,
                          PrimerLinkItem.self,
                          StreakState.self,
+                         UserProfile.self,
                     configurations: inMemory
                 )
                 print("✅ Created in-memory ModelContainer")

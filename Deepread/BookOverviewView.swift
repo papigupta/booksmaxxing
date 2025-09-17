@@ -9,6 +9,7 @@ struct BookOverviewView: View {
     @State private var showingDebugInfo = false
     @State private var navigateToOnboarding = false
     @State private var showingDailyPractice = false
+    @State private var showingProfile = false
     @State private var didPrefetchLesson1 = false
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
@@ -138,6 +139,9 @@ struct BookOverviewView: View {
         .sheet(isPresented: $showingDebugInfo) {
             DebugInfoView(bookTitle: bookTitle, viewModel: viewModel)
         }
+        .sheet(isPresented: $showingProfile) {
+            ProfileView(authManager: authManager)
+        }
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $navigateToOnboarding) {
             OnboardingView(openAIService: openAIService)
@@ -264,6 +268,7 @@ struct BookOverviewView: View {
                             }
                         }
                     }
+                    Button("Profile") { showingProfile = true }
                     Button("Debug Info") { showingDebugInfo = true }
                     Divider()
                     Button(role: .destructive) {
