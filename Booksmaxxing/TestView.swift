@@ -6,9 +6,12 @@ import SwiftData
 struct QuestionFeedback {
     let isCorrect: Bool
     let correctAnswer: String?
+    // For OEQ, this is the 280-char author feedback line.
     let explanation: String
     let pointsEarned: Int
     let maxPoints: Int
+    // Flag to drive OEQ-specific UI (exemplar section)
+    let isOpenEnded: Bool
 }
 
 struct TestView: View {
@@ -344,7 +347,8 @@ struct TestView: View {
                         correctAnswer: evaluation.correctAnswer,
                         explanation: evaluation.feedback,
                         pointsEarned: evaluation.pointsEarned,
-                        maxPoints: question.difficulty.pointValue
+                        maxPoints: question.difficulty.pointValue,
+                        isOpenEnded: question.type == .openEnded
                     )
                     // Present full-screen feedback view
                     self.showingFeedback = true
@@ -775,7 +779,77 @@ struct FeedbackFullScreen: View {
     let feedback: QuestionFeedback
     let isLastQuestion: Bool
     let onPrimaryAction: () -> Void
-    
+    @State private var showExemplar: Bool = false
+
+    private var statusLabel: (text: String, color: Color) {
+        let ratio = feedback.maxPoints > 0 ? Double(feedback.pointsEarned) / Double(feedback.maxPoints) : 0
+        switch ratio {
+        case let r where r >= 0.70: return ("On Track", .green)
+        case let r where r >= 0.50: return ("Close", .orange)
+        default: return ("Off Track", .red)
+        }
+    }
+
+    private var feedbackSegments: [(label: String, body: String)] {
+        func normalize(_ s: String) -> String {
+            var t = s
+            // Normalize common model prefixes and inject separators for parsing
+            let pairs: [(String, String)] = [
+                ("BL/Polish:", " | Polish:"),
+                ("BL/Do:", " | Do:"),
+                ("BL/Keep:", " | Keep:"),
+                ("BL/KEEP:", " | Keep:"),
+                ("BL/DO:", " | Do:"),
+                ("BL/POLISH:", " | Polish:"),
+                ("BottomLine:", "Summary:"),
+                ("BL:", "Summary:")
+            ]
+            for (k, v) in pairs { t = t.replacingOccurrences(of: k, with: v) }
+            return t
+        }
+        let normalized = normalize(feedback.explanation)
+        return normalized
+            .components(separatedBy: " | ")
+            .compactMap { segment in
+                let trimmed = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                if let idx = trimmed.firstIndex(of: ":") {
+                    let label = String(trimmed[..<idx]).trimmingCharacters(in: .whitespaces)
+                    let body = String(trimmed[trimmed.index(after: idx)...]).trimmingCharacters(in: .whitespaces)
+                    return (label.uppercased(), body)
+                } else {
+                    return ("SUMMARY", trimmed)
+                }
+            }
+    }
+
+    private func friendlyLabel(_ raw: String) -> String {
+        let tokens = raw.uppercased().replacingOccurrences(of: " ", with: "").split(separator: "/")
+        if tokens.contains("BL") || tokens.contains("BOTTOMLINE") { return "Summary" }
+        if tokens.contains("KEEP") { return "What worked" }
+        if tokens.contains("FIX") { return "What to fix" }
+        if tokens.contains("POLISH") { return "Polish" }
+        if tokens.contains("DO") { return "Next step" }
+        return raw.capitalized
+    }
+
+    private var displayRows: [(title: String, body: String)] {
+        // Map segments into a simple 3-line structure: Summary, What to fix/What worked, Next step
+        var dict: [String: String] = [:]
+        for seg in feedbackSegments {
+            let label = friendlyLabel(seg.label)
+            dict[label] = seg.body
+        }
+        var rows: [(String, String)] = []
+        if let s = dict["Summary"] { rows.append(("Summary", s)) }
+        if let fix = dict["What to fix"] ?? dict["Polish"] ?? dict["What worked"] {
+            let title = dict["What to fix"] != nil ? "What to fix" : (dict["Polish"] != nil ? "Polish" : "What worked")
+            rows.append((title, fix))
+        }
+        if let d = dict["Next step"] { rows.append(("Next step", d)) }
+        return rows
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Content
@@ -783,35 +857,86 @@ struct FeedbackFullScreen: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                     // Header
                     HStack(spacing: DS.Spacing.md) {
-                        DSIcon(feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill", size: 36)
-                            .foregroundStyle(feedback.isCorrect ? .green : .red)
-                        
-                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            Text(feedback.isCorrect ? "Correct" : "Incorrect")
-                                .font(DS.Typography.headline)
-                                .foregroundStyle(DS.Colors.primaryText)
-                            Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
-                                .font(DS.Typography.caption)
-                                .foregroundStyle(DS.Colors.secondaryText)
+                        // Use neutral learning icon + status for OEQ to avoid harsh mismatch
+                        if feedback.isOpenEnded {
+                            DSIcon("lightbulb.fill", size: 28)
+                                .foregroundStyle(.yellow)
+                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                Text(statusLabel.text)
+                                    .font(DS.Typography.headline)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
+                                    .font(DS.Typography.caption)
+                                    .foregroundStyle(DS.Colors.secondaryText)
+                            }
+                        } else {
+                            DSIcon(feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill", size: 36)
+                                .foregroundStyle(feedback.isCorrect ? .green : .red)
+                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                Text(feedback.isCorrect ? "Correct" : "Incorrect")
+                                    .font(DS.Typography.headline)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
+                                    .font(DS.Typography.caption)
+                                    .foregroundStyle(DS.Colors.secondaryText)
+                            }
                         }
                         Spacer()
+                        Text(statusLabel.text)
+                            .font(DS.Typography.captionBold)
+                            .foregroundStyle(statusLabel.color)
+                            .padding(.horizontal, DS.Spacing.xs)
+                            .padding(.vertical, 2)
+                            .overlay(
+                                Capsule().stroke(statusLabel.color, lineWidth: DS.BorderWidth.thin)
+                            )
                     }
                     
-                    // Explanation
+                    // Author Feedback (micro, ≤280 chars for OEQ)
                     if !feedback.explanation.isEmpty {
-                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                            Text("Explanation")
+                        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                            Text("Author Feedback")
                                 .font(DS.Typography.captionBold)
                                 .foregroundStyle(DS.Colors.primaryText)
-                            Text(feedback.explanation)
-                                .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
+                            ForEach(Array(displayRows.enumerated()), id: \.offset) { _, row in
+                                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                    Text(row.title)
+                                        .font(DS.Typography.captionBold)
+                                        .foregroundStyle(DS.Colors.primaryText)
+                                    Text(row.body)
+                                        .font(DS.Typography.body)
+                                        .foregroundStyle(DS.Colors.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                         }
                     }
                     
-                    // Correct Answer
-                    if !feedback.isCorrect, let correct = feedback.correctAnswer {
+                    // Exemplar for OEQ (collapsed), or Correct Answer for objective items
+                    if feedback.isOpenEnded, let exemplar = feedback.correctAnswer, !exemplar.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                            HStack {
+                                Text("Author’s Exemplar")
+                                    .font(DS.Typography.captionBold)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                Spacer()
+                                Button(action: { withAnimation { showExemplar.toggle() } }) {
+                                    HStack(spacing: 4) {
+                                        Text(showExemplar ? "Hide" : "Show")
+                                        Image(systemName: showExemplar ? "chevron.up" : "chevron.down")
+                                    }
+                                    .font(DS.Typography.caption)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            if showExemplar {
+                                Text(exemplar)
+                                    .font(DS.Typography.body)
+                                    .foregroundStyle(DS.Colors.secondaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    } else if !feedback.isOpenEnded, !feedback.isCorrect, let correct = feedback.correctAnswer {
                         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                             Text("Correct Answer")
                                 .font(DS.Typography.captionBold)

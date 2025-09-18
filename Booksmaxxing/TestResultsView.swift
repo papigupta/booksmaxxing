@@ -302,6 +302,76 @@ struct QuestionResultCard: View {
         evaluation.isCorrect
     }
     
+    private var statusLabel: (text: String, color: Color) {
+        guard let q = question else { return (evaluation.isCorrect ? "On Track" : "Off Track", evaluation.isCorrect ? .green : .red) }
+        let ratio = q.difficulty.pointValue > 0 ? Double(evaluation.pointsEarned) / Double(q.difficulty.pointValue) : 0
+        switch ratio {
+        case let r where r >= 0.70: return ("On Track", .green)
+        case let r where r >= 0.50: return ("Close", .orange)
+        default: return ("Off Track", .red)
+        }
+    }
+
+    private var feedbackSegments: [(label: String, body: String)] {
+        func normalize(_ s: String) -> String {
+            var t = s
+            let pairs: [(String, String)] = [
+                ("BL/Polish:", " | Polish:"),
+                ("BL/Do:", " | Do:"),
+                ("BL/Keep:", " | Keep:"),
+                ("BL/KEEP:", " | Keep:"),
+                ("BL/DO:", " | Do:"),
+                ("BL/POLISH:", " | Polish:"),
+                ("BottomLine:", "Summary:"),
+                ("BL:", "Summary:")
+            ]
+            for (k, v) in pairs { t = t.replacingOccurrences(of: k, with: v) }
+            return t
+        }
+        let normalized = normalize(evaluation.feedback)
+        return normalized
+            .components(separatedBy: " | ")
+            .compactMap { segment in
+                let trimmed = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                if let idx = trimmed.firstIndex(of: ":") {
+                    let label = String(trimmed[..<idx]).trimmingCharacters(in: .whitespaces)
+                    let body = String(trimmed[trimmed.index(after: idx)...]).trimmingCharacters(in: .whitespaces)
+                    return (label.uppercased(), body)
+                } else {
+                    return ("SUMMARY", trimmed)
+                }
+            }
+    }
+
+    private func friendlyLabel(_ raw: String) -> String {
+        let tokens = raw.uppercased().replacingOccurrences(of: " ", with: "").split(separator: "/")
+        if tokens.contains("BL") || tokens.contains("BOTTOMLINE") { return "Summary" }
+        if tokens.contains("KEEP") { return "What worked" }
+        if tokens.contains("FIX") { return "What to fix" }
+        if tokens.contains("POLISH") { return "Polish" }
+        if tokens.contains("DO") { return "Next step" }
+        return raw.capitalized
+    }
+
+    private var displayRows: [(title: String, body: String)] {
+        var dict: [String: String] = [:]
+        for seg in feedbackSegments {
+            let label = friendlyLabel(seg.label)
+            dict[label] = seg.body
+        }
+        var rows: [(String, String)] = []
+        if let s = dict["Summary"] { rows.append(("Summary", s)) }
+        if let fix = dict["What to fix"] ?? dict["Polish"] ?? dict["What worked"] {
+            let title = dict["What to fix"] != nil ? "What to fix" : (dict["Polish"] != nil ? "Polish" : "What worked")
+            rows.append((title, fix))
+        }
+        if let d = dict["Next step"] { rows.append(("Next step", d)) }
+        return rows
+    }
+
+    @State private var showExemplar: Bool = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.md) {
@@ -312,11 +382,12 @@ struct QuestionResultCard: View {
                     .frame(width: 30, alignment: .leading)
                 
                 // Result icon
-                DSIcon(
-                    isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill",
-                    size: 20
-                )
-                .foregroundStyle(isCorrect ? .green : .red)
+                if question?.type == .openEnded {
+                    DSIcon("lightbulb.fill", size: 18).foregroundStyle(.yellow)
+                } else {
+                    DSIcon(isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill", size: 20)
+                        .foregroundStyle(isCorrect ? .green : .red)
+                }
                 
                 // Question type and difficulty (+ CB badge if curveball)
                 if let question = question {
@@ -347,26 +418,70 @@ struct QuestionResultCard: View {
                 
                 Spacer()
                 
-                // Points earned
-                Text("\(evaluation.pointsEarned) pts")
-                    .font(DS.Typography.captionBold)
-                    .foregroundStyle(DS.Colors.primaryText)
+                // Status + points
+                HStack(spacing: DS.Spacing.sm) {
+                    Text(statusLabel.text)
+                        .font(DS.Typography.captionBold)
+                        .foregroundStyle(statusLabel.color)
+                        .padding(.horizontal, DS.Spacing.xs)
+                        .padding(.vertical, 2)
+                        .overlay(Rectangle().stroke(statusLabel.color, lineWidth: DS.BorderWidth.thin))
+                    Text("\(evaluation.pointsEarned) pts")
+                        .font(DS.Typography.captionBold)
+                        .foregroundStyle(DS.Colors.primaryText)
+                }
             }
             
-            // Feedback
+            // Feedback (formatted)
             if !evaluation.feedback.isEmpty {
-                Text(evaluation.feedback)
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.Colors.secondaryText)
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    ForEach(Array(displayRows.enumerated()), id: \.offset) { _, row in
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text(row.title)
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(DS.Colors.primaryText)
+                            Text(row.body)
+                                .font(DS.Typography.caption)
+                                .foregroundStyle(DS.Colors.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+
+            // Exemplar for OEQ in results list (collapsed)
+            if (question?.type == .openEnded), let exemplar = evaluation.correctAnswer, !exemplar.isEmpty {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    HStack {
+                        Text("Author’s Exemplar")
+                            .font(DS.Typography.captionBold)
+                            .foregroundStyle(DS.Colors.primaryText)
+                        Spacer()
+                        Button(action: { withAnimation { showExemplar.toggle() } }) {
+                            HStack(spacing: 4) {
+                                Text(showExemplar ? "Hide" : "Show")
+                                Image(systemName: showExemplar ? "chevron.up" : "chevron.down")
+                            }
+                            .font(DS.Typography.caption)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if showExemplar {
+                        Text(exemplar)
+                            .font(DS.Typography.caption)
+                            .foregroundStyle(DS.Colors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
         }
         .padding(DS.Spacing.md)
         .background(
             Rectangle()
-                .fill(isCorrect ? .green.opacity(0.05) : .red.opacity(0.05))
+                .fill((question?.type == .openEnded) ? DS.Colors.tertiaryBackground : (isCorrect ? .green.opacity(0.05) : .red.opacity(0.05)))
                 .overlay(
                     Rectangle()
-                        .stroke(isCorrect ? .green.opacity(0.2) : .red.opacity(0.2), lineWidth: DS.BorderWidth.thin)
+                        .stroke((question?.type == .openEnded) ? DS.Colors.subtleBorder : (isCorrect ? .green.opacity(0.2) : .red.opacity(0.2)), lineWidth: DS.BorderWidth.thin)
                 )
         )
     }
