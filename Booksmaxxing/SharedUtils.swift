@@ -17,6 +17,10 @@ final class CloudSyncRefresh {
             var progress = FetchDescriptor<Progress>()
             progress.fetchLimit = 50
             _ = try? modelContext.fetch(progress)
+            // Warm StreakState to prompt early CloudKit sync for streaks
+            var streak = FetchDescriptor<StreakState>(predicate: #Predicate { $0.id == "streak_singleton" })
+            streak.fetchLimit = 1
+            _ = try? modelContext.fetch(streak)
             var primers = FetchDescriptor<Primer>()
             primers.fetchLimit = 20
             _ = try? modelContext.fetch(primers)
@@ -40,4 +44,3 @@ enum SharedUtils {
         return response
     }
 }
-
