@@ -17,6 +17,8 @@ final class ReviewQueueItem {
     var originalQuestionText: String = ""
     // Curveball support
     var isCurveball: Bool = false
+    // Spaced follow-up support
+    var isSpacedFollowUp: Bool = false
     var addedDate: Date = Date.now
     var isCompleted: Bool = false
     
@@ -30,7 +32,8 @@ final class ReviewQueueItem {
         difficulty: QuestionDifficulty,
         bloomCategory: BloomCategory,
         originalQuestionText: String,
-        isCurveball: Bool = false
+        isCurveball: Bool = false,
+        isSpacedFollowUp: Bool = false
     ) {
         self.id = UUID()
         self.ideaId = ideaId
@@ -43,6 +46,7 @@ final class ReviewQueueItem {
         self.bloomCategory = bloomCategory
         self.originalQuestionText = originalQuestionText
         self.isCurveball = isCurveball
+        self.isSpacedFollowUp = isSpacedFollowUp
         self.addedDate = Date()
         self.isCompleted = false
     }
@@ -127,12 +131,16 @@ class ReviewQueueManager {
             let allPendingItems = try modelContext.fetch(descriptor)
             print("🔍 REVIEW QUEUE: pending items for book=\(bookId): \(allPendingItems.count)")
 
-            // Curveball prioritization: pick at most 1 curveball first
+            // OEQ prioritization: pick at most 1 OEQ in this order:
+            // 1) Curveball  2) SpacedFollowUp  3) Mistake OEQ
             let curveballSelected: ReviewQueueItem? = allPendingItems.first(where: { $0.isCurveball })
+            let spacedSelected: ReviewQueueItem? = (curveballSelected == nil)
+                ? allPendingItems.first(where: { $0.isSpacedFollowUp })
+                : nil
 
             // Separate by type for remaining slots
             var remaining = allPendingItems
-            if let selected = curveballSelected {
+            if let selected = curveballSelected ?? spacedSelected {
                 remaining.removeAll { $0.id == selected.id }
             }
 
@@ -159,8 +167,8 @@ class ReviewQueueManager {
             var selectedMCQs: [ReviewQueueItem] = []
             var selectedOpen: [ReviewQueueItem] = []
 
-            // If curveball exists, allocate into the right bucket and reduce quota
-            if let selected = curveballSelected {
+            // If OEQ priority (curveball or spacedfollowup) exists, allocate into the right bucket and reduce quota
+            if let selected = curveballSelected ?? spacedSelected {
                 if selected.questionType == .openEnded {
                     selectedOpen.append(selected)
                 } else if selected.questionType == .mcq {
@@ -174,7 +182,7 @@ class ReviewQueueManager {
 
             // Avoid re-adding the same concept as the curveball
             var usedKeys = Set<String>()
-            if let selected = curveballSelected {
+            if let selected = curveballSelected ?? spacedSelected {
                 let key = "\(selected.ideaId)|\(selected.conceptTested)"
                 usedKeys.insert(key)
             }
@@ -186,7 +194,13 @@ class ReviewQueueManager {
                 selectedMCQs.append(item)
                 usedKeys.insert(key)
             }
-            for item in openPool {
+            // Apply OEQ priority among remaining candidates: prefer spacedfollowup over mistake OEQs
+            let prioritizedOpen = openPool.sorted { lhs, rhs in
+                let lScore = lhs.isSpacedFollowUp ? 0 : (lhs.isCurveball ? -1 : 1)
+                let rScore = rhs.isSpacedFollowUp ? 0 : (rhs.isCurveball ? -1 : 1)
+                return lScore < rScore
+            }
+            for item in prioritizedOpen {
                 if selectedOpen.count >= openRemainingCap { break }
                 let key = "\(item.ideaId)|\(item.conceptTested)"
                 if usedKeys.contains(key) { continue }

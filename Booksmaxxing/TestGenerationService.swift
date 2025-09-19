@@ -550,6 +550,14 @@ class TestGenerationService {
                 continue
             }
 
+            // Spaced follow-up path: open-ended retrieval prompt with stored bloom/difficulty
+            if item.isSpacedFollowUp {
+                let question = try await generateSpacedFollowUpQuestion(from: item, orderIndex: orderIndex)
+                questions.append(question)
+                orderIndex += 1
+                continue
+            }
+
             // Generate a similar question testing the same concept for non-curveball items
             let question = try await generateSimilarQuestion(
                 from: item,
@@ -560,6 +568,65 @@ class TestGenerationService {
         }
         
         return questions
+    }
+
+    private func generateSpacedFollowUpQuestion(from queueItem: ReviewQueueItem, orderIndex: Int) async throws -> Question {
+        let targetIdeaId = queueItem.ideaId
+        let descriptor = FetchDescriptor<Idea>(
+            predicate: #Predicate<Idea> { idea in
+                idea.id == targetIdeaId
+            }
+        )
+        guard let idea = try modelContext.fetch(descriptor).first else {
+            throw TestGenerationError.generationFailed("Idea not found")
+        }
+
+        // Short, invitational retrieval prompt (same style family as curveball but per stored bloom)
+        let systemPrompt = """
+        You are a learning‑science coach. Write a single open‑ended retrieval prompt for the learner about the idea titled '\(idea.title)'.
+        Requirements:
+        - 1–2 sentences maximum
+        - Warm, invitational tone
+        - Explicitly include the phrases "from memory" and "in your own words"
+        - Keep focus aligned with Bloom: \(queueItem.bloomCategory.rawValue)
+        - Do NOT enumerate lists, angles, or sub‑questions
+        - Do NOT reveal definitions, examples, or hints in the prompt
+        Output ONLY a JSON object: { "question": "..." }
+        """
+
+        let shortDesc: String = {
+            let text = idea.ideaDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.count <= 220 { return text }
+            let idx = text.index(text.startIndex, offsetBy: 220)
+            return String(text[..<idx]) + "…"
+        }()
+        let userPrompt = """
+        Idea title: \(idea.title)
+        Optional context for the model (do not include in the prompt): \(shortDesc)
+        Generate the prompt.
+        """
+
+        let response = try await openAI.complete(
+            prompt: "\(systemPrompt)\n\n\(userPrompt)",
+            model: "gpt-4.1",
+            temperature: 0.6,
+            maxTokens: 200
+        )
+        let (questionText, _, _) = try parseQuestionResponse(response, type: .openEnded)
+
+        return Question(
+            ideaId: queueItem.ideaId,
+            type: .openEnded,
+            difficulty: queueItem.difficulty,
+            bloomCategory: queueItem.bloomCategory,
+            questionText: questionText,
+            options: nil,
+            correctAnswers: nil,
+            orderIndex: orderIndex,
+            isCurveball: false,
+            isSpacedFollowUp: true,
+            sourceQueueItemId: queueItem.id
+        )
     }
 
     private func generateCurveballQuestion(from queueItem: ReviewQueueItem, orderIndex: Int) async throws -> Question {

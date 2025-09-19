@@ -170,6 +170,14 @@ struct DailyPracticeHomepage: View {
                         }) {
                             Label("Force Curveball Due", systemImage: "bolt.fill")
                         }
+                        Button(action: {
+                            let bookId = book.id.uuidString
+                            let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                            spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
+                            refreshView()
+                        }) {
+                            Label("Force Spaced Follow‑up Due", systemImage: "bolt.circle")
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -384,8 +392,10 @@ struct DailyPracticeHomepage: View {
     
     private func loadPracticeData() async {
         let bookId = book.id.uuidString
-        // Ensure any due curveballs are queued for this book before computing stats
+        // Ensure any due curveballs and spacedfollowups are queued for this book before computing stats
         curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: book.title)
+        let spacedService = SpacedFollowUpService(modelContext: modelContext)
+        spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: book.title)
         
         // Get lesson info for display (no actual generation yet)
         let lessonInfos = lessonStorage.getAllLessonInfo(book: book)
@@ -430,7 +440,7 @@ struct DailyPracticeHomepage: View {
             )
         }
         
-        // Load review queue stats for this specific book (after ensuring curveballs queued)
+        // Load review queue stats for this specific book (after ensuring curveballs/spacedfollowups queued)
         let queueStats = reviewQueueManager.getQueueStatistics(bookId: book.id.uuidString)
         let totalReviewItems = queueStats.totalMCQs + queueStats.totalOpenEnded
         
@@ -446,7 +456,7 @@ struct DailyPracticeHomepage: View {
 
             if coverage.coveragePercentage == 0 {
                 newIdeasCount += 1
-            } else if coverage.isFullyCovered && coverage.curveballPassed {
+            } else if (coverage.spacedFollowUpPassedAt != nil) && coverage.curveballPassed {
                 // Mastery requires both full coverage and passing the curveball
                 masteredCount += 1
             }

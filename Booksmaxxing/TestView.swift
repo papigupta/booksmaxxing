@@ -612,10 +612,13 @@ struct QuestionView: View {
                     
                     HStack(spacing: DS.Spacing.xs) {
                         DifficultyBadge(difficulty: question.difficulty)
-                        // For curveball questions, show 'Retrieval' instead of Bloom category label
+                        // For curveball or spacedfollowup questions, show 'Retrieval' and a badge
                         if question.isCurveball {
                             RetrievalBadge()
                             CurveballBadge()
+                        } else if question.isSpacedFollowUp {
+                            RetrievalBadge()
+                            SpacedFollowUpBadge()
                         } else {
                             BloomBadge(category: question.bloomCategory)
                         }
@@ -1080,5 +1083,22 @@ struct CurveballBadge: View {
                     .stroke(Color.yellow, lineWidth: DS.BorderWidth.thin)
             )
             .accessibilityLabel("Curveball")
+    }
+}
+
+struct SpacedFollowUpBadge: View {
+    var body: some View {
+        Text("SPFU")
+            .font(DS.Typography.captionBold)
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, DS.Spacing.xs)
+            .padding(.vertical, 2)
+            .background(Color.blue.opacity(0.9))
+            .cornerRadius(3)
+            .overlay(
+                Rectangle()
+                    .stroke(Color.blue, lineWidth: DS.BorderWidth.thin)
+            )
+            .accessibilityLabel("Spaced Follow-up")
     }
 }

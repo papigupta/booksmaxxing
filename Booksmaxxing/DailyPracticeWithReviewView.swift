@@ -350,9 +350,11 @@ struct DailyPracticeWithReviewView: View {
         errorMessage = nil
         
         do {
-            // Ensure due curveballs for this book are queued before selecting
+            // Ensure due curveballs and spacedfollowups for this book are queued before selecting
             let bookId = book.id.uuidString
             curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: book.title)
+            let spacedService = SpacedFollowUpService(modelContext: modelContext)
+            spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: book.title)
             // For pure review sessions, we only need review questions
             // 1. Get review items from queue for this specific book
             let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(bookId: book.id.uuidString)
@@ -507,7 +509,7 @@ struct DailyPracticeWithReviewView: View {
             
             reviewManager.markItemsAsCompleted(completedItems)
 
-            // If any completed item was a passed curveball, mark coverage+mastery
+            // If any completed item was a passed curveball or spacedfollowup, mark coverage+mastery
             let bookId = book.id.uuidString
             for response in reviewResponses {
                 var curveItem: ReviewQueueItem?
@@ -516,24 +518,43 @@ struct DailyPracticeWithReviewView: View {
                     let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
                     curveItem = try? modelContext.fetch(fetch).first
                 }
-                guard let item = curveItem, item.isCurveball else { continue }
-                let curveService = CurveballService(modelContext: modelContext)
-                if response.isCorrect {
-                    // Passed: mark result and promote mastery
-                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: bookId, passed: true)
-                    let targetId = item.ideaId
-                    let ideaDescriptor = FetchDescriptor<Idea>(
-                        predicate: #Predicate<Idea> { idea in
-                            idea.id == targetId
+                guard let item = curveItem else { continue }
+                if item.isCurveball {
+                    let curveService = CurveballService(modelContext: modelContext)
+                    if response.isCorrect {
+                        // Passed: mark result and promote mastery
+                        curveService.markCurveballResult(ideaId: item.ideaId, bookId: bookId, passed: true)
+                        let targetId = item.ideaId
+                        let ideaDescriptor = FetchDescriptor<Idea>(
+                            predicate: #Predicate<Idea> { idea in
+                                idea.id == targetId
+                            }
+                        )
+                        if let masteredIdea = try? modelContext.fetch(ideaDescriptor).first {
+                            masteredIdea.masteryLevel = 3
+                        }
+                    } else {
+                        // Failed: remove current curveball from queue and reschedule for later
+                        item.isCompleted = true
+                        curveService.markCurveballResult(ideaId: item.ideaId, bookId: bookId, passed: false)
+                    }
+                } else if item.isSpacedFollowUp {
+                    let targetIdeaId = item.ideaId
+                    let targetBookId = bookId
+                    let covDesc = FetchDescriptor<IdeaCoverage>(
+                        predicate: #Predicate<IdeaCoverage> { c in
+                            c.ideaId == targetIdeaId && c.bookId == targetBookId
                         }
                     )
-                    if let masteredIdea = try? modelContext.fetch(ideaDescriptor).first {
-                        masteredIdea.masteryLevel = 3
+                    if let cov = try? modelContext.fetch(covDesc).first {
+                        if response.isCorrect {
+                            cov.spacedFollowUpPassedAt = Date()
+                            cov.curveballDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.curveballAfterPassDays, to: Date())
+                        } else {
+                            cov.spacedFollowUpDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.retryDelayDays, to: Date())
+                        }
+                        try? modelContext.save()
                     }
-                } else {
-                    // Failed: remove current curveball from queue and reschedule for later
-                    item.isCompleted = true
-                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: bookId, passed: false)
                 }
             }
             try? modelContext.save()

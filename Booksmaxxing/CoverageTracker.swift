@@ -39,6 +39,13 @@ final class IdeaCoverage {
     var curveballDueDate: Date?
     var curveballPassed: Bool = false
     var curveballPassedAt: Date?
+
+    // Spaced follow-up tracking
+    var spacedFollowUpDueDate: Date?
+    var spacedFollowUpPassedAt: Date?
+    // Remember a substantial-correct source to reframe as OEQ
+    var spacedFollowUpBloom: String?
+    var spacedFollowUpDifficultyRaw: String?
     
     init(ideaId: String, bookId: String) {
         self.ideaId = ideaId
@@ -53,13 +60,14 @@ final class IdeaCoverage {
     }
     
     func updateCoverage() {
-        // Coverage is based on 8 BloomCategory types
-        // Each correctly answered type = 12.5% coverage
+        // Coverage base is 8 BloomCategory types (80%)
+        // Each correctly answered type = 10% (capped at 80%)
         let totalCategories = 8
         let uniqueCategoriesCovered = Set(coveredCategories).count
-        
-        // Calculate coverage percentage
-        coveragePercentage = (Double(uniqueCategoriesCovered) / Double(totalCategories)) * 100.0
+        let base = min(uniqueCategoriesCovered, totalCategories)
+        var pct = Double(base) * 10.0 // 80% max
+        if spacedFollowUpPassedAt != nil { pct += 20.0 }
+        coveragePercentage = min(100.0, pct)
         
         // Calculate accuracy for stats (but not used for coverage)
         if totalQuestionsSeen > 0 {
@@ -68,18 +76,10 @@ final class IdeaCoverage {
             currentAccuracy = 0.0
         }
         
-        // Check for full coverage (all 8 types answered correctly at least once)
-        isFullyCovered = uniqueCategoriesCovered >= totalCategories
-        
-        if isFullyCovered && coveredDate == nil {
-            coveredDate = Date()
-            // Schedule curveball if not already scheduled or passed
-            if !curveballPassed && curveballDueDate == nil {
-                // Default: 3 days; can be adjusted via config elsewhere
-                let days = CurveballConfig.delayDays
-                curveballDueDate = Calendar.current.date(byAdding: .day, value: days, to: Date())
-            }
-        }
+        // "isFullyCovered" now reflects whether spaced follow-up was passed as well (100%)
+        isFullyCovered = (uniqueCategoriesCovered >= totalCategories) && (spacedFollowUpPassedAt != nil)
+        // coveredDate marks when all 8 categories were first completed (not full coverage)
+        if uniqueCategoriesCovered >= totalCategories && coveredDate == nil { coveredDate = Date() }
     }
     
     /// Record a question attempt with BloomCategory tracking
@@ -253,8 +253,8 @@ final class CoverageService {
             )
         }
         
-        // Update FSRS review state if fully covered
-        if coverage.isFullyCovered {
+        // Initialize FSRS when 8 categories are covered (base) if not already present
+        if Set(coverage.coveredCategories).count >= 8 && coverage.reviewStateData == nil {
             let reviewState = FSRSScheduler.initializeReviewState(for: getIdea(ideaId: ideaId))
             coverage.reviewStateData = try? JSONEncoder().encode(reviewState)
         }

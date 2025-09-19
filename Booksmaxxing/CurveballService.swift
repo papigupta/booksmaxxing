@@ -22,7 +22,7 @@ final class CurveballService {
         let targetBookId = bookId
         let descriptor = FetchDescriptor<IdeaCoverage>(
             predicate: #Predicate<IdeaCoverage> { c in
-                c.bookId == targetBookId && c.isFullyCovered && (c.curveballPassed == false)
+                c.bookId == targetBookId && (c.spacedFollowUpPassedAt != nil) && (c.curveballPassed == false)
             }
         )
 

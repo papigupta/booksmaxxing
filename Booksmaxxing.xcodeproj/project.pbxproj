@@ -212,11 +212,11 @@
 			productRefGroup = 9501EA672E2949EA00E66525 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-				targets = (
-					9501EA652E2949EA00E66525 /* Booksmaxxing */,
-					9501EA782E2949EB00E66525 /* BooksmaxxingTests */,
-					9501EA822E2949EB00E66525 /* BooksmaxxingUITests */,
-				);
+			targets = (
+				9501EA652E2949EA00E66525 /* Booksmaxxing */,
+				9501EA782E2949EB00E66525 /* BooksmaxxingTests */,
+				9501EA822E2949EB00E66525 /* BooksmaxxingUITests */,
+			);
 		};
 /* End PBXProject section */
 

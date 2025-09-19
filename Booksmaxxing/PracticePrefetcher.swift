@@ -70,9 +70,11 @@ final class PracticePrefetcher {
                 print("PREFETCH: Generating fresh questions for idea \(ideaId) …")
                 let freshTest = try await testGen.generateTest(for: targetIdea, testType: "initial")
 
-                // Ensure curveballs are queued for this specific book
+                // Ensure curveballs and spacedfollowups are queued for this specific book
                 let curveballService = CurveballService(modelContext: modelContext)
                 curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
+                let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
 
                 // Pull review items (max 3 MCQ + 1 OEQ) and generate review questions
                 let manager = ReviewQueueManager(modelContext: modelContext)
@@ -128,6 +130,7 @@ final class PracticePrefetcher {
                         correctAnswers: q.correctAnswers,
                         orderIndex: index,
                         isCurveball: q.isCurveball,
+                        isSpacedFollowUp: q.isSpacedFollowUp,
                         sourceQueueItemId: q.sourceQueueItemId
                     )
                 }

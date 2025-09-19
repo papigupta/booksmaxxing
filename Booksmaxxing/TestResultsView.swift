@@ -412,6 +412,14 @@ struct QuestionResultCard: View {
                                 .padding(.vertical, 2)
                                 .background(Color.yellow.opacity(0.9))
                                 .cornerRadius(3)
+                        } else if question.isSpacedFollowUp {
+                            Text("SPFU")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(Color.black)
+                                .padding(.horizontal, DS.Spacing.xs)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.9))
+                                .cornerRadius(3)
                         }
                     }
                 }

@@ -408,9 +408,11 @@ struct DailyPracticeView: View {
                     testType: "initial"
                 )
                 
-                // Ensure any due curveballs are queued for this book
+                // Ensure any due curveballs and spacedfollowups are queued for this book
                 let curveballService = CurveballService(modelContext: modelContext)
                 curveballService.ensureCurveballsQueuedIfDue(bookId: book.id.uuidString, bookTitle: book.title)
+                let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: book.id.uuidString, bookTitle: book.title)
 
                 // Get review questions from the queue (max 3 MCQ + 1 OEQ = 4 total) for this book only
                 let reviewManager = ReviewQueueManager(modelContext: modelContext)
@@ -480,7 +482,9 @@ struct DailyPracticeView: View {
                         options: q.options,
                         correctAnswers: q.correctAnswers,
                         orderIndex: index,
-                        isCurveball: q.isCurveball
+                        isCurveball: q.isCurveball,
+                        isSpacedFollowUp: q.isSpacedFollowUp,
+                        sourceQueueItemId: q.sourceQueueItemId
                     )
                     combined.append(cloned)
                     if let src = sourceMap[q.id] {
@@ -598,7 +602,7 @@ struct DailyPracticeView: View {
             }
             reviewManager.markItemsAsCompleted(completedItems)
 
-            // Handle curveball pass/fail and mastery
+            // Handle curveball and spacedfollowup pass/fail, then mastery
             let curveService = CurveballService(modelContext: modelContext)
             for response in reviewResponses {
                 var mapped: ReviewQueueItem?
@@ -607,19 +611,38 @@ struct DailyPracticeView: View {
                     let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == srcId })
                     mapped = try? modelContext.fetch(fetch).first
                 }
-                guard let item = mapped, item.isCurveball else { continue }
-                if response.isCorrect {
-                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: true)
-                    let targetId = item.ideaId
-                    let ideaDescriptor = FetchDescriptor<Idea>(
-                        predicate: #Predicate<Idea> { idea in idea.id == targetId }
-                    )
-                    if let masteredIdea = try? modelContext.fetch(ideaDescriptor).first {
-                        masteredIdea.masteryLevel = 3
+                guard let item = mapped else { continue }
+                if item.isCurveball {
+                    if response.isCorrect {
+                        curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: true)
+                        let targetId = item.ideaId
+                        let ideaDescriptor = FetchDescriptor<Idea>(
+                            predicate: #Predicate<Idea> { idea in idea.id == targetId }
+                        )
+                        if let masteredIdea = try? modelContext.fetch(ideaDescriptor).first {
+                            masteredIdea.masteryLevel = 3
+                        }
+                    } else {
+                        item.isCompleted = true
+                        curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: false)
                     }
-                } else {
-                    item.isCompleted = true
-                    curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: false)
+                } else if item.isSpacedFollowUp {
+                    let targetIdeaId = item.ideaId
+                    let targetBookId = book.id.uuidString
+                    let covDesc = FetchDescriptor<IdeaCoverage>(
+                        predicate: #Predicate<IdeaCoverage> { c in
+                            c.ideaId == targetIdeaId && c.bookId == targetBookId
+                        }
+                    )
+                    if let cov = try? modelContext.fetch(covDesc).first {
+                        if response.isCorrect {
+                            cov.spacedFollowUpPassedAt = Date()
+                            cov.curveballDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.curveballAfterPassDays, to: Date())
+                        } else {
+                            cov.spacedFollowUpDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.retryDelayDays, to: Date())
+                        }
+                        try? modelContext.save()
+                    }
                 }
             }
         }
@@ -706,7 +729,7 @@ struct DailyPracticeView: View {
         
         print("DEBUG: Found responses for \(responsesByIdea.count) ideas")
         
-        // Update coverage for each idea
+        // Update coverage for each idea + schedule spacedfollowup if eligible
         for (ideaId, responses) in responsesByIdea {
             print("DEBUG: Updating coverage for idea \(ideaId) with \(responses.count) responses")
             coverageService.updateCoverageFromLesson(
@@ -714,6 +737,40 @@ struct DailyPracticeView: View {
                 bookId: bookId,
                 responses: responses
             )
+
+            // Try to store a substantial-correct source (Medium/Hard MCQ or any OEQ)
+            let covFetch = FetchDescriptor<IdeaCoverage>(predicate: #Predicate<IdeaCoverage> { c in c.ideaId == ideaId && c.bookId == bookId })
+            if let coverage = try? modelContext.fetch(covFetch).first {
+                // Choose best source from today's correct answers: Hard MCQ → Medium MCQ → OEQ
+                let qMap: [String: Question] = Dictionary(uniqueKeysWithValues: (generatedTest?.orderedQuestions ?? []).map { ($0.id.uuidString, $0) })
+                let hardMCQ = responses.first { tuple in
+                    guard tuple.isCorrect, let q = qMap[tuple.questionId] else { return false }
+                    return q.type == .mcq && q.difficulty == .hard
+                }
+                let mediumMCQ = responses.first { tuple in
+                    guard tuple.isCorrect, let q = qMap[tuple.questionId] else { return false }
+                    return q.type == .mcq && q.difficulty == .medium
+                }
+                let anyOEQ = responses.first { tuple in
+                    guard tuple.isCorrect, let q = qMap[tuple.questionId] else { return false }
+                    return q.type == .openEnded
+                }
+                let pick = hardMCQ ?? mediumMCQ ?? anyOEQ
+                if let pick = pick, let q = qMap[pick.questionId] {
+                    if coverage.spacedFollowUpBloom == nil { coverage.spacedFollowUpBloom = q.bloomCategory.rawValue }
+                    if coverage.spacedFollowUpDifficultyRaw == nil {
+                        let diff: QuestionDifficulty = (q.type == .openEnded) ? .hard : q.difficulty
+                        coverage.spacedFollowUpDifficultyRaw = diff.rawValue
+                    }
+                }
+
+                // If 8 categories are covered and spacedfollowup not set/passed, schedule it baseDelayDays out
+                let hasEight = Set(coverage.coveredCategories).count >= 8
+                if hasEight && coverage.spacedFollowUpPassedAt == nil && coverage.spacedFollowUpDueDate == nil && coverage.spacedFollowUpBloom != nil {
+                    coverage.spacedFollowUpDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.baseDelayDays, to: Date())
+                }
+                try? modelContext.save()
+            }
         }
         
         // Check if lesson is completed (80% or higher accuracy)

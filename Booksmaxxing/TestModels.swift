@@ -91,6 +91,7 @@ final class Question {
     var orderIndex: Int = 0  // Position in test (0-8)
     var createdAt: Date = Date.now
     var isCurveball: Bool = false
+    var isSpacedFollowUp: Bool = false
     // Persist mapping to source review queue item for reliable completion marking
     var sourceQueueItemId: UUID?
     
@@ -108,6 +109,7 @@ final class Question {
         correctAnswers: [Int]? = nil,
         orderIndex: Int,
         isCurveball: Bool = false,
+        isSpacedFollowUp: Bool = false,
         sourceQueueItemId: UUID? = nil
     ) {
         self.id = UUID()
@@ -121,6 +123,7 @@ final class Question {
         self.orderIndex = orderIndex
         self.createdAt = Date()
         self.isCurveball = isCurveball
+        self.isSpacedFollowUp = isSpacedFollowUp
         self.sourceQueueItemId = sourceQueueItemId
     }
 }
