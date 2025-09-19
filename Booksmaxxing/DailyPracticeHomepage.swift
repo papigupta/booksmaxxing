@@ -86,14 +86,17 @@ struct DailyPracticeHomepage: View {
                 }
             }
             .fullScreenCover(item: $selectedLesson) { lesson in
-                // Check if this is a special review session
-                if lesson.lessonNumber == -1 {
+                // If lesson number exceeds total ideas, treat as review-only session
+                let totalIdeas = (book.ideas ?? []).count
+                if lesson.lessonNumber > totalIdeas {
                     // Use the new review-enabled practice view
                     DailyPracticeWithReviewView(
                         book: book,
                         openAIService: openAIService,
                         onPracticeComplete: {
                             print("DEBUG: ✅✅ Review practice complete")
+                            // Mark this review-only lesson as completed so the next (17, 18, …) can appear
+                            completeLesson(lesson)
                             selectedLesson = nil
                             refreshView()
                         }
@@ -275,50 +278,53 @@ struct DailyPracticeHomepage: View {
                                     onTap: {
                                         print("DEBUG: Tapped on lesson \(milestone.id), isCurrent: \(milestone.isCurrent), isCompleted: \(milestone.isCompleted)")
                                         
-                                        // Allow tapping on unlocked lessons
-                                        let bookId = book.id.uuidString
-                                        guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
-                                            print("ERROR: Could not get lesson info for lesson \(milestone.id)")
-                                            return
-                                        }
-                                        
-                                        if lessonInfo.isUnlocked {
-                                            
-                                            print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
-                                            
-                                            // Create a temporary GeneratedLesson for compatibility
-                                            let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
-                                            
-                                            // Get the actual idea for this lesson to set primaryIdeaId
-                                            let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
-                                            
-                                            let primaryIdeaId: String
-                                            if milestone.id > 0 && milestone.id <= sortedIdeas.count {
-                                                primaryIdeaId = sortedIdeas[milestone.id - 1].id
-                                            } else {
-                                                print("ERROR: Could not find idea for lesson \(milestone.id)")
-                                                primaryIdeaId = sortedIdeas.first?.id ?? "unknown"
-                                            }
-                                            
+                                        let totalIdeas = (book.ideas ?? []).count
+                                        if milestone.id > totalIdeas {
+                                            // Review-only lesson: create a placeholder GeneratedLesson and present review view
+                                            print("DEBUG: Starting review-only session for lesson \(milestone.id)")
+                                            // Ensure a StoredLesson exists so we can mark completion
+                                            let _ = lessonStorage.getOrCreateReviewLesson(bookId: book.id.uuidString, lessonNumber: milestone.id, book: book)
                                             let tempLesson = GeneratedLesson(
                                                 lessonNumber: milestone.id,
-                                                title: "Lesson \(milestone.id): \(lessonInfo.title)",
-                                                primaryIdeaId: primaryIdeaId,
-                                                primaryIdeaTitle: lessonInfo.title,
+                                                title: "Review Practice",
+                                                primaryIdeaId: "review_session",
+                                                primaryIdeaTitle: "Review Practice",
                                                 reviewIdeaIds: [],
-                                                mistakeCorrections: emptyMistakeCorrections,
-                                                questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
-                                                estimatedMinutes: 10,
+                                                mistakeCorrections: [],
+                                                questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 8, correctionQuestions: 0),
+                                                estimatedMinutes: 12,
                                                 isUnlocked: true,
-                                                isCompleted: lessonInfo.isCompleted
+                                                isCompleted: false
                                             )
-                                            
-                                            print("DEBUG: Created temp lesson with primaryIdeaId: \(primaryIdeaId)")
-                                            
-                                            // Set the lesson to trigger the fullScreenCover
                                             selectedLesson = tempLesson
                                         } else {
-                                            print("DEBUG: Lesson \(milestone.id) is not unlocked or not found")
+                                            // Normal idea lesson
+                                            let bookId = book.id.uuidString
+                                            guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
+                                                print("ERROR: Could not get lesson info for lesson \(milestone.id)")
+                                                return
+                                            }
+                                            if lessonInfo.isUnlocked {
+                                                print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
+                                                let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
+                                                let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
+                                                let primaryIdeaId = sortedIdeas[milestone.id - 1].id
+                                                let tempLesson = GeneratedLesson(
+                                                    lessonNumber: milestone.id,
+                                                    title: "Lesson \(milestone.id): \(lessonInfo.title)",
+                                                    primaryIdeaId: primaryIdeaId,
+                                                    primaryIdeaTitle: lessonInfo.title,
+                                                    reviewIdeaIds: [],
+                                                    mistakeCorrections: emptyMistakeCorrections,
+                                                    questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
+                                                    estimatedMinutes: 10,
+                                                    isUnlocked: true,
+                                                    isCompleted: lessonInfo.isCompleted
+                                                )
+                                                selectedLesson = tempLesson
+                                            } else {
+                                                print("DEBUG: Lesson \(milestone.id) is not unlocked")
+                                            }
                                         }
                                     }
                                 )
@@ -429,7 +435,7 @@ struct DailyPracticeHomepage: View {
         print("DEBUG: Retrieved \(lessonInfos.count) lesson infos from LessonStorage")
         
         // Convert to milestones for UI
-        let milestones = lessonInfos.enumerated().map { index, info in
+        var milestones = lessonInfos.enumerated().map { index, info in
             let isCurrent = info.lessonNumber == currentLessonNumber && info.isUnlocked && !info.isCompleted
             print("DEBUG: Creating milestone - Lesson \(info.lessonNumber): \(info.title), Unlocked: \(info.isUnlocked), Completed: \(info.isCompleted), Current: \(isCurrent)")
             return PracticeMilestone(
@@ -439,7 +445,7 @@ struct DailyPracticeHomepage: View {
                 isCurrent: isCurrent
             )
         }
-        
+
         // Load review queue stats for this specific book (after ensuring curveballs/spacedfollowups queued)
         let queueStats = reviewQueueManager.getQueueStatistics(bookId: book.id.uuidString)
         let totalReviewItems = queueStats.totalMCQs + queueStats.totalOpenEnded
@@ -462,6 +468,32 @@ struct DailyPracticeHomepage: View {
             }
         }
         
+        // If all idea lessons completed, decide which review-only lesson to show (if any)
+        let totalIdeas = (book.ideas ?? []).count
+        let allIdeasCompleted = lessonInfos.last.map { $0.isCompleted } ?? false
+        if allIdeasCompleted {
+            // Find existing review-only lessons for this book
+            let descriptor = FetchDescriptor<StoredLesson>(
+                predicate: #Predicate<StoredLesson> { l in l.bookId == bookId && l.lessonNumber > totalIdeas },
+                sortBy: [SortDescriptor(\.lessonNumber)]
+            )
+            let existingReviewLessons: [StoredLesson] = (try? modelContext.fetch(descriptor)) ?? []
+            // Pick the next review lesson number
+            let nextReviewId: Int? = {
+                if let firstIncomplete = existingReviewLessons.first(where: { !$0.isCompleted }) {
+                    return firstIncomplete.lessonNumber
+                }
+                if totalReviewItems > 0 {
+                    return (existingReviewLessons.last?.lessonNumber ?? totalIdeas) + 1
+                }
+                return nil
+            }()
+            if let reviewId = nextReviewId {
+                milestones.append(PracticeMilestone(id: reviewId, title: "Review Practice", isCompleted: false, isCurrent: true))
+                currentLessonNumber = reviewId
+            }
+        }
+
         await MainActor.run {
             print("DEBUG: Setting practiceMilestones array with \(milestones.count) milestones")
             self.practiceMilestones = milestones
@@ -492,13 +524,16 @@ struct DailyPracticeHomepage: View {
     private func prefetchCurrentLessonIfNeeded() async {
         // Identify current lesson from milestones
         guard let current = practiceMilestones.first(where: { $0.isCurrent }) else { return }
-        // Full prefetch for the current lesson (mixed with review)
-        await prefetchLesson(number: current.id)
-        // Prewarm only the initial 8 for the next lesson; reviews depend on results of current.
-        let next = min(current.id + 1, practiceMilestones.count)
-        if next != current.id {
-            let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
-            prefetcher.prewarmInitialQuestions(book: book, lessonNumber: next)
+        // Only prefetch mixed idea lessons; review-only sessions are generated on demand
+        let totalIdeas = (book.ideas ?? []).count
+        if current.id <= totalIdeas {
+            await prefetchLesson(number: current.id)
+            // Prewarm only the initial 8 for the next lesson; reviews depend on results of current.
+            let next = min(current.id + 1, practiceMilestones.count)
+            if next != current.id {
+                let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
+                prefetcher.prewarmInitialQuestions(book: book, lessonNumber: next)
+            }
         }
     }
 

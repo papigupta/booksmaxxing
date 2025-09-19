@@ -153,28 +153,42 @@ final class LessonStorageService {
     }
     
     private func createNewLesson(bookId: String, lessonNumber: Int, book: Book) -> StoredLesson? {
-        guard let idea = getIdeaForLesson(book: book, lessonNumber: lessonNumber) else {
-            print("ERROR: Could not find idea for lesson \(lessonNumber)")
-            return nil
-        }
-        
+        // Support both idea lessons and review-only lessons (lessonNumber > ideas count)
+        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
+        let isReviewOnly = lessonNumber > sortedIdeas.count
+        let (pid, ptitle): (String, String) = {
+            if isReviewOnly {
+                return ("review_session", "Review Practice")
+            } else if let idea = getIdeaForLesson(book: book, lessonNumber: lessonNumber) {
+                return (idea.id, idea.title)
+            } else {
+                print("ERROR: Could not find idea for lesson \(lessonNumber)")
+                return ("unknown", "Lesson")
+            }
+        }()
         let lesson = StoredLesson(
             bookId: bookId,
             lessonNumber: lessonNumber,
-            primaryIdeaId: idea.id,
-            primaryIdeaTitle: idea.title
+            primaryIdeaId: pid,
+            primaryIdeaTitle: ptitle
         )
         
         modelContext.insert(lesson)
         
         do {
             try modelContext.save()
-            print("DEBUG: Created new lesson \(lessonNumber) for idea: \(idea.title)")
+            print("DEBUG: Created new lesson \(lessonNumber) for: \(ptitle)")
             return lesson
         } catch {
             print("ERROR: Failed to save lesson: \(error)")
             return nil
         }
+    }
+
+    // Create or fetch a review-only StoredLesson for the given lessonNumber (> ideas count)
+    func getOrCreateReviewLesson(bookId: String, lessonNumber: Int, book: Book) -> StoredLesson? {
+        if let existing = findExistingLesson(bookId: bookId, lessonNumber: lessonNumber) { return existing }
+        return createNewLesson(bookId: bookId, lessonNumber: lessonNumber, book: book)
     }
     
     private func getIdeaForLesson(book: Book, lessonNumber: Int) -> Idea? {

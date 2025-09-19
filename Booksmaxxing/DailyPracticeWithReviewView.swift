@@ -29,6 +29,13 @@ struct DailyPracticeWithReviewView: View {
         case streak
     }
     
+    private func getIdeaTitle(ideaId: String) -> String? {
+        let descriptor = FetchDescriptor<Idea>(
+            predicate: #Predicate<Idea> { $0.id == ideaId }
+        )
+        return (try? modelContext.fetch(descriptor).first?.title)
+    }
+    
     private var testGenerationService: TestGenerationService {
         TestGenerationService(
             openAI: openAIService,
@@ -217,32 +224,31 @@ struct DailyPracticeWithReviewView: View {
                     .foregroundColor(DS.Colors.secondaryText)
             }
             
-            // Practice Breakdown
+            // Practice Breakdown — show idea composition like routine lessons
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                 Text("Today's Session")
                     .font(DS.Typography.headline)
                     .foregroundColor(DS.Colors.black)
-                
-                // Fresh content section
-                if !freshQuestions.isEmpty, let idea = currentIdea {
-                    sessionSectionView(
-                        title: "📚 New Learning",
-                        subtitle: idea.title,
-                        questions: freshQuestions,
-                        color: DS.Colors.black
-                    )
+
+                // Idea composition (grouped counts)
+                let all = reviewQuestions
+                let grouped = Dictionary(grouping: all, by: { $0.ideaId })
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    ForEach(Array(grouped.keys), id: \.self) { ideaId in
+                        let count = grouped[ideaId]?.count ?? 0
+                        let title = getIdeaTitle(ideaId: ideaId) ?? "Idea"
+                        HStack {
+                            Text(title)
+                                .font(DS.Typography.body)
+                                .foregroundColor(DS.Colors.black)
+                            Spacer()
+                            Text("\(count) question\(count == 1 ? "" : "s")")
+                                .font(DS.Typography.caption)
+                                .foregroundColor(DS.Colors.secondaryText)
+                        }
+                    }
                 }
-                
-                // Review section
-                if !reviewQuestions.isEmpty {
-                    sessionSectionView(
-                        title: "🔄 Review Queue",
-                        subtitle: "Reinforcing past mistakes",
-                        questions: reviewQuestions,
-                        color: Color.orange
-                    )
-                }
-                
+
                 // Stats
                 statsView
             }
@@ -356,8 +362,8 @@ struct DailyPracticeWithReviewView: View {
             let spacedService = SpacedFollowUpService(modelContext: modelContext)
             spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: book.title)
             // For pure review sessions, we only need review questions
-            // 1. Get review items from queue for this specific book
-            let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(bookId: book.id.uuidString)
+            // 1. Get review items from queue for this specific book — review-only sessions want 6 MCQ + 2 OEQ
+            let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(bookId: book.id.uuidString, mcqCap: 6, openCap: 2)
             reviewQueueItems = mcqItems + openEndedItems
             
             print("🔄 REVIEW SESSION: Found \(reviewQueueItems.count) items in queue (\(mcqItems.count) MCQ, \(openEndedItems.count) Open-ended)")

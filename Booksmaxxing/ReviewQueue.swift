@@ -118,7 +118,7 @@ class ReviewQueueManager {
     
     // MARK: - Get Daily Review Questions
     
-    func getDailyReviewItems(bookId: String) -> (mcqs: [ReviewQueueItem], openEnded: [ReviewQueueItem]) {
+    func getDailyReviewItems(bookId: String, mcqCap: Int = 3, openCap: Int = 1) -> (mcqs: [ReviewQueueItem], openEnded: [ReviewQueueItem]) {
         let targetBookId = bookId
         let descriptor = FetchDescriptor<ReviewQueueItem>(
             predicate: #Predicate { item in
@@ -177,8 +177,8 @@ class ReviewQueueManager {
             }
 
             // Fill remaining respecting caps
-            let mcqRemainingCap = max(0, 3 - selectedMCQs.count)
-            let openRemainingCap = max(0, 1 - selectedOpen.count)
+            let mcqRemainingCap = max(0, mcqCap - selectedMCQs.count)
+            let openRemainingCap = max(0, openCap - selectedOpen.count)
 
             // Avoid re-adding the same concept as the curveball
             var usedKeys = Set<String>()
