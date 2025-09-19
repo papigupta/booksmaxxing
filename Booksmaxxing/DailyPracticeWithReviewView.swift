@@ -4,6 +4,9 @@ import SwiftData
 struct DailyPracticeWithReviewView: View {
     let book: Book
     let openAIService: OpenAIService
+    // When provided, identifies the specific review-only lesson (e.g., 16, 17, ...)
+    // Used to persist and reload the exact set of questions like routine lessons.
+    let selectedLesson: GeneratedLesson?
     let onPracticeComplete: (() -> Void)?
     
     @Environment(\.modelContext) private var modelContext
@@ -351,6 +354,12 @@ struct DailyPracticeWithReviewView: View {
     
     // MARK: - Actions
     
+    // Unique key for persisting a specific review-only lesson session
+    private var reviewSessionKey: String {
+        if let n = selectedLesson?.lessonNumber { return "review_session_\(n)" }
+        return "review_session"
+    }
+
     private func generateDailyPractice() async {
         isGenerating = true
         errorMessage = nil
@@ -361,6 +370,33 @@ struct DailyPracticeWithReviewView: View {
             curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: book.title)
             let spacedService = SpacedFollowUpService(modelContext: modelContext)
             spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: book.title)
+            
+            // If we're attached to a numbered review-only lesson, try to reuse a persisted session first
+            if selectedLesson != nil {
+                if let existing = try await fetchExistingSession(for: reviewSessionKey, type: "review_practice"),
+                   let test = existing.test,
+                   (test.questions ?? []).isEmpty == false {
+                    // Rehydrate state for UI
+                    await MainActor.run {
+                        self.currentIdea = createDailyPracticeIdea()
+                        self.combinedTest = test
+                        self.reviewQuestions = test.orderedQuestions
+                        // Rebuild mapping from persisted sourceQueueItemId
+                        var map: [UUID: ReviewQueueItem] = [:]
+                        for q in test.orderedQuestions {
+                            if let src = q.sourceQueueItemId {
+                                let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == src })
+                                if let item = try? modelContext.fetch(fetch).first {
+                                    map[q.id] = item
+                                }
+                            }
+                        }
+                        self.reviewQuestionToQueueItem = map
+                        self.isGenerating = false
+                    }
+                    return
+                }
+            }
             // For pure review sessions, we only need review questions
             // 1. Get review items from queue for this specific book — review-only sessions want 6 MCQ + 2 OEQ
             let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(bookId: book.id.uuidString, mcqCap: 6, openCap: 2)
@@ -388,7 +424,7 @@ struct DailyPracticeWithReviewView: View {
                 print("🔄 REVIEW SESSION: Generated \(reviewQuestions.count) review questions (Easy: \(easyCount), Medium: \(mediumCount), Hard: \(hardCount))")
             }
             
-            // 3. Create test with only review questions
+            // 3. Create and optionally persist test with only review questions
             if !reviewQuestions.isEmpty {
                 // Create a dummy idea for the review session
                 currentIdea = Idea(
@@ -398,8 +434,80 @@ struct DailyPracticeWithReviewView: View {
                     bookTitle: book.title,
                     depthTarget: 1
                 )
-                combinedTest = createCombinedTest(fresh: [], review: reviewQuestions)
-                print("🔄 REVIEW SESSION: Created test with \(reviewQuestions.count) questions")
+                
+                if selectedLesson != nil {
+                    // Persist like routine lessons so revisits reload instantly
+                    // Build persisted Test and clone questions while writing sourceQueueItemId for mapping
+                    let test = Test(
+                        ideaId: currentIdea!.id,
+                        ideaTitle: currentIdea!.title,
+                        bookTitle: book.title,
+                        testType: "daily"
+                    )
+                    try await MainActor.run {
+                        self.modelContext.insert(test)
+                    }
+                    
+                    // Build pairs aligning reviewQuestions with queue items for mapping
+                    var mapping: [UUID: ReviewQueueItem] = [:]
+                    var cloned: [Question] = []
+                    for (index, q) in reviewQuestions.enumerated() {
+                        // Try match by existing sourceQueueItemId first
+                        var srcItem: ReviewQueueItem? = nil
+                        if let sid = q.sourceQueueItemId {
+                            let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == sid })
+                            srcItem = try? modelContext.fetch(fetch).first
+                        }
+                        if srcItem == nil {
+                            // Fallback: best-effort by ideaId and difficulty
+                            srcItem = reviewQueueItems.first { $0.ideaId == q.ideaId }
+                        }
+                        let nq = Question(
+                            ideaId: q.ideaId,
+                            type: q.type,
+                            difficulty: q.difficulty,
+                            bloomCategory: q.bloomCategory,
+                            questionText: q.questionText,
+                            options: q.options,
+                            correctAnswers: q.correctAnswers,
+                            orderIndex: index,
+                            isCurveball: q.isCurveball,
+                            isSpacedFollowUp: q.isSpacedFollowUp,
+                            sourceQueueItemId: srcItem?.id
+                        )
+                        cloned.append(nq)
+                        if let src = srcItem { mapping[nq.id] = src }
+                    }
+                    reviewQuestionToQueueItem = mapping
+                    
+                    try await MainActor.run {
+                        for q in cloned {
+                            q.test = test
+                            if test.questions == nil { test.questions = [] }
+                            test.questions?.append(q)
+                            self.modelContext.insert(q)
+                        }
+                        try self.modelContext.save()
+                        // Create PracticeSession keyed to this review lesson number
+                        let session = PracticeSession(
+                            ideaId: reviewSessionKey,
+                            bookId: book.id.uuidString,
+                            type: "review_practice",
+                            status: "ready",
+                            configVersion: 1
+                        )
+                        session.test = test
+                        self.modelContext.insert(session)
+                        try self.modelContext.save()
+                        self.combinedTest = test
+                        self.reviewQuestions = cloned
+                    }
+                    print("🔄 REVIEW SESSION: Persisted test with \(reviewQuestions.count) questions for \(reviewSessionKey)")
+                } else {
+                    // Ephemeral review practice (from menu): do not persist
+                    combinedTest = createCombinedTest(fresh: [], review: reviewQuestions)
+                    print("🔄 REVIEW SESSION: Created test with \(reviewQuestions.count) questions")
+                }
             }
             
             await MainActor.run {
@@ -410,6 +518,19 @@ struct DailyPracticeWithReviewView: View {
                 self.errorMessage = error.localizedDescription
                 self.isGenerating = false
             }
+        }
+    }
+    
+    // MARK: - Session helpers (review-only)
+    private func fetchExistingSession(for ideaId: String, type: String) async throws -> PracticeSession? {
+        try await MainActor.run {
+            let descriptor = FetchDescriptor<PracticeSession>(
+                predicate: #Predicate { s in
+                    s.ideaId == ideaId && s.type == type && s.status == "ready"
+                },
+                sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+            )
+            return try self.modelContext.fetch(descriptor).first
         }
     }
     

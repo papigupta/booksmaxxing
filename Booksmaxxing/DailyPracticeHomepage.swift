@@ -93,6 +93,7 @@ struct DailyPracticeHomepage: View {
                     DailyPracticeWithReviewView(
                         book: book,
                         openAIService: openAIService,
+                        selectedLesson: lesson,
                         onPracticeComplete: {
                             print("DEBUG: ✅✅ Review practice complete")
                             // Mark this review-only lesson as completed so the next (17, 18, …) can appear
@@ -340,6 +341,10 @@ struct DailyPracticeHomepage: View {
                         }
                     }
                     .padding(.vertical, DS.Spacing.md)
+                    .onChange(of: practiceMilestones) { _ in
+                        // Recenter when milestones update (e.g., after completing a review-only session)
+                        scrollToCurrentLesson(proxy: proxy)
+                    }
                 }
                 .frame(maxHeight: 400)
                 .onAppear {
@@ -468,29 +473,47 @@ struct DailyPracticeHomepage: View {
             }
         }
         
-        // If all idea lessons completed, decide which review-only lesson to show (if any)
+        // If all idea lessons completed, append all review-only lessons and choose current properly
         let totalIdeas = (book.ideas ?? []).count
         let allIdeasCompleted = lessonInfos.last.map { $0.isCompleted } ?? false
         if allIdeasCompleted {
-            // Find existing review-only lessons for this book
+            // Fetch all review-only StoredLesson rows for this book
             let descriptor = FetchDescriptor<StoredLesson>(
                 predicate: #Predicate<StoredLesson> { l in l.bookId == bookId && l.lessonNumber > totalIdeas },
                 sortBy: [SortDescriptor(\.lessonNumber)]
             )
             let existingReviewLessons: [StoredLesson] = (try? modelContext.fetch(descriptor)) ?? []
-            // Pick the next review lesson number
-            let nextReviewId: Int? = {
-                if let firstIncomplete = existingReviewLessons.first(where: { !$0.isCompleted }) {
-                    return firstIncomplete.lessonNumber
+
+            // Append all existing review-only lessons so completed ones remain visible
+            for rl in existingReviewLessons {
+                milestones.append(
+                    PracticeMilestone(
+                        id: rl.lessonNumber,
+                        title: "Review Practice",
+                        isCompleted: rl.isCompleted,
+                        isCurrent: false
+                    )
+                )
+            }
+
+            // Decide which review milestone is current
+            if let firstIncomplete = existingReviewLessons.first(where: { !$0.isCompleted }) {
+                if let idx = milestones.firstIndex(where: { $0.id == firstIncomplete.lessonNumber }) {
+                    milestones[idx].isCurrent = true
+                    currentLessonNumber = firstIncomplete.lessonNumber
                 }
-                if totalReviewItems > 0 {
-                    return (existingReviewLessons.last?.lessonNumber ?? totalIdeas) + 1
-                }
-                return nil
-            }()
-            if let reviewId = nextReviewId {
-                milestones.append(PracticeMilestone(id: reviewId, title: "Review Practice", isCompleted: false, isCurrent: true))
-                currentLessonNumber = reviewId
+            } else if totalReviewItems > 0 {
+                // No incomplete stored review lessons; if review items are due, show the next one
+                let nextId = (existingReviewLessons.last?.lessonNumber ?? totalIdeas) + 1
+                milestones.append(
+                    PracticeMilestone(
+                        id: nextId,
+                        title: "Review Practice",
+                        isCompleted: false,
+                        isCurrent: true
+                    )
+                )
+                currentLessonNumber = nextId
             }
         }
 
@@ -676,7 +699,7 @@ struct PracticeStats {
     let masteredCount: Int
 }
 
-struct PracticeMilestone {
+struct PracticeMilestone: Equatable {
     let id: Int
     let title: String
     var isCompleted: Bool
