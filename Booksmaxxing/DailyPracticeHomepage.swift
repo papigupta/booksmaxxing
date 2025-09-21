@@ -341,7 +341,7 @@ struct DailyPracticeHomepage: View {
                         }
                     }
                     .padding(.vertical, DS.Spacing.md)
-                    .onChange(of: practiceMilestones) { _ in
+                    .onChange(of: practiceMilestones) { _, _ in
                         // Recenter when milestones update (e.g., after completing a review-only session)
                         scrollToCurrentLesson(proxy: proxy)
                     }
