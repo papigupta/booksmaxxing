@@ -7,6 +7,7 @@ struct CelebrationView: View {
     let level: Int
     let starScore: Int
     let openAIService: OpenAIService
+    var onContinue: (() -> Void)? = nil
     
     @Environment(\.modelContext) private var modelContext
     @State private var showConfetti = false
@@ -77,10 +78,17 @@ struct CelebrationView: View {
             
             // Action Buttons
             VStack(spacing: DS.Spacing.md) {
-                Button("Master Another Idea") {
-                    navigateToBookOverview = true
+                if let onContinue = onContinue {
+                    Button("Continue") {
+                        onContinue()
+                    }
+                    .dsPrimaryButton()
+                } else {
+                    Button("Master Another Idea") {
+                        navigateToBookOverview = true
+                    }
+                    .dsPrimaryButton()
                 }
-                .dsPrimaryButton()
                 
                 Button("Share Achievement") {
                     // Share achievement

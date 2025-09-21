@@ -370,10 +370,10 @@ struct UnifiedIdeaListItem: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
-            // Center: Coverage Percentage
+            // Center: Coverage Percentage / Mastery
             VStack(alignment: .center, spacing: 4) {
                 if let coverage = ideaCoverage, coverage.coveragePercentage > 0 {
-                    Text("\(Int(coverage.coveragePercentage))%")
+                    Text(coverage.curveballPassed ? "Mastered" : "\(Int(coverage.coveragePercentage))%")
                         .font(DS.Typography.caption)
                         .fontWeight(.light)
                         .foregroundColor(DS.Colors.primaryText)
@@ -602,7 +602,7 @@ struct ActiveIdeaCard: View {
                                         .progressViewStyle(LinearProgressViewStyle(tint: coverageColor))
                                         .frame(width: 100, height: 4)
                                     
-                                    Text("\(Int(coverage.coveragePercentage))%")
+                                    Text(coverage.curveballPassed ? "Mastered" : "\(Int(coverage.coveragePercentage))%")
                                         .font(DS.Typography.small)
                                         .foregroundColor(DS.Colors.white.opacity(0.8))
                                 }
@@ -1020,7 +1020,7 @@ struct InactiveIdeaCard: View {
                                     .progressViewStyle(LinearProgressViewStyle(tint: inactiveCoverageColor))
                                     .frame(width: 80, height: 3)
                                 
-                                Text("\(Int(coverage.coveragePercentage))%")
+                                Text(coverage.curveballPassed ? "Mastered" : "\(Int(coverage.coveragePercentage))%")
                                     .font(DS.Typography.caption)
                                     .foregroundColor(DS.Colors.tertiaryText)
                             }

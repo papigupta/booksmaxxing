@@ -29,10 +29,14 @@ struct DailyPracticeView: View {
     @State private var currentView: PracticeFlowState = .none
     // Map cloned review question IDs -> source queue items
     @State private var reviewQuestionToQueueItem: [UUID: ReviewQueueItem] = [:]
+    // Celebration sequencing
+    @State private var celebrationQueue: [Idea] = []
+    @State private var currentCelebrationIdea: Idea? = nil
     
     enum PracticeFlowState {
         case none
         case streak
+        case celebration
     }
     
     private var testGenerationService: TestGenerationService {
@@ -104,15 +108,36 @@ struct DailyPracticeView: View {
             .fullScreenCover(isPresented: .constant(currentView != .none)) {
                 if currentView == .streak {
                     StreakView(onContinue: {
-                        print("DEBUG: ✅ Streak onContinue tapped, completing lesson")
-                        currentView = .none
-                        if let onComplete = onPracticeComplete {
-                            print("DEBUG: ✅ Calling onPracticeComplete callback")
-                            onComplete()
+                        print("DEBUG: ✅ Streak onContinue tapped")
+                        if !celebrationQueue.isEmpty {
+                            currentCelebrationIdea = celebrationQueue.removeFirst()
+                            withAnimation { currentView = .celebration }
                         } else {
-                            print("DEBUG: ❌ onPracticeComplete callback is nil!")
+                            currentView = .none
+                            if let onComplete = onPracticeComplete { onComplete() }
+                            else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
                         }
                     })
+                } else if currentView == .celebration {
+                    if let idea = currentCelebrationIdea {
+                        CelebrationView(
+                            idea: idea,
+                            userResponse: "",
+                            level: 3,
+                            starScore: 3,
+                            openAIService: openAIService,
+                            onContinue: {
+                                if !celebrationQueue.isEmpty {
+                                    currentCelebrationIdea = celebrationQueue.removeFirst()
+                                } else {
+                                    currentCelebrationIdea = nil
+                                    currentView = .none
+                                    if let onComplete = onPracticeComplete { onComplete() }
+                                    else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
+                                }
+                            }
+                        )
+                    }
                 } else {
                     // Fallback for unexpected states
                     Color.red
@@ -615,13 +640,6 @@ struct DailyPracticeView: View {
                 if item.isCurveball {
                     if response.isCorrect {
                         curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: true)
-                        let targetId = item.ideaId
-                        let ideaDescriptor = FetchDescriptor<Idea>(
-                            predicate: #Predicate<Idea> { idea in idea.id == targetId }
-                        )
-                        if let masteredIdea = try? modelContext.fetch(ideaDescriptor).first {
-                            masteredIdea.masteryLevel = 3
-                        }
                     } else {
                         item.isCompleted = true
                         curveService.markCurveballResult(ideaId: item.ideaId, bookId: book.id.uuidString, passed: false)
@@ -658,22 +676,52 @@ struct DailyPracticeView: View {
             print("DEBUG: WARNING - Cannot update coverage: test or lesson is nil")
         }
         
-        // Decide whether to show streak view based on today's first completion
+        // Build mastery celebration queue (ideas newly hitting mastery gate)
+        var candidateIdeaIds: Set<String> = []
+        if let test = generatedTest {
+            let qMap: [UUID: Question] = Dictionary(uniqueKeysWithValues: (test.questions ?? []).map { ($0.id, $0) })
+            for response in (attempt.responses ?? []) {
+                if let q = qMap[response.questionId] { candidateIdeaIds.insert(q.ideaId) }
+            }
+        }
+
+        var masteredIdeas: [Idea] = []
+        for ideaId in candidateIdeaIds {
+            let targetIdeaId = ideaId
+            let targetBookId = book.id.uuidString
+            let covDesc = FetchDescriptor<IdeaCoverage>(
+                predicate: #Predicate<IdeaCoverage> { c in c.ideaId == targetIdeaId && c.bookId == targetBookId }
+            )
+            let ideaDesc = FetchDescriptor<Idea>(predicate: #Predicate<Idea> { i in i.id == ideaId })
+            let coverage = try? modelContext.fetch(covDesc).first
+            let ideaObj = try? modelContext.fetch(ideaDesc).first
+            if let coverage, let ideaObj, ideaObj.masteryLevel < 3 {
+                let hasEight = Set(coverage.coveredCategories).count >= 8
+                let passedSPFU = coverage.spacedFollowUpPassedAt != nil
+                let passedCurve = coverage.curveballPassed
+                if hasEight && passedSPFU && passedCurve {
+                    masteredIdeas.append(ideaObj)
+                }
+            }
+        }
+        // Order queue by numeric idea id
+        celebrationQueue = masteredIdeas.sortedByNumericId()
+
+        // Decide whether to show streak view first, then celebrations
         print("DEBUG: Test completed - didIncrementStreak=\(didIncrementStreak)")
-        print("DEBUG: Attempt score: \(attempt.score), responses: \((attempt.responses ?? []).count)")
+        print("DEBUG: Attempt score: \(attempt.score), responses: \((attempt.responses ?? []).count), celebrations queued=\(celebrationQueue.count)")
 
         if didIncrementStreak {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 withAnimation { currentView = .streak }
             }
+        } else if !celebrationQueue.isEmpty {
+            currentCelebrationIdea = celebrationQueue.removeFirst()
+            withAnimation { currentView = .celebration }
         } else {
-            // No streak celebration today; finish flow immediately
-            if let onComplete = onPracticeComplete {
-                print("DEBUG: ✅ Completing practice without streak overlay")
-                onComplete()
-            } else {
-                print("DEBUG: ❌ onPracticeComplete callback is nil!")
-            }
+            // No streak and nothing to celebrate; finish immediately
+            if let onComplete = onPracticeComplete { onComplete() }
+            else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
         }
     }
     
