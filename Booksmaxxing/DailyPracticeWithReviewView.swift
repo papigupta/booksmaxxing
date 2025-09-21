@@ -36,7 +36,12 @@ struct DailyPracticeWithReviewView: View {
         let descriptor = FetchDescriptor<Idea>(
             predicate: #Predicate<Idea> { $0.id == ideaId }
         )
-        return (try? modelContext.fetch(descriptor).first?.title)
+        do {
+            let results = try modelContext.fetch(descriptor)
+            return results.first?.title
+        } catch {
+            return nil
+        }
     }
     
     private var testGenerationService: TestGenerationService {
@@ -444,7 +449,7 @@ struct DailyPracticeWithReviewView: View {
                         bookTitle: book.title,
                         testType: "daily"
                     )
-                    try await MainActor.run {
+                    await MainActor.run {
                         self.modelContext.insert(test)
                     }
                     
@@ -530,7 +535,8 @@ struct DailyPracticeWithReviewView: View {
                 },
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )
-            return try self.modelContext.fetch(descriptor).first
+            let results = try self.modelContext.fetch(descriptor)
+            return results.first
         }
     }
     
