@@ -23,6 +23,9 @@ struct DailyPracticeHomepage: View {
     // Review queue tracking
     @State private var reviewQueueCount: Int? = nil
     @State private var hasReviewItems: Bool = false
+    // Loading guards
+    @State private var didInitialLoad: Bool = false
+    @State private var isLoading: Bool = false
     
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
@@ -68,15 +71,22 @@ struct DailyPracticeHomepage: View {
             .id(refreshID)
             .navigationBarHidden(true)
             .task {
+                isLoading = true
                 await loadPracticeData()
-                // Prefetch the current lesson in background once data loads
                 await prefetchCurrentLessonIfNeeded()
+                didInitialLoad = true
+                isLoading = false
             }
             .onAppear {
-                // Reload data when view appears (e.g., returning from lesson)
-                Task {
-                    await loadPracticeData()
-                    await prefetchCurrentLessonIfNeeded()
+                // Avoid duplicate loads that cause visible flicker
+                if !didInitialLoad {
+                    Task {
+                        isLoading = true
+                        await loadPracticeData()
+                        await prefetchCurrentLessonIfNeeded()
+                        didInitialLoad = true
+                        isLoading = false
+                    }
                 }
             }
             .onChange(of: refreshID) { _, newValue in
@@ -263,10 +273,13 @@ struct DailyPracticeHomepage: View {
                 .foregroundColor(DS.Colors.primaryText)
             
             if practiceMilestones.isEmpty {
-                Text("Loading lessons...")
-                    .font(DS.Typography.body)
-                    .foregroundColor(DS.Colors.secondaryText)
-                    .padding()
+                HStack(spacing: DS.Spacing.sm) {
+                    ProgressView()
+                    Text("Loading lessons…")
+                        .font(DS.Typography.body)
+                        .foregroundColor(DS.Colors.secondaryText)
+                }
+                .padding()
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
@@ -563,6 +576,25 @@ struct DailyPracticeHomepage: View {
     private func prefetchLesson(number: Int) async {
         let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
         prefetcher.prefetchLesson(book: book, lessonNumber: number)
+    }
+
+    // MARK: - Quick Prefill to Avoid Flicker
+    private func quickPrefillMilestones() {
+        let lessonInfos = lessonStorage.getAllLessonInfo(book: book)
+        var currentLessonNumber = 1
+        if let firstIncomplete = lessonInfos.first(where: { !$0.isCompleted && $0.isUnlocked }) {
+            currentLessonNumber = firstIncomplete.lessonNumber
+        } else if let last = lessonInfos.last {
+            currentLessonNumber = min(last.lessonNumber + 1, lessonInfos.count)
+        }
+        self.practiceMilestones = lessonInfos.map { info in
+            PracticeMilestone(
+                id: info.lessonNumber,
+                title: info.title,
+                isCompleted: info.isCompleted,
+                isCurrent: info.lessonNumber == currentLessonNumber && info.isUnlocked && !info.isCompleted
+            )
+        }
     }
 }
 

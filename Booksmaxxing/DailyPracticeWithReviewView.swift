@@ -540,9 +540,10 @@ struct DailyPracticeWithReviewView: View {
     // MARK: - Session helpers (review-only)
     private func fetchExistingSession(for ideaId: String, type: String) async throws -> PracticeSession? {
         try await MainActor.run {
+            let currentBookId = book.id.uuidString
             let descriptor = FetchDescriptor<PracticeSession>(
                 predicate: #Predicate { s in
-                    s.ideaId == ideaId && s.type == type && s.status == "ready"
+                    s.ideaId == ideaId && s.bookId == currentBookId && s.type == type && s.status == "ready"
                 },
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )
