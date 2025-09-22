@@ -64,7 +64,12 @@ struct BookOverviewView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         ForEach(viewModel.extractedIdeas, id: \.id) { idea in
-                            UnifiedIdeaListItem(idea: idea)
+                            NavigationLink {
+                                IdeaResponsesView(idea: idea)
+                            } label: {
+                                UnifiedIdeaListItem(idea: idea)
+                            }
+                            .buttonStyle(PlainButtonStyle())
                         }
                     }
                     .padding(.top, DS.Spacing.xs)

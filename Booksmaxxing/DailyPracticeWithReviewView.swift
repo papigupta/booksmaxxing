@@ -22,6 +22,7 @@ struct DailyPracticeWithReviewView: View {
     @State private var errorMessage: String?
     @State private var showingTest = false
     @State private var showingPrimer = false
+    @State private var showingAttempts = false
     @State private var completedAttempt: TestAttempt?
     @State private var currentView: PracticeFlowState = .none
     @State private var shouldShowStreakToday: Bool = false
@@ -279,6 +280,13 @@ struct DailyPracticeWithReviewView: View {
                     .dsSecondaryButton()
                 }
                 
+                if let idea = currentIdea, idea.id != "review_session" {
+                    Button("Previous Attempts") {
+                        showingAttempts = true
+                    }
+                    .dsSecondaryButton()
+                }
+                
                 Button("Cancel") {
                     dismiss()
                 }
@@ -286,6 +294,9 @@ struct DailyPracticeWithReviewView: View {
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.bottom, DS.Spacing.xl)
+        }
+        .sheet(isPresented: $showingAttempts) {
+            if let idea = currentIdea { IdeaResponsesView(idea: idea) }
         }
     }
     

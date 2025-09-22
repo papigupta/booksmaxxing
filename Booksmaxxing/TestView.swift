@@ -414,6 +414,14 @@ struct TestView: View {
         case .openEnded:
             response.userAnswer = responses[question.id] ?? ""
         }
+
+        // Ensure relationship to question is set for inverse linkage
+        if response.question == nil { response.question = question }
+        // Also ensure the question has this response in its collection (deduping by id)
+        if question.responses == nil { question.responses = [] }
+        if question.responses?.contains(where: { $0.id == response.id }) == false {
+            question.responses?.append(response)
+        }
     }
     
     private func createResponse(for question: Question, attempt: TestAttempt) {
@@ -446,10 +454,13 @@ struct TestView: View {
             questionType: question.type,
             userAnswer: userAnswer
         )
-        
+        // Link relationships so inverse queries work (IdeaResponsesView relies on this)
+        response.question = question
         modelContext.insert(response)
         if attempt.responses == nil { attempt.responses = [] }
         attempt.responses?.append(response)
+        if question.responses == nil { question.responses = [] }
+        question.responses?.append(response)
         print("DEBUG: Created and saved response for question \(question.id), total responses now: \((attempt.responses ?? []).count)")
     }
     

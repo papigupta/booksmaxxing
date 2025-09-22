@@ -25,6 +25,7 @@ struct DailyPracticeView: View {
     @State private var errorMessage: String?
     @State private var showingTest = false
     @State private var showingPrimer = false
+    @State private var showingAttempts = false
     @State private var completedAttempt: TestAttempt?
     @State private var currentView: PracticeFlowState = .none
     // Map cloned review question IDs -> source queue items
@@ -258,6 +259,13 @@ struct DailyPracticeView: View {
                 }
                 .dsSecondaryButton()
                 
+                if ideaForTest.id != "daily_practice" {
+                    Button("Previous Attempts") {
+                        showingAttempts = true
+                    }
+                    .dsSecondaryButton()
+                }
+                
                 Button("Generate New Questions") {
                     Task {
                         await refreshPractice()
@@ -272,6 +280,9 @@ struct DailyPracticeView: View {
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.bottom, DS.Spacing.xl)
+        }
+        .sheet(isPresented: $showingAttempts) {
+            IdeaResponsesView(idea: ideaForTest)
         }
     }
     
