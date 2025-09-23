@@ -26,6 +26,8 @@ struct TestView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var streakManager: StreakManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var currentQuestionIndex = 0
     @State private var responses: [UUID: String] = [:]
@@ -94,7 +96,7 @@ struct TestView: View {
                             }
                             .font(DS.Typography.captionBold)
                         }
-                        .dsSecondaryButton()
+                        .themeSecondaryButton()
                     }
                     
                     Spacer()
@@ -108,7 +110,7 @@ struct TestView: View {
                                 }
                                 .font(DS.Typography.captionBold)
                             }
-                            .dsPrimaryButton()
+                            .themePrimaryButton()
                         } else {
                             Button(action: checkAnswer) {
                                 HStack(spacing: DS.Spacing.xs) {
@@ -123,7 +125,7 @@ struct TestView: View {
                                 }
                                 .font(DS.Typography.captionBold)
                             }
-                            .dsPrimaryButton()
+                            .themePrimaryButton()
                             .disabled(!isCurrentQuestionAnswered() || isEvaluatingQuestion)
                         }
                     } else {
@@ -132,7 +134,7 @@ struct TestView: View {
                                 Text("Finish Test")
                                     .font(DS.Typography.captionBold)
                             }
-                            .dsPrimaryButton()
+                            .themePrimaryButton()
                         } else {
                             Button(action: checkAnswer) {
                                 HStack(spacing: DS.Spacing.xs) {
@@ -155,7 +157,7 @@ struct TestView: View {
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.vertical, DS.Spacing.md)
             }
-            .background(DS.Colors.primaryBackground)
+            .background(themeManager.currentTokens(for: colorScheme).surface)
             .navigationTitle(idea.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -171,14 +173,14 @@ struct TestView: View {
                         dismiss()
                     }
                     .font(DS.Typography.caption)
-                    .foregroundStyle(DS.Colors.primaryText)
+                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { showingPrimer = true }) {
                         Text("Primer")
                             .font(DS.Typography.caption)
-                            .foregroundStyle(DS.Colors.primaryText)
+                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                     }
                 }
             }
@@ -229,6 +231,7 @@ struct TestView: View {
                     .presentationDetents([.medium, .large])
             }
         }
+        .background(themeManager.currentTokens(for: colorScheme).surface.ignoresSafeArea())
     }
     
     // MARK: - Helper Methods
@@ -668,8 +671,11 @@ struct MCQOptions: View {
     let options: [String]
     @Binding var selectedOptions: Set<Int>
     let isDisabled: Bool
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             ForEach(Array(options.enumerated()), id: \.offset) { index, option in
                 Button(action: {
@@ -680,11 +686,11 @@ struct MCQOptions: View {
                     HStack(spacing: DS.Spacing.md) {
                         Image(systemName: selectedOptions.contains(index) ? "circle.inset.filled" : "circle")
                             .font(.system(size: 20))
-                            .foregroundStyle(selectedOptions.contains(index) ? DS.Colors.primaryText : DS.Colors.tertiaryText)
+                            .foregroundStyle(selectedOptions.contains(index) ? theme.primary : theme.onSurface.opacity(0.4))
                         
                         Text(option)
                             .font(DS.Typography.body)
-                            .foregroundStyle(DS.Colors.primaryText)
+                            .foregroundStyle(theme.onSurface)
                             .multilineTextAlignment(.leading)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -693,10 +699,10 @@ struct MCQOptions: View {
                     .padding(DS.Spacing.md)
                     .background(
                         Rectangle()
-                            .fill(selectedOptions.contains(index) ? DS.Colors.tertiaryBackground : DS.Colors.secondaryBackground)
+                            .fill(selectedOptions.contains(index) ? theme.primaryContainer.opacity(0.35) : theme.surfaceVariant)
                             .overlay(
                                 Rectangle()
-                                    .stroke(selectedOptions.contains(index) ? DS.Colors.primaryText : DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+                                    .stroke(selectedOptions.contains(index) ? theme.primary : theme.outline, lineWidth: DS.BorderWidth.thin)
                             )
                     )
                 }
@@ -710,12 +716,15 @@ struct MSQOptions: View {
     let options: [String]
     @Binding var selectedOptions: Set<Int>
     let isDisabled: Bool
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             Text("Select all that apply")
                 .font(DS.Typography.caption)
-                .foregroundStyle(DS.Colors.secondaryText)
+                .foregroundStyle(theme.onSurface.opacity(0.7))
                 .italic()
             
             ForEach(Array(options.enumerated()), id: \.offset) { index, option in
@@ -731,11 +740,11 @@ struct MSQOptions: View {
                     HStack(spacing: DS.Spacing.md) {
                         Image(systemName: selectedOptions.contains(index) ? "checkmark.square.fill" : "square")
                             .font(.system(size: 20))
-                            .foregroundStyle(selectedOptions.contains(index) ? DS.Colors.primaryText : DS.Colors.tertiaryText)
+                            .foregroundStyle(selectedOptions.contains(index) ? theme.primary : theme.onSurface.opacity(0.4))
                         
                         Text(option)
                             .font(DS.Typography.body)
-                            .foregroundStyle(DS.Colors.primaryText)
+                            .foregroundStyle(theme.onSurface)
                             .multilineTextAlignment(.leading)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
@@ -744,10 +753,10 @@ struct MSQOptions: View {
                     .padding(DS.Spacing.md)
                     .background(
                         Rectangle()
-                            .fill(selectedOptions.contains(index) ? DS.Colors.tertiaryBackground : DS.Colors.secondaryBackground)
+                            .fill(selectedOptions.contains(index) ? theme.primaryContainer.opacity(0.35) : theme.surfaceVariant)
                             .overlay(
                                 Rectangle()
-                                    .stroke(selectedOptions.contains(index) ? DS.Colors.primaryText : DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+                                    .stroke(selectedOptions.contains(index) ? theme.primary : theme.outline, lineWidth: DS.BorderWidth.thin)
                             )
                     )
                 }
@@ -760,26 +769,29 @@ struct MSQOptions: View {
 struct OpenEndedInput: View {
     @Binding var response: String
     let isDisabled: Bool
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Text("Your response (2-4 sentences)")
                 .font(DS.Typography.caption)
-                .foregroundStyle(DS.Colors.secondaryText)
+                .foregroundStyle(theme.onSurface.opacity(0.7))
             
             TextEditor(text: $response)
                 .font(DS.Typography.body)
-                .foregroundStyle(DS.Colors.primaryText)
+                .foregroundStyle(theme.onSurface)
                 .scrollContentBackground(.hidden)
                 .background(.clear)
                 .frame(minHeight: 120)
                 .padding(DS.Spacing.md)
                 .background(
                     Rectangle()
-                        .fill(DS.Colors.tertiaryBackground)
+                        .fill(theme.surfaceVariant)
                         .overlay(
                             Rectangle()
-                                .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+                                .stroke(theme.outline, lineWidth: DS.BorderWidth.thin)
                         )
                 )
                 .disabled(isDisabled)
@@ -794,6 +806,8 @@ struct FeedbackFullScreen: View {
     let isLastQuestion: Bool
     let onPrimaryAction: () -> Void
     @State private var showExemplar: Bool = false
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
 
     private var statusLabel: (text: String, color: Color) {
         let ratio = feedback.maxPoints > 0 ? Double(feedback.pointsEarned) / Double(feedback.maxPoints) : 0
@@ -976,12 +990,12 @@ struct FeedbackFullScreen: View {
                     }
                     .font(DS.Typography.captionBold)
                 }
-                .dsPrimaryButton()
+                .themePrimaryButton()
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.vertical, DS.Spacing.md)
         }
-        .background(DS.Colors.primaryBackground.ignoresSafeArea())
+        .background(themeManager.currentTokens(for: colorScheme).background.ignoresSafeArea())
     }
 }
 
@@ -991,29 +1005,32 @@ struct ProgressBar: View {
     let progress: Double
     let currentQuestion: Int
     let totalQuestions: Int
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         VStack(spacing: DS.Spacing.xs) {
             HStack {
                 Text("Question \(currentQuestion) of \(totalQuestions)")
                     .font(DS.Typography.caption)
-                    .foregroundStyle(DS.Colors.secondaryText)
+                    .foregroundStyle(theme.onSurface.opacity(0.7))
                 
                 Spacer()
                 
                 Text("\(Int(progress * 100))%")
                     .font(DS.Typography.captionBold)
-                    .foregroundStyle(DS.Colors.primaryText)
+                    .foregroundStyle(theme.onSurface)
             }
             
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Rectangle()
-                        .fill(DS.Colors.tertiaryBackground)
+                        .fill(theme.surfaceVariant)
                         .frame(height: 4)
                     
                     Rectangle()
-                        .fill(DS.Colors.primaryText)
+                        .fill(theme.primary)
                         .frame(width: geometry.size.width * progress, height: 4)
                         .animation(.easeInOut(duration: 0.3), value: progress)
                 }

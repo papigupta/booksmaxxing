@@ -15,6 +15,8 @@ struct BookOverviewView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var streakManager: StreakManager
     @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
 
     init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
         self.bookTitle = bookTitle
@@ -23,7 +25,8 @@ struct BookOverviewView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(alignment: .leading, spacing: 0) {
             // Beautiful Header with Home Button
             headerView
             
@@ -45,16 +48,21 @@ struct BookOverviewView: View {
                 Spacer()
             } else if viewModel.extractedIdeas.isEmpty {
                 VStack(spacing: DS.Spacing.md) {
-                    Text("No ideas found")
-                        .font(DS.Typography.headline)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        Text("No ideas found")
+                            .font(DS.Typography.headline)
+                            .foregroundColor(theme.onSurface.opacity(0.7))
                     
                     Button("Extract Ideas") {
                         Task {
                             await viewModel.loadOrExtractIdeas(from: bookTitle)
                         }
                     }
-                    .dsSecondaryButton()
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(.horizontal, DS.Spacing.xl)
+                    .padding(.vertical, DS.Spacing.lg)
+                    .background(theme.primary)
+                    .foregroundColor(theme.onPrimary)
+                    .cornerRadius(6)
                     .frame(width: 200)
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -83,10 +91,11 @@ struct BookOverviewView: View {
                     }) {
                         Text("Start Practicing")
                             .font(DS.Typography.bodyBold)
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.onPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, DS.Spacing.lg)
-                            .background(DS.Colors.black)
+                            .background(theme.primary)
+                            .cornerRadius(8)
                     }
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.bottom, DS.Spacing.lg)
@@ -95,6 +104,7 @@ struct BookOverviewView: View {
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.top, DS.Spacing.xs)
+        .background(theme.background)
         .task {
             print("DEBUG: BookOverviewView task triggered")
             await viewModel.loadOrExtractIdeas(from: bookTitle)
@@ -112,6 +122,10 @@ struct BookOverviewView: View {
         }
         .onAppear {
             print("DEBUG: BookOverviewView appeared")
+            // Activate theme for current book
+            if let book = viewModel.currentBook {
+                Task { await themeManager.activateTheme(for: book) }
+            }
             // Only refresh if returning from other views and ideas might have changed
             // This prevents race conditions while still updating mastery levels
             if !viewModel.extractedIdeas.isEmpty {
@@ -136,6 +150,7 @@ struct BookOverviewView: View {
         .onChange(of: viewModel.currentBook?.id) { _, _ in
             // If currentBook becomes available after ideas, fire prefetch
             guard !didPrefetchLesson1, let book = viewModel.currentBook, !viewModel.extractedIdeas.isEmpty else { return }
+            Task { await themeManager.activateTheme(for: book) }
             didPrefetchLesson1 = true
             let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
             prefetcher.prefetchLesson(book: book, lessonNumber: 1)
@@ -182,24 +197,24 @@ struct BookOverviewView: View {
         let bookCoverage = coverageService.calculateBookCoverage(bookId: bookId, totalIdeas: viewModel.extractedIdeas.count)
         let _ = print("DEBUG: Book coverage for bookId '\(bookId)': \(bookCoverage)%")
         
-        VStack(spacing: DS.Spacing.xs) {
+        return VStack(spacing: DS.Spacing.xs) {
             HStack {
                 Text("Book Coverage")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                 Spacer()
                 Text("\(Int(bookCoverage))%")
                     .font(DS.Typography.bodyBold)
-                    .foregroundColor(DS.Colors.primaryText)
+                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
             }
             
             ProgressView(value: bookCoverage / 100)
-                .progressViewStyle(LinearProgressViewStyle(tint: DS.Colors.black))
+                .progressViewStyle(LinearProgressViewStyle(tint: themeManager.currentTokens(for: colorScheme).primary))
                 .frame(height: 6)
         }
         .padding(.horizontal, DS.Spacing.sm)
         .padding(.vertical, DS.Spacing.sm)
-        .background(DS.Colors.gray50)
+        .background(themeManager.currentTokens(for: colorScheme).surfaceVariant)
         .cornerRadius(8)
         .padding(.bottom, DS.Spacing.sm)
     }
@@ -286,7 +301,7 @@ struct BookOverviewView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(DS.Colors.primaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
                         .padding(.leading, DS.Spacing.sm)
                 }
                 .contentShape(Rectangle())
@@ -313,17 +328,17 @@ struct BookOverviewView: View {
                     Text(viewModel.bookInfo?.title ?? bookTitle)
                         .font(DS.Typography.largeTitle)
                         .tracking(-0.03)
-                        .foregroundColor(DS.Colors.primaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
                         .lineLimit(2)
                     
                     if let author = viewModel.bookInfo?.author {
                         Text("by \(author)")
                             .font(DS.Typography.body)
-                            .foregroundColor(DS.Colors.secondaryText)
+                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                     } else {
                         Text("Author not specified")
                             .font(DS.Typography.body)
-                            .foregroundColor(DS.Colors.tertiaryText)
+                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.6))
                     }
                     
                     // Show rating if available
@@ -352,7 +367,7 @@ struct BookOverviewView: View {
                 bookCoverageView
             }
         }
-        .background(DS.Colors.primaryBackground)
+        .background(themeManager.currentTokens(for: colorScheme).surface)
     }
 }
 

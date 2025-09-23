@@ -10,6 +10,8 @@ struct DailyPracticeHomepage: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var navigationState: NavigationState
     @EnvironmentObject var streakManager: StreakManager
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var practiceStats: PracticeStats?
     @State private var currentLessonNumber: Int = 0
@@ -51,7 +53,8 @@ struct DailyPracticeHomepage: View {
     }
     
     var body: some View {
-        NavigationStack {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return NavigationStack {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: DS.Spacing.lg) {
                     // Header
@@ -70,6 +73,7 @@ struct DailyPracticeHomepage: View {
             }
             .id(refreshID)
             .navigationBarHidden(true)
+            .background(theme.background)
             .task {
                 isLoading = true
                 await loadPracticeData()
@@ -78,6 +82,7 @@ struct DailyPracticeHomepage: View {
                 isLoading = false
             }
             .onAppear {
+                Task { await themeManager.activateTheme(for: book) }
                 // Avoid duplicate loads that cause visible flicker
                 if !didInitialLoad {
                     Task {
@@ -137,7 +142,8 @@ struct DailyPracticeHomepage: View {
     
     // MARK: - Header Section
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             // Top row: back button • streak • debug menu
             HStack {
                 // Back to Book Button
@@ -148,7 +154,11 @@ struct DailyPracticeHomepage: View {
                             .font(DS.Typography.caption)
                     }
                 }
-                .dsSmallButton()
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.sm)
+                .background(theme.surfaceVariant)
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.outline, lineWidth: DS.BorderWidth.thin))
+                .cornerRadius(8)
 
                 Spacer()
 
@@ -196,7 +206,7 @@ struct DailyPracticeHomepage: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(DS.Colors.primaryText)
+                        .foregroundColor(theme.onSurface)
                         .padding(.leading, DS.Spacing.sm)
                 }
                 .contentShape(Rectangle())
@@ -207,11 +217,11 @@ struct DailyPracticeHomepage: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text("Ready to practice?")
                         .font(DS.Typography.largeTitle)
-                        .foregroundColor(DS.Colors.primaryText)
+                        .foregroundColor(theme.onSurface)
                     
                     Text(book.title)
                         .font(DS.Typography.body)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(theme.onSurface.opacity(0.7))
                 }
                 
                 Spacer()
@@ -232,10 +242,11 @@ struct DailyPracticeHomepage: View {
     
     // MARK: - Stats Section
     private func statsSection(_ stats: PracticeStats) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
             Text("Your Progress")
                 .font(DS.Typography.headline)
-                .foregroundColor(DS.Colors.primaryText)
+                .foregroundColor(theme.onSurface)
             
             HStack(spacing: DS.Spacing.md) {
                 StatCard(
@@ -261,23 +272,25 @@ struct DailyPracticeHomepage: View {
             }
         }
         .padding(DS.Spacing.md)
-        .background(DS.Colors.secondaryBackground)
+        .background(theme.surfaceVariant)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.outline, lineWidth: DS.BorderWidth.thin))
         .cornerRadius(8)
     }
     
     // MARK: - Practice Path Section
     private var practicePathSection: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
             Text("Your Learning Path")
                 .font(DS.Typography.headline)
-                .foregroundColor(DS.Colors.primaryText)
+                .foregroundColor(theme.onSurface)
             
             if practiceMilestones.isEmpty {
                 HStack(spacing: DS.Spacing.sm) {
                     ProgressView()
                     Text("Loading lessons…")
                         .font(DS.Typography.body)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(theme.onSurface.opacity(0.7))
                 }
                 .padding()
             } else {
@@ -605,27 +618,32 @@ private struct StatCard: View {
     let value: String
     let subtitle: String
     
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        VStack(spacing: DS.Spacing.xs) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: DS.Spacing.xs) {
             Image(systemName: icon)
                 .font(.system(size: 20))
-                .foregroundColor(DS.Colors.black)
+                .foregroundColor(theme.primary)
             
             Text(value)
                 .font(DS.Typography.headline)
-                .foregroundColor(DS.Colors.primaryText)
+                .foregroundColor(theme.onSurface)
             
             Text(title)
                 .font(DS.Typography.caption)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(theme.onSurface.opacity(0.7))
             
             Text(subtitle)
                 .font(DS.Typography.small)
-                .foregroundColor(DS.Colors.tertiaryText)
+                .foregroundColor(theme.onSurface.opacity(0.6))
         }
         .frame(maxWidth: .infinity)
         .padding(DS.Spacing.sm)
-        .background(DS.Colors.primaryBackground)
+        .background(theme.surfaceVariant)
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.outline, lineWidth: DS.BorderWidth.hairline))
         .cornerRadius(6)
     }
 }
@@ -635,17 +653,21 @@ private struct MilestoneNode: View {
     let lesson: GeneratedLesson?
     let onTap: () -> Void
     
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         Button(action: onTap) {
             HStack(spacing: DS.Spacing.md) {
                 // Milestone circle
                 ZStack {
                     Circle()
-                        .fill(circleColor)
+                        .fill(circleColor(theme))
                         .frame(width: 60, height: 60)
                         .overlay(
                             Circle()
-                                .stroke(strokeColor, lineWidth: milestone.isCurrent ? 3 : 1)
+                                .stroke(strokeColor(theme), lineWidth: milestone.isCurrent ? 3 : 1)
                         )
                         .scaleEffect(milestone.isCurrent ? 1.1 : 1.0)
                         .animation(.easeInOut(duration: 0.3), value: milestone.isCurrent)
@@ -654,15 +676,15 @@ private struct MilestoneNode: View {
                     if milestone.isCompleted {
                         Image(systemName: "checkmark")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.onSecondary)
                     } else if milestone.isCurrent {
                         Image(systemName: "play.fill")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(theme.onPrimary)
                     } else {
                         Text("\(milestone.id)")
                             .font(DS.Typography.bodyBold)
-                            .foregroundColor(DS.Colors.gray500)
+                            .foregroundColor(theme.onSurface.opacity(0.6))
                     }
                 }
                 
@@ -670,11 +692,11 @@ private struct MilestoneNode: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text("Lesson \(milestone.id)")
                         .font(DS.Typography.caption)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(theme.onSurface.opacity(0.7))
                     
                     Text(milestone.title)
                         .font(DS.Typography.bodyBold)
-                        .foregroundColor(milestone.isCurrent ? DS.Colors.black : (milestone.isCompleted ? DS.Colors.black : DS.Colors.gray500))
+                        .foregroundColor(milestone.isCurrent ? theme.onPrimaryContainer : (milestone.isCompleted ? theme.onSecondaryContainer : theme.onSurface.opacity(0.7)))
                 }
                 
                 Spacer()
@@ -684,42 +706,42 @@ private struct MilestoneNode: View {
                     Text("START")
                         .font(DS.Typography.small)
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.onPrimary)
                         .padding(.horizontal, DS.Spacing.sm)
                         .padding(.vertical, DS.Spacing.xs)
-                        .background(DS.Colors.black)
+                        .background(theme.primary)
                         .cornerRadius(12)
                 }
             }
             .padding(DS.Spacing.md)
-            .background(milestone.isCurrent ? DS.Colors.black.opacity(0.05) : Color.clear)
+            .background(milestone.isCurrent ? theme.primaryContainer.opacity(0.25) : Color.clear)
             .cornerRadius(12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(milestone.isCurrent ? DS.Colors.black.opacity(0.2) : Color.clear, lineWidth: 1)
+                    .stroke(milestone.isCurrent ? theme.outline : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(PlainButtonStyle())
         .disabled(!milestone.isCompleted && !milestone.isCurrent)
     }
     
-    private var circleColor: Color {
+    private func circleColor(_ theme: ThemeTokens) -> Color {
         if milestone.isCompleted {
-            return Color.green
+            return theme.secondary
         } else if milestone.isCurrent {
-            return DS.Colors.black
+            return theme.primary
         } else {
-            return DS.Colors.gray200
+            return theme.surfaceVariant
         }
     }
     
-    private var strokeColor: Color {
+    private func strokeColor(_ theme: ThemeTokens) -> Color {
         if milestone.isCompleted {
-            return Color.green.opacity(0.3)
+            return theme.onSecondary.opacity(0.3)
         } else if milestone.isCurrent {
-            return DS.Colors.black
+            return theme.onPrimary.opacity(0.3)
         } else {
-            return DS.Colors.gray300
+            return theme.outline
         }
     }
 }

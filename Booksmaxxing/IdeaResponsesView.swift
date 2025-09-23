@@ -32,13 +32,17 @@ struct IdeaResponsesView: View {
         var mcq: [AttemptItem] = []
     }
     
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         VStack(spacing: 0) {
             // Header
             HStack {
                 Text(idea.title)
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.primaryText)
+                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
                     .lineLimit(2)
                 Spacer()
             }
@@ -51,7 +55,7 @@ struct IdeaResponsesView: View {
                     ProgressView()
                     Text("Loading responses…")
                         .font(DS.Typography.caption)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let errorMessage = errorMessage {
@@ -93,6 +97,7 @@ struct IdeaResponsesView: View {
         .task { await loadData() }
         .navigationTitle("Responses")
         .navigationBarTitleDisplayMode(.inline)
+        .background(theme.surface.ignoresSafeArea())
     }
     
     private var totalCount: Int {
@@ -248,7 +253,7 @@ private struct OEQCard: View {
             }
         }
         .padding(DS.Spacing.md)
-        .modifier(DSSubtleCardModifier())
+        .themedCard()
     }
     
     private var shareText: String {
@@ -272,6 +277,8 @@ private struct OEQCard: View {
 private struct MCQSection: View {
     let items: [IdeaResponsesView.AttemptItem]
     @State private var expanded = false
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -282,10 +289,10 @@ private struct MCQSection: View {
                     Spacer()
                     Text("\(items.count)")
                         .font(DS.Typography.caption)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                 }
             }
-            .dsSecondaryButton()
+            .themeSecondaryButton()
             
             if expanded {
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -344,7 +351,8 @@ private struct MCQSection: View {
                             }
                         }
                         .padding(DS.Spacing.md)
-                        .background(DS.Colors.secondaryBackground)
+                        .background(themeManager.currentTokens(for: colorScheme).surfaceVariant)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(themeManager.currentTokens(for: colorScheme).outline, lineWidth: DS.BorderWidth.thin))
                         .cornerRadius(8)
                     }
                 }

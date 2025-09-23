@@ -22,11 +22,16 @@ struct BooksmaxxingApp: App {
     @StateObject private var streakManager = StreakManager()
     // Auth state
     @StateObject private var authManager = AuthManager()
+    // Theme state
+    @StateObject private var themeManager = ThemeManager()
     
     // Track if we should try CloudKit sync
     @State private var shouldEnableCloudKit = false
     @State private var cloudKitContainer: ModelContainer?
     @State private var persistentContainer: ModelContainer?
+    // Theme Lab
+    @State private var themePreset: ThemePreset = .system // treat as System Light by default
+    @State private var showThemeLab: Bool = false
     
     var sharedModelContainer: ModelContainer = {
         do {
@@ -51,6 +56,7 @@ struct BooksmaxxingApp: App {
                      PrimerLinkItem.self,
                      StreakState.self,
                      UserProfile.self,
+                     BookTheme.self,
                 configurations: cloudConfig
             )
             print("✅ Created CloudKit-backed ModelContainer")
@@ -78,6 +84,7 @@ struct BooksmaxxingApp: App {
                          PrimerLinkItem.self,
                          StreakState.self,
                          UserProfile.self,
+                         BookTheme.self,
                     configurations: inMemory
                 )
                 print("✅ Created in-memory ModelContainer")
@@ -105,6 +112,7 @@ struct BooksmaxxingApp: App {
                             .environmentObject(navigationState)
                             .environmentObject(streakManager)
                             .environmentObject(authManager)
+                            .environmentObject(themeManager)
                             .transition(.opacity)
                     } else {
                         AuthView(authManager: authManager)
@@ -112,6 +120,9 @@ struct BooksmaxxingApp: App {
                     }
                 }
             }
+            // Apply experimental theme globally
+            .applyTheme(themePreset)
+            .preferredColorScheme(themePreset.preferredColorScheme)
             .animation(.easeInOut(duration: 0.5), value: isShowingSplash)
             .onAppear {
                 // Hide splash screen after a delay to allow everything to load
@@ -121,6 +132,33 @@ struct BooksmaxxingApp: App {
                     }
                 }
                 // Storage already initialized via sharedModelContainer
+            }
+            // Debug-only floating entry to Theme Lab
+            .overlay(alignment: .bottomTrailing) {
+                if DebugFlags.enableDevControls && DebugFlags.enableThemeLab {
+                    Button {
+                        showThemeLab = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "paintpalette")
+                            Text("Theme")
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(Color.black.opacity(0.8))
+                        )
+                        .foregroundStyle(Color.white)
+                        .shadow(radius: 4)
+                        .padding(12)
+                    }
+                    .accessibilityLabel("Open Theme Lab")
+                    .sheet(isPresented: $showThemeLab) {
+                        ThemeLabView(preset: $themePreset)
+                    }
+                }
             }
         }
         .modelContainer(sharedModelContainer)

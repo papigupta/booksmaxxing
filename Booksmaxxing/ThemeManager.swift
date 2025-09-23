@@ -1,0 +1,108 @@
+import SwiftUI
+import SwiftData
+
+@MainActor
+final class ThemeManager: ObservableObject {
+    @Published private(set) var tokensLight: ThemeTokens = ThemeTokens(
+        background: DS.Colors.primaryBackground,
+        surface: DS.Colors.primaryBackground,
+        surfaceVariant: DS.Colors.secondaryBackground,
+        onSurface: DS.Colors.primaryText,
+        primary: DS.Colors.black,
+        onPrimary: DS.Colors.white,
+        primaryContainer: DS.Colors.gray100,
+        onPrimaryContainer: DS.Colors.primaryText,
+        secondary: DS.Colors.gray800,
+        onSecondary: DS.Colors.white,
+        secondaryContainer: DS.Colors.gray100,
+        onSecondaryContainer: DS.Colors.primaryText,
+        tertiary: DS.Colors.gray700,
+        onTertiary: DS.Colors.white,
+        tertiaryContainer: DS.Colors.gray100,
+        onTertiaryContainer: DS.Colors.primaryText,
+        outline: DS.Colors.subtleBorder,
+        divider: DS.Colors.divider
+    )
+
+    @Published private(set) var tokensDark: ThemeTokens? = nil
+
+    private var modelContext: ModelContext?
+    func attachModelContext(_ ctx: ModelContext) { self.modelContext = ctx }
+
+    func currentTokens(for scheme: ColorScheme) -> ThemeTokens {
+        if scheme == .dark, let d = tokensDark { return d }
+        return tokensLight
+    }
+
+    func activateTheme(for book: Book) async {
+        guard let mc = modelContext else { return }
+        // Try fetch existing (fetch all and filter to avoid predicate compile constraints)
+        let descriptor = FetchDescriptor<BookTheme>()
+        if let existing = try? mc.fetch(descriptor).first(where: { $0.bookId == book.id }) {
+            if let roles = try? JSONDecoder().decode([PaletteRoleDTO].self, from: existing.rolesJSON) {
+                let rolesModels = roles.map { $0.model }
+                applyRoles(rolesModels)
+                return
+            }
+        }
+        // No existing: attempt to download cover and compute
+        guard let urlStr = (book.coverImageUrl ?? book.thumbnailUrl), let url = URL(string: urlStr) else { return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            #if canImport(UIKit)
+            guard let img = UIImage(data: data) else { return }
+            #elseif canImport(AppKit)
+            guard let img = NSImage(data: data) else { return }
+            #endif
+            guard let cg = ImageSampler.downsampleToCGImage(img, maxDimension: 64) else { return }
+            let px = ImageSampler.extractRGBAPixels(cg)
+            var labs: [LabPoint] = []
+            labs.reserveCapacity(px.count/4)
+            var i = 0
+            while i < px.count { // ignore transparent
+                if px[i+3] > 127 {
+                    let r = Double(px[i]) / 255.0
+                    let g = Double(px[i+1]) / 255.0
+                    let b = Double(px[i+2]) / 255.0
+                    let lab = rgbToOKLab(r: r, g: g, b: b)
+                    labs.append(LabPoint(L: lab.L, a: lab.a, b: lab.b))
+                }
+                i += 4
+            }
+            let clusters = KMeansQuantizer.quantize(labPoints: labs, k: 5, maxIterations: 10)
+            let seeds = PaletteGenerator.scoreSeeds(clusters)
+            let roles = PaletteGenerator.generateRoles(from: seeds)
+            applyRoles(roles)
+            // Persist
+            let dto: [PaletteRoleDTO] = roles.map { role in
+                let dict = Dictionary(uniqueKeysWithValues: role.tones.map { ($0.tone, $0.color.toHexString() ?? "#000000") })
+                return PaletteRoleDTO(name: role.name, tones: dict)
+            }
+            if let data = try? JSONEncoder().encode(dto) {
+                let theme = BookTheme(bookId: book.id, seedHex: seeds.first?.color.toHexString() ?? "#000000", rolesJSON: data)
+                mc.insert(theme)
+                try? mc.save()
+            }
+        } catch {
+            print("ThemeManager error: \(error)")
+        }
+    }
+
+    private func applyRoles(_ roles: [PaletteRole]) {
+        let light = ThemeEngine.resolveTokens(roles: roles, mode: .light)
+        let dark = ThemeEngine.resolveTokens(roles: roles, mode: .dark)
+        self.tokensLight = light
+        self.tokensDark = dark
+    }
+}
+
+// Codable DTO for persistence (PaletteRole isn’t Codable)
+private struct PaletteRoleDTO: Codable {
+    let name: String
+    let tones: [Int: String]
+    var model: PaletteRole {
+        let arr = tones.map { (tone: $0.key, color: Color(hex: $0.value.replacingOccurrences(of: "#", with: ""))) }
+        let sorted = arr.sorted { $0.tone < $1.tone }
+        return PaletteRole(name: name, tones: sorted)
+    }
+}

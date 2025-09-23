@@ -11,6 +11,8 @@ struct DailyPracticeWithReviewView: View {
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var isGenerating = true
     @State private var freshQuestions: [Question] = []
@@ -61,7 +63,8 @@ struct DailyPracticeWithReviewView: View {
     }
     
     var body: some View {
-        NavigationStack {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return NavigationStack {
             VStack {
                 if isGenerating {
                     generatingView
@@ -80,7 +83,7 @@ struct DailyPracticeWithReviewView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface)
                 }
             }
             .task {
@@ -126,31 +129,33 @@ struct DailyPracticeWithReviewView: View {
                 }
             }
         }
+        .background(theme.surface.ignoresSafeArea())
     }
     
     // MARK: - Views
     
     private var generatingView: some View {
-        VStack(spacing: DS.Spacing.xl) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: DS.Spacing.xl) {
             VStack(spacing: DS.Spacing.lg) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 48))
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.primary)
                     .symbolEffect(.pulse)
                 
                 Text("Preparing Daily Practice")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
                 
                 Text("Loading fresh content and review questions...")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, DS.Spacing.xl)
             }
             
             ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                .progressViewStyle(CircularProgressViewStyle(tint: theme.primary))
                 .scaleEffect(1.2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -177,38 +182,39 @@ struct DailyPracticeWithReviewView: View {
                     await generateDailyPractice()
                 }
             }
-            .dsPrimaryButton()
+            .themePrimaryButton()
             .padding(.top, DS.Spacing.md)
             
             Button("Go Back") {
                 dismiss()
             }
-            .dsSecondaryButton()
+            .themeSecondaryButton()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(DS.Spacing.xl)
     }
     
     private var noPracticeView: some View {
-        VStack(spacing: DS.Spacing.lg) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: DS.Spacing.lg) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 64))
-                .foregroundColor(.green)
+                .foregroundColor(theme.primary)
             
             Text("All Caught Up!")
                 .font(DS.Typography.largeTitle)
-                .foregroundColor(DS.Colors.black)
+                .foregroundColor(theme.onSurface)
             
             Text("You've completed all available lessons and have no review questions pending.")
                 .font(DS.Typography.body)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(theme.onSurface.opacity(0.7))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, DS.Spacing.xl)
             
             Button("Go Back") {
                 dismiss()
             }
-            .dsPrimaryButton()
+            .themePrimaryButton()
             .padding(.top, DS.Spacing.md)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -216,28 +222,29 @@ struct DailyPracticeWithReviewView: View {
     }
     
     private var practiceReadyView: some View {
-        VStack(spacing: 0) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: 0) {
             // Header
             VStack(spacing: DS.Spacing.md) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 64))
-                    .foregroundColor(.green)
+                    .foregroundColor(theme.primary)
                     .padding(.top, DS.Spacing.xxl)
                 
                 Text("Practice Ready!")
                     .font(DS.Typography.largeTitle)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
                 
                 Text("\(freshQuestions.count + reviewQuestions.count) questions prepared")
                     .font(DS.Typography.body)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
             }
             
             // Practice Breakdown — show idea composition like routine lessons
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                 Text("Today's Session")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
 
                 // Idea composition (grouped counts)
                 let all = reviewQuestions
@@ -249,7 +256,7 @@ struct DailyPracticeWithReviewView: View {
                         HStack {
                             Text(title)
                                 .font(DS.Typography.body)
-                                .foregroundColor(DS.Colors.black)
+                                .foregroundColor(theme.onSurface)
                             Spacer()
                             Text("\(count) question\(count == 1 ? "" : "s")")
                                 .font(DS.Typography.caption)
@@ -271,26 +278,26 @@ struct DailyPracticeWithReviewView: View {
                 Button("Start Practice") {
                     showingTest = true
                 }
-                .dsPrimaryButton()
+                .themePrimaryButton()
                 
                 if currentIdea != nil {
                     Button("Review Primer First") {
                         showingPrimer = true
                     }
-                    .dsSecondaryButton()
+                    .themeSecondaryButton()
                 }
                 
                 if let idea = currentIdea, idea.id != "review_session" {
                     Button("Previous Attempts") {
                         showingAttempts = true
                     }
-                    .dsSecondaryButton()
+                    .themeSecondaryButton()
                 }
                 
                 Button("Cancel") {
                     dismiss()
                 }
-                .dsSecondaryButton()
+                .themeSecondaryButton()
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.bottom, DS.Spacing.xl)
