@@ -56,10 +56,14 @@ class BookService: ObservableObject {
             modelContext.insert(newBook)
             try modelContext.save()
             
-            // Fetch Google Books metadata asynchronously
-            Task {
-                print("DEBUG: Starting Google Books metadata fetch for new book")
-                await fetchAndUpdateBookMetadata(for: newBook)
+            // Keep early Google Books fetch skipped until author known (accuracy)
+            if let author = author, !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Task {
+                    print("DEBUG: Starting Google Books metadata fetch for new book (author known)")
+                    await fetchAndUpdateBookMetadata(for: newBook)
+                }
+            } else {
+                print("DEBUG: Skipping early Google Books fetch (author unknown)")
             }
             
             return newBook
@@ -69,12 +73,13 @@ class BookService: ObservableObject {
     // MARK: - Google Books Integration
     
     /// Fetches metadata from Google Books API and updates the book
-    func fetchAndUpdateBookMetadata(for book: Book) async {
+    /// Set `force` to true to refresh even if metadata already exists.
+    func fetchAndUpdateBookMetadata(for book: Book, force: Bool = false) async {
         print("DEBUG: Fetching Google Books metadata for '\(book.title)'")
         
         // Skip if we already have Google Books metadata
-        if book.googleBooksId != nil {
-            print("DEBUG: Book already has Google Books metadata, skipping")
+        if !force, book.googleBooksId != nil {
+            print("DEBUG: Book already has Google Books metadata, skipping (force=false)")
             return
         }
         
@@ -84,6 +89,15 @@ class BookService: ObservableObject {
                 author: book.author
             ) else {
                 print("DEBUG: No Google Books results found for '\(book.title)'")
+                if force {
+                    await MainActor.run {
+                        // Clear any potentially wrong early metadata when forcing refresh
+                        book.googleBooksId = nil
+                        book.thumbnailUrl = nil
+                        book.coverImageUrl = nil
+                        do { try modelContext.save() } catch { print("DEBUG: Failed to clear metadata: \(error)") }
+                    }
+                }
                 return
             }
             
