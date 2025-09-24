@@ -19,6 +19,8 @@ struct DailyPracticeView: View {
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var isGenerating = true
     @State private var generatedTest: Test?
@@ -67,6 +69,7 @@ struct DailyPracticeView: View {
     }
     
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         NavigationStack {
             VStack {
                 if isGenerating {
@@ -84,7 +87,7 @@ struct DailyPracticeView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface)
                 }
             }
             .task {
@@ -149,50 +152,53 @@ struct DailyPracticeView: View {
                 }
             }
         }
+        .background(theme.surface.ignoresSafeArea())
     }
     
     // MARK: - Views
     
     private var generatingView: some View {
-        VStack(spacing: DS.Spacing.xl) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: DS.Spacing.xl) {
             // Animation
             VStack(spacing: DS.Spacing.lg) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 48))
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.primary)
                     .symbolEffect(.pulse)
                 
                 Text("Loading Your Practice Session")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
                 
                 Text("Preparing your personalized questions...")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, DS.Spacing.xl)
             }
             
             ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                .progressViewStyle(CircularProgressViewStyle(tint: theme.primary))
                 .scaleEffect(1.2)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private func errorView(_ error: String) -> some View {
-        VStack(spacing: DS.Spacing.lg) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: DS.Spacing.lg) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
                 .foregroundColor(.red)
             
             Text("Unable to Generate Practice Session")
                 .font(DS.Typography.headline)
-                .foregroundColor(DS.Colors.black)
+                .foregroundColor(theme.onSurface)
             
             Text(error)
                 .font(DS.Typography.body)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(theme.onSurface.opacity(0.7))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, DS.Spacing.xl)
             
@@ -201,13 +207,13 @@ struct DailyPracticeView: View {
                     await generatePractice()
                 }
             }
-            .dsPrimaryButton()
+            .themePrimaryButton()
             .padding(.top, DS.Spacing.md)
             
             Button("Go Back") {
                 dismiss()
             }
-            .dsSecondaryButton()
+            .themeSecondaryButton()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(DS.Spacing.xl)
@@ -216,26 +222,27 @@ struct DailyPracticeView: View {
     private func practiceReadyView(_ test: Test) -> some View {
         VStack(spacing: 0) {
             // Header
+            let theme = themeManager.currentTokens(for: colorScheme)
             VStack(spacing: DS.Spacing.md) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 64))
-                    .foregroundColor(.green)
+                    .foregroundColor(theme.primary)
                     .padding(.top, DS.Spacing.xxl)
                 
                 Text("Practice Ready!")
                     .font(DS.Typography.largeTitle)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
                 
                 Text("\((test.questions ?? []).count) questions selected")
                     .font(DS.Typography.body)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
             }
             
             // Practice Overview
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 Text("Today's Session")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
                 
                 practiceStatsView(test)
                 
@@ -252,18 +259,18 @@ struct DailyPracticeView: View {
                 Button("Start Practice") {
                     showingTest = true
                 }
-                .dsPrimaryButton()
+                .themePrimaryButton()
                 
                 Button("Brush Up with Primer") {
                     showingPrimer = true
                 }
-                .dsSecondaryButton()
+                .themeSecondaryButton()
                 
                 if ideaForTest.id != "daily_practice" {
                     Button("Previous Attempts") {
                         showingAttempts = true
                     }
-                    .dsSecondaryButton()
+                    .themeSecondaryButton()
                 }
                 
                 Button("Generate New Questions") {
@@ -271,12 +278,12 @@ struct DailyPracticeView: View {
                         await refreshPractice()
                     }
                 }
-                .dsSecondaryButton()
+                .themeSecondaryButton()
                 
                 Button("Cancel") {
                     dismiss()
                 }
-                .dsSecondaryButton()
+                .themeSecondaryButton()
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.bottom, DS.Spacing.xl)
@@ -287,36 +294,38 @@ struct DailyPracticeView: View {
     }
     
     private func practiceStatsView(_ test: Test) -> some View {
-        HStack(spacing: DS.Spacing.xl) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return HStack(spacing: DS.Spacing.xl) {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Questions")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
                 Text("\((test.questions ?? []).count)")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
             }
             
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Est. Time")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
                 Text("\(((test.questions ?? []).count * 2)) min")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
             }
             
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Max Points")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
                 Text("\(((test.questions ?? []).reduce(0) { $0 + $1.difficulty.pointValue }))")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(theme.onSurface)
             }
         }
         .padding(DS.Spacing.md)
-        .background(DS.Colors.secondaryBackground)
+        .background(theme.surfaceVariant)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.outline, lineWidth: DS.BorderWidth.thin))
         .cornerRadius(8)
     }
     

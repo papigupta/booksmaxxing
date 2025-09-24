@@ -221,6 +221,8 @@ class IdeaExtractionViewModel: ObservableObject {
                 let prefetcher = PracticePrefetcher(modelContext: self.bookService.modelContextRef, openAIService: self.openAIService)
                 prefetcher.prefetchLesson(book: book, lessonNumber: 1)
                 print("DEBUG: Prefetch for Lesson 1 triggered from IdeaExtractionViewModel after save")
+                // After updating title/author, force-refresh Google Books metadata to improve cover accuracy
+                Task { await self.bookService.fetchAndUpdateBookMetadata(for: book, force: true) }
             } catch {
                 print("DEBUG: Error saving ideas: \(error)")
                 // Even if saving fails, show the ideas to the user

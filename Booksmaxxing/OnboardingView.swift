@@ -5,6 +5,7 @@ struct OnboardingView: View {
     let openAIService: OpenAIService
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var navigationState: NavigationState
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var bookTitle: String = ""
     @State private var savedBooks: [Book] = []
     @State private var isLoadingSavedBooks = false
@@ -175,6 +176,9 @@ struct OnboardingView: View {
         // Update book's last accessed time
         book.lastAccessed = Date()
         try? modelContext.save()
+        
+        // Activate per-book theme immediately before navigating
+        Task { await themeManager.activateTheme(for: book) }
         
         // Use NavigationState to navigate
         navigationState.navigateToBook(title: book.title)

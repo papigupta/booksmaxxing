@@ -6,6 +6,7 @@ struct MainView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var navigationState: NavigationState
     @EnvironmentObject var streakManager: StreakManager
+    @EnvironmentObject var themeManager: ThemeManager
     @Query(sort: \Book.lastAccessed, order: .reverse) private var books: [Book]
     
     var body: some View {
@@ -65,10 +66,11 @@ struct MainView: View {
 
             // Attach model context to streak manager for SwiftData-backed persistence
             streakManager.attachModelContext(modelContext)
+            // Attach to theme manager as well
+            themeManager.attachModelContext(modelContext)
 
             // Warm CloudKit-backed fetches right after app becomes active
             CloudSyncRefresh(modelContext: modelContext).warmFetches()
         }
     }
 }
-

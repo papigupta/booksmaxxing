@@ -18,7 +18,11 @@ struct PrimerView: View {
         self.openAIService = openAIService
     }
     
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         NavigationView {
             VStack(spacing: 0) {
                 headerView
@@ -35,6 +39,7 @@ struct PrimerView: View {
                 .dsTertiaryButton()
             }
         }
+        .background(theme.surface.ignoresSafeArea())
         .onAppear {
             // Initialize primerService with the correct modelContext
             primerService = PrimerService(openAIService: openAIService, modelContext: modelContext)
@@ -45,16 +50,17 @@ struct PrimerView: View {
     // MARK: - View Components
     
     private var headerView: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             // Book title with enhanced styling
             HStack(spacing: DS.Spacing.xs) {
                 DSIcon("book.closed.fill", size: 14)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(theme.onSurface.opacity(0.7))
                 
                 Text(idea.bookTitle)
                     .font(DS.Typography.caption)
                     .fontWeight(.medium)
-                    .foregroundStyle(DS.Colors.secondaryText)
+                    .foregroundStyle(theme.onSurface.opacity(0.7))
                     .textCase(.uppercase)
                     .tracking(0.8)
             }
@@ -68,7 +74,7 @@ struct PrimerView: View {
             
             // Subtle divider
             Rectangle()
-                .fill(DS.Colors.divider)
+                .fill(theme.divider)
                 .frame(height: 1)
                 .frame(maxWidth: 80)
         }
@@ -76,7 +82,7 @@ struct PrimerView: View {
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.top, DS.Spacing.xl)
         .padding(.bottom, DS.Spacing.lg)
-        .background(DS.Colors.primaryBackground)
+        .background(theme.surface)
     }
     
     @ViewBuilder
@@ -94,17 +100,18 @@ struct PrimerView: View {
     }
     
     private var loadingView: some View {
-        VStack(spacing: DS.Spacing.lg) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: DS.Spacing.lg) {
             ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                .progressViewStyle(CircularProgressViewStyle(tint: theme.primary))
                 .scaleEffect(1.2)
             
             Text("Loading primer...")
                 .font(DS.Typography.body)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(theme.onSurface.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(DS.Colors.primaryBackground)
+        .background(theme.surface)
     }
     
     private func errorView(_ error: String) -> some View {
@@ -145,36 +152,37 @@ struct PrimerView: View {
     
     @ViewBuilder
     private func thesisSection(_ primer: Primer) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         if !primer.thesis.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 // Enhanced header for thesis section
                 HStack(spacing: DS.Spacing.sm) {
                     ZStack {
                         Circle()
-                            .fill(DS.Colors.black)
+                            .fill(theme.primary)
                             .frame(width: 32, height: 32)
                         
                         DSIcon("lightbulb.fill", size: 16)
-                            .foregroundColor(DS.Colors.white)
+                            .foregroundColor(theme.onPrimary)
                     }
                     
                     Text("Core Thesis")
                         .font(DS.Typography.title2)
                         .fontWeight(.semibold)
-                        .foregroundColor(DS.Colors.black)
+                        .foregroundColor(theme.onSurface)
                 }
                 
                 // Enhanced thesis content
                 Text(primer.thesis)
                     .font(DS.Typography.body)
                     .fontWeight(.medium)
-                    .foregroundStyle(DS.Colors.primaryText)
+                    .foregroundStyle(theme.onSurface)
                     .lineSpacing(6)
                     .padding(DS.Spacing.lg)
-                    .background(DS.Colors.secondaryBackground)
+                    .background(theme.surfaceVariant)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(DS.Colors.black, lineWidth: 2)
+                            .stroke(theme.outline, lineWidth: 2)
                     )
                     .cornerRadius(12)
                     .shadow(color: DS.Colors.shadow, radius: 4, x: 0, y: 2)
@@ -189,7 +197,7 @@ struct PrimerView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.sm) {
                     DSIcon("book.fill", size: 18)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).primary)
                     Text("Story")
                         .font(DS.Typography.headline)
                         .fontWeight(.medium)
@@ -198,9 +206,9 @@ struct PrimerView: View {
                 
                 Text(primer.story)
                     .font(DS.Typography.body)
-                    .foregroundStyle(DS.Colors.primaryText)
+                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                     .lineSpacing(4)
-                    .dsSubtleCard()
+                    .themedCard()
             }
         }
     }
@@ -211,7 +219,7 @@ struct PrimerView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.sm) {
                     DSIcon("clock.fill", size: 18)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).primary)
                     Text("Use it when...")
                         .font(DS.Typography.headline)
                         .fontWeight(.medium)
@@ -225,12 +233,12 @@ struct PrimerView: View {
                                 .padding(.top, 2)
                             Text(cue)
                                 .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.primaryText)
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             Spacer()
                         }
                     }
                 }
-                .dsSubtleCard()
+                .themedCard()
             }
         }
     }
@@ -241,7 +249,7 @@ struct PrimerView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.sm) {
                     DSIcon("gear.circle.fill", size: 18)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).primary)
                     Text("How to apply")
                         .font(DS.Typography.headline)
                         .fontWeight(.medium)
@@ -253,21 +261,21 @@ struct PrimerView: View {
                         HStack(alignment: .top, spacing: DS.Spacing.xs) {
                             ZStack {
                                 Rectangle()
-                                    .fill(DS.Colors.black)
+                                    .fill(themeManager.currentTokens(for: colorScheme).primary)
                                     .frame(width: 20, height: 20)
                                 Text("\(index + 1)")
                                     .font(DS.Typography.small)
                                     .fontWeight(.bold)
-                                    .foregroundColor(DS.Colors.white)
+                                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onPrimary)
                             }
                             Text(step)
                                 .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.primaryText)
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             Spacer()
                         }
                     }
                 }
-                .dsSubtleCard()
+                .themedCard()
             }
         }
     }
@@ -278,7 +286,7 @@ struct PrimerView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.sm) {
                     DSIcon("exclamationmark.triangle.fill", size: 18)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).primary)
                     Text("Edges & Limits")
                         .font(DS.Typography.headline)
                         .fontWeight(.medium)

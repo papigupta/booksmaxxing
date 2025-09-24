@@ -10,6 +10,8 @@ struct TestResultsView: View {
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var showingRetryTest = false
     @State private var retryTest: Test?
@@ -31,26 +33,26 @@ struct TestResultsView: View {
                     VStack(alignment: .leading, spacing: DS.Spacing.md) {
                         Text("Test Complete!")
                             .font(DS.Typography.largeTitle)
-                            .foregroundStyle(DS.Colors.primaryText)
+                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                         
                         // Score display
                         HStack(spacing: DS.Spacing.md) {
                             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                                 Text("Score")
                                     .font(DS.Typography.captionBold)
-                                    .foregroundStyle(DS.Colors.secondaryText)
+                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                                 Text("\(result.totalScore)/\(result.maxScore)")
                                     .font(DS.Typography.title)
-                                    .foregroundStyle(DS.Colors.primaryText)
+                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             }
                             
                             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                                 Text("Accuracy")
                                     .font(DS.Typography.captionBold)
-                                    .foregroundStyle(DS.Colors.secondaryText)
+                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                                 Text("\(result.correctCount)/\(result.totalQuestions)")
                                     .font(DS.Typography.title)
-                                    .foregroundStyle(DS.Colors.primaryText)
+                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             }
                             
                             Spacer()
@@ -70,10 +72,10 @@ struct TestResultsView: View {
                         .padding(DS.Spacing.lg)
                         .background(
                             Rectangle()
-                                .fill(DS.Colors.tertiaryBackground)
+                                .fill(themeManager.currentTokens(for: colorScheme).surfaceVariant)
                                 .overlay(
                                     Rectangle()
-                                        .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+                                        .stroke(themeManager.currentTokens(for: colorScheme).outline, lineWidth: DS.BorderWidth.thin)
                                 )
                         )
                     }
@@ -83,7 +85,7 @@ struct TestResultsView: View {
                         VStack(alignment: .leading, spacing: DS.Spacing.md) {
                             Text("Question Breakdown")
                                 .font(DS.Typography.bodyBold)
-                                .foregroundStyle(DS.Colors.primaryText)
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             
                             ForEach(Array(result.evaluationDetails.enumerated()), id: \.element.questionId) { index, evaluation in
                                 QuestionResultCard(
@@ -103,12 +105,12 @@ struct TestResultsView: View {
                                     .foregroundStyle(.orange)
                                 Text("Areas to Review")
                                     .font(DS.Typography.bodyBold)
-                                    .foregroundStyle(DS.Colors.primaryText)
+                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             }
                             
                             Text("You got \(result.incorrectQuestions.count) question\(result.incorrectQuestions.count == 1 ? "" : "s") incorrect. Let's focus on those concepts!")
                                 .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                         }
                         .padding(DS.Spacing.md)
                         .background(
@@ -144,6 +146,7 @@ struct TestResultsView: View {
                 }
                 .padding(DS.Spacing.lg)
             }
+            .background(themeManager.currentTokens(for: colorScheme).surface)
             .navigationTitle("Results")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -152,7 +155,7 @@ struct TestResultsView: View {
                         dismiss()
                     }
                     .font(DS.Typography.caption)
-                    .foregroundStyle(DS.Colors.primaryText)
+                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -165,18 +168,18 @@ struct TestResultsView: View {
                                 HStack(spacing: DS.Spacing.xs) {
                                     if isGeneratingRetryTest {
                                         ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.white))
+                                            .progressViewStyle(CircularProgressViewStyle(tint: themeManager.currentTokens(for: colorScheme).onPrimary))
                                             .scaleEffect(0.8)
                                     } else {
                                         DSIcon("arrow.clockwise", size: 16)
-                                            .foregroundStyle(DS.Colors.white)
+                                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onPrimary)
                                     }
                                     Text(isGeneratingRetryTest ? "Preparing..." : "Retry Incorrect")
                                         .font(DS.Typography.captionBold)
-                                        .foregroundStyle(DS.Colors.white)
+                                        .foregroundStyle(themeManager.currentTokens(for: colorScheme).onPrimary)
                                 }
                             }
-                            .dsPrimaryButton()
+                            .themePrimaryButton()
                             .disabled(isGeneratingRetryTest)
                         }
                         
@@ -184,7 +187,7 @@ struct TestResultsView: View {
                             Text(hasIncorrectAnswers ? "Continue Anyway" : "Continue")
                                 .font(DS.Typography.captionBold)
                         }
-                        .dsSecondaryButton()
+                        .themeSecondaryButton()
                         
                         if !hasIncorrectAnswers {
                             Spacer()
@@ -193,7 +196,7 @@ struct TestResultsView: View {
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.vertical, DS.Spacing.md)
                 }
-                .background(DS.Colors.primaryBackground)
+                .background(themeManager.currentTokens(for: colorScheme).surface)
             }
             .sheet(isPresented: $showingRetryTest) {
                 if let retryTest = retryTest {
@@ -213,6 +216,7 @@ struct TestResultsView: View {
                 }
             }
         }
+        .background(themeManager.currentTokens(for: colorScheme).surface.ignoresSafeArea())
     }
     
     // MARK: - Helper Methods
@@ -297,6 +301,8 @@ struct QuestionResultCard: View {
     let questionNumber: Int
     let evaluation: QuestionEvaluation
     let question: Question?
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     private var isCorrect: Bool {
         evaluation.isCorrect
@@ -394,11 +400,11 @@ struct QuestionResultCard: View {
                     HStack(spacing: DS.Spacing.xs) {
                         Text(question.type.rawValue)
                             .font(DS.Typography.caption)
-                            .foregroundStyle(DS.Colors.tertiaryText)
+                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.6))
                         
                         Text("•")
                             .font(DS.Typography.caption)
-                            .foregroundStyle(DS.Colors.tertiaryText)
+                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.6))
                         
                         Text(question.difficulty.rawValue)
                             .font(DS.Typography.caption)
@@ -436,7 +442,7 @@ struct QuestionResultCard: View {
                         .overlay(Rectangle().stroke(statusLabel.color, lineWidth: DS.BorderWidth.thin))
                     Text("\(evaluation.pointsEarned) pts")
                         .font(DS.Typography.captionBold)
-                        .foregroundStyle(DS.Colors.primaryText)
+                        .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                 }
             }
             
@@ -447,12 +453,12 @@ struct QuestionResultCard: View {
                         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                             Text(row.title)
                                 .font(DS.Typography.captionBold)
-                                .foregroundStyle(DS.Colors.primaryText)
-                            Text(row.body)
-                                .font(DS.Typography.caption)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
+                    Text(row.body)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                     }
                 }
             }
@@ -486,10 +492,10 @@ struct QuestionResultCard: View {
         .padding(DS.Spacing.md)
         .background(
             Rectangle()
-                .fill((question?.type == .openEnded) ? DS.Colors.tertiaryBackground : (isCorrect ? .green.opacity(0.05) : .red.opacity(0.05)))
+                .fill(themeManager.currentTokens(for: colorScheme).surfaceVariant)
                 .overlay(
                     Rectangle()
-                        .stroke((question?.type == .openEnded) ? DS.Colors.subtleBorder : (isCorrect ? .green.opacity(0.2) : .red.opacity(0.2)), lineWidth: DS.BorderWidth.thin)
+                        .stroke(themeManager.currentTokens(for: colorScheme).outline, lineWidth: DS.BorderWidth.thin)
                 )
         )
     }
