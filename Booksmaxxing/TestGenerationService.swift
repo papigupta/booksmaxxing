@@ -477,8 +477,300 @@ class TestGenerationService {
         return out.sorted { $0.orderIndex < $1.orderIndex }
     }
 
+    // Per-difficulty batched generation: 3 calls (Easy: 0-1, Medium: 2-5, Hard: 6-7)
+    private func generateInitialQuestionsPerDifficultyBatched(for idea: Idea) async throws -> [Question] {
+        let start = Date()
+        logger.debug("DIFF-BATCH: Starting per-difficulty batched generation for idea: \(idea.title, privacy: .public)")
+
+        struct BatchedItem: Decodable {
+            let orderIndex: Int
+            let type: String
+            let bloom: String
+            let difficulty: String
+            let question: String
+            let options: [String]?
+            let correct: [Int]?
+        }
+
+        // Helper: mapping per slot using existing fixed config
+        func specForSlot(_ i: Int) -> (type: String, bloom: String, difficulty: String) {
+            let (bloom, diff, qType) = self.getQuestionConfigForSlot(i)
+            let t = (qType == .openEnded) ? "OpenEnded" : "MCQ"
+            return (t, bloom.rawValue, diff.rawValue)
+        }
+
+        // Helper: normalize/validate an array of BatchedItem for a given index set
+        func processBatch(_ items: [BatchedItem], expectedIndices: [Int]) async throws -> [Question] {
+            // Basic checks
+            let idxSet = Set(items.map { $0.orderIndex })
+            guard idxSet == Set(expectedIndices) else {
+                throw TestGenerationError.generationFailed("DIFF-BATCH: indices mismatch; expected \(expectedIndices), got \(Array(idxSet).sorted())")
+            }
+
+            // Build mapping
+            var byIndex: [Int: BatchedItem] = [:]
+            for item in items { byIndex[item.orderIndex] = item }
+
+            // Validators reused
+            func norm(_ s: String) -> String {
+                return s.lowercased()
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "[^a-z0-9 ]", with: "", options: .regularExpression)
+            }
+            let disallowed = Set(["all of the above", "none of the above", "both a and b", "neither of the above"]) 
+
+            var out: [Question] = []
+            for i in expectedIndices.sorted() {
+                guard let item = byIndex[i] else { continue }
+                let expected = specForSlot(i)
+                guard item.type == expected.type && item.bloom == expected.bloom && item.difficulty == expected.difficulty else {
+                    throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) spec mismatch")
+                }
+                guard !item.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) empty question")
+                }
+                if expected.type == "MCQ" {
+                    guard let options = item.options, let correct = item.correct, options.count == 4, correct.count == 1 else {
+                        throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) MCQ shape invalid")
+                    }
+                    let normalized = options.map { norm($0) }
+                    if Set(normalized).count != 4 { throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) duplicate options") }
+                    if normalized.contains(where: { disallowed.contains($0) }) { throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) disallowed option") }
+                    if !(0...3).contains(correct[0]) { throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) correct index out of range") }
+                } else {
+                    if item.options != nil || item.correct != nil {
+                        throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) OpenEnded must not include options/correct")
+                    }
+                }
+
+                // Build Question with shuffle and normalization if MCQ
+                let type: QuestionType = (item.type == "OpenEnded") ? .openEnded : .mcq
+                guard let bloom = BloomCategory(rawValue: item.bloom), let difficulty = QuestionDifficulty(rawValue: item.difficulty) else {
+                    throw TestGenerationError.generationFailed("DIFF-BATCH: Slot \(i) unknown enums")
+                }
+                var options: [String]? = item.options
+                var correct: [Int]? = item.correct
+                if type != .openEnded, let opts = options, let corr = correct {
+                    let (shuffled, newIdx) = self.randomizeOptions(opts, correctIndices: corr)
+                    let normalized = await self.normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newIdx.first ?? 0, difficulty: difficulty, contextQuestion: item.question)
+                    options = normalized
+                    correct = newIdx
+                }
+                out.append(Question(
+                    ideaId: idea.id,
+                    type: type,
+                    difficulty: difficulty,
+                    bloomCategory: bloom,
+                    questionText: item.question,
+                    options: options,
+                    correctAnswers: correct,
+                    orderIndex: i
+                ))
+            }
+            return out
+        }
+
+        // Build shared schema text (same as single-batch path)
+        let schemaText = """
+        Strictly follow this JSON schema and rules:
+        {
+          "questions": [
+            {
+              "orderIndex": 0..7,
+              "type": "MCQ" | "OpenEnded",
+              "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|Reframe|Critique|HowWield",
+              "difficulty": "Easy|Medium|Hard",
+              "question": "string",
+              "options": ["A","B","C","D"],
+              "correct": [0]
+            }
+          ]
+        }
+        Rules:
+        - MCQ must have exactly 4 options and a single correct index (0-3).
+        - OpenEnded must omit options and correct.
+        - Avoid phrases like "all of the above".
+        - Make MCQ options similar length (±20% of average) and parallel; do not reveal correctness via verbosity.
+        Output only JSON. No prose.
+        """
+
+        func systemPrompt(forDifficulty label: String) -> String {
+            switch label {
+            case "Easy":
+                return """
+                You are an expert educational content creator.
+                Create high-quality EASY questions for a non-fiction book idea.
+                Emphasize clarity, concrete wording, and straightforward stems.
+                MCQ options must be concise, plausible, and parallel; avoid trickiness.
+                Language: precise, no chain-of-thought or explanations.
+                Output only a valid JSON object per schema (no prose before/after).
+                """
+            case "Medium":
+                return """
+                You are an expert educational content creator.
+                Create high-quality MEDIUM questions for a non-fiction book idea.
+                Aim for moderate depth (why/when/contrast/reframe) with realistic scenarios.
+                MCQ options should reflect common misconceptions; keep options parallel and concise.
+                Language: precise, no chain-of-thought or explanations.
+                Output only a valid JSON object per schema (no prose before/after).
+                """
+            default: // Hard
+                return """
+                You are an expert educational content creator.
+                Create high-quality HARD questions for a non-fiction book idea.
+                Target critique/contrast/how-wield; focus on conceptual precision and subtle distinctions.
+                MCQ options must be carefully balanced, parallel, and not misleading.
+                Language: precise, no chain-of-thought or explanations.
+                Output only a valid JSON object per schema (no prose before/after).
+                """
+            }
+        }
+
+        func userPrompt(for idea: Idea, indices: [Int]) -> String {
+            var specLines: [String] = []
+            for idx in indices.sorted() {
+                let s = specForSlot(idx)
+                specLines.append("- orderIndex=\(idx), type=\(s.type), bloom=\(s.bloom), difficulty=\(s.difficulty)")
+            }
+            return """
+            Idea title: \(idea.title)
+            Idea description: \(idea.ideaDescription)
+            Book: \(idea.bookTitle)
+
+            Create the questions in this exact distribution and order:\n\(specLines.joined(separator: "\n"))
+
+            \(schemaText)
+            """
+        }
+
+        // Difficulty groups and params
+        let easyIdx = [0, 1]
+        let medIdx = [2, 3, 4, 5]
+        let hardIdx = [6, 7]
+
+        // Model params per difficulty
+        struct GenParams { let temperature: Double; let maxTokens: Int }
+        let easyParams = GenParams(temperature: 0.6, maxTokens: 350)
+        let medParams  = GenParams(temperature: 0.7, maxTokens: 900)
+        let hardParams = GenParams(temperature: 0.75, maxTokens: 500)
+
+        // Perform the three calls (possibly in parallel)
+        let easyCall = { () async throws -> [BatchedItem] in
+            let resp = try await self.openAI.chat(
+                systemPrompt: systemPrompt(forDifficulty: "Easy"),
+                userPrompt: userPrompt(for: idea, indices: easyIdx),
+                model: "gpt-4.1",
+                temperature: easyParams.temperature,
+                maxTokens: easyParams.maxTokens
+            )
+            let json = SharedUtils.extractJSONObjectString(resp)
+            struct Wrap: Decodable { let questions: [BatchedItem] }
+            guard let d = json.data(using: .utf8) else { throw TestGenerationError.generationFailed("DIFF-BATCH: Easy invalid JSON string") }
+            let decoded = try JSONDecoder().decode(Wrap.self, from: d)
+            return decoded.questions
+        }
+        let medCall = { () async throws -> [BatchedItem] in
+            let resp = try await self.openAI.chat(
+                systemPrompt: systemPrompt(forDifficulty: "Medium"),
+                userPrompt: userPrompt(for: idea, indices: medIdx),
+                model: "gpt-4.1",
+                temperature: medParams.temperature,
+                maxTokens: medParams.maxTokens
+            )
+            let json = SharedUtils.extractJSONObjectString(resp)
+            struct Wrap: Decodable { let questions: [BatchedItem] }
+            guard let d = json.data(using: .utf8) else { throw TestGenerationError.generationFailed("DIFF-BATCH: Medium invalid JSON string") }
+            let decoded = try JSONDecoder().decode(Wrap.self, from: d)
+            return decoded.questions
+        }
+        let hardCall = { () async throws -> [BatchedItem] in
+            let resp = try await self.openAI.chat(
+                systemPrompt: systemPrompt(forDifficulty: "Hard"),
+                userPrompt: userPrompt(for: idea, indices: hardIdx),
+                model: "gpt-4.1",
+                temperature: hardParams.temperature,
+                maxTokens: hardParams.maxTokens
+            )
+            let json = SharedUtils.extractJSONObjectString(resp)
+            struct Wrap: Decodable { let questions: [BatchedItem] }
+            guard let d = json.data(using: .utf8) else { throw TestGenerationError.generationFailed("DIFF-BATCH: Hard invalid JSON string") }
+            let decoded = try JSONDecoder().decode(Wrap.self, from: d)
+            return decoded.questions
+        }
+
+        // Execute sequentially; parallelism enabled by connection cap + potential async grouping if needed
+        // Here we use async let to allow true concurrency when HTTP pool allows >1.
+        async let e = easyCall()
+        async let m = medCall()
+        async let h = hardCall()
+
+        var easyItems: [BatchedItem] = []
+        var medItems: [BatchedItem] = []
+        var hardItems: [BatchedItem] = []
+        do {
+            (easyItems, medItems, hardItems) = try await (e, m, h)
+        } catch {
+            logger.debug("DIFF-BATCH: One or more difficulty calls failed; attempting partial fallbacks")
+            // Try each independently, falling back to per-question for failed ones
+            // Easy
+            if easyItems.isEmpty {
+                do { easyItems = try await e } catch { logger.debug("DIFF-BATCH: Easy retry failed; will fallback per-question") }
+            }
+            // Medium
+            if medItems.isEmpty {
+                do { medItems = try await m } catch { logger.debug("DIFF-BATCH: Medium retry failed; will fallback per-question") }
+            }
+            // Hard
+            if hardItems.isEmpty {
+                do { hardItems = try await h } catch { logger.debug("DIFF-BATCH: Hard retry failed; will fallback per-question") }
+            }
+        }
+
+        // Process batches into Questions; fallback missing slots to legacy per-question generation
+        var out: [Question] = []
+        var haveEasy = false, haveMed = false, haveHard = false
+        do {
+            let qs = try await processBatch(easyItems, expectedIndices: easyIdx)
+            out.append(contentsOf: qs)
+            haveEasy = true
+        } catch {
+            logger.debug("DIFF-BATCH: Easy batch invalid; falling back to per-question for slots 0-1")
+            for i in easyIdx { let (b, d, t) = getQuestionConfigForSlot(i); let q = try await generateQuestion(for: idea, type: t, difficulty: d, bloomCategory: b, orderIndex: i); out.append(q) }
+        }
+        do {
+            let qs = try await processBatch(medItems, expectedIndices: medIdx)
+            out.append(contentsOf: qs)
+            haveMed = true
+        } catch {
+            logger.debug("DIFF-BATCH: Medium batch invalid; falling back to per-question for slots 2-5")
+            for i in medIdx { let (b, d, t) = getQuestionConfigForSlot(i); let q = try await generateQuestion(for: idea, type: t, difficulty: d, bloomCategory: b, orderIndex: i); out.append(q) }
+        }
+        do {
+            let qs = try await processBatch(hardItems, expectedIndices: hardIdx)
+            out.append(contentsOf: qs)
+            haveHard = true
+        } catch {
+            logger.debug("DIFF-BATCH: Hard batch invalid; falling back to per-question for slots 6-7")
+            for i in hardIdx { let (b, d, t) = getQuestionConfigForSlot(i); let q = try await generateQuestion(for: idea, type: t, difficulty: d, bloomCategory: b, orderIndex: i); out.append(q) }
+        }
+
+        let elapsed = Date().timeIntervalSince(start)
+        logger.debug("DIFF-BATCH: Completed per-difficulty batches (E=\(haveEasy) M=\(haveMed) H=\(haveHard)) in \(String(format: "%.2f", elapsed))s")
+        return out.sorted { $0.orderIndex < $1.orderIndex }
+    }
+
     private func generateInitialQuestions(for idea: Idea) async throws -> [Question] {
-        // Try batched path first when flag is enabled; fallback to legacy per-question if anything fails
+        // Try per-difficulty batched path first when flag is enabled
+        if DebugFlags.usePerDifficultyBatchedInitialGeneration {
+            do {
+                let split = try await generateInitialQuestionsPerDifficultyBatched(for: idea)
+                return split
+            } catch {
+                logger.debug("DIFF-BATCH: Falling back due to: \(error.localizedDescription)")
+            }
+        }
+
+        // Try single-call batched path when flag is enabled; fallback to legacy per-question if anything fails
         if DebugFlags.useBatchedInitialGeneration {
             do {
                 let batched = try await generateInitialQuestionsBatched(for: idea)

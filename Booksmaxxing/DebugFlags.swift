@@ -9,4 +9,12 @@ enum DebugFlags {
 
     // Feature flag to enable batched initial question generation (single API call for 8 items)
     static let useBatchedInitialGeneration: Bool = true
+
+    // Feature flag to enable per-difficulty batched initial generation (3 API calls: Easy, Medium, Hard)
+    // This supersedes the single-call batching when enabled.
+    static let usePerDifficultyBatchedInitialGeneration: Bool = true
+
+    // Enable making multiple concurrent HTTP connections to OpenAI for parallel batch calls.
+    // When enabled, OpenAIService will allow up to 3 connections per host; otherwise it remains 1.
+    static let enableParallelOpenAI: Bool = true
 }

@@ -51,7 +51,8 @@ class OpenAIService {
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData // Always get fresh data
         configuration.allowsConstrainedNetworkAccess = true // Allow on limited networks
         configuration.allowsExpensiveNetworkAccess = true   // Allow on cellular
-        configuration.httpMaximumConnectionsPerHost = 1     // Limit concurrent connections to prevent overload
+        // Allow limited parallelism when enabled for faster multi-batch requests
+        configuration.httpMaximumConnectionsPerHost = DebugFlags.enableParallelOpenAI ? 3 : 1
         
         self.session = URLSession(configuration: configuration)
     }
