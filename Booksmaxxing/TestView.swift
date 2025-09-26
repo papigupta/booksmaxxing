@@ -640,10 +640,6 @@ struct QuestionView: View {
                 }
                 
                 Spacer()
-                
-                Text("\(question.difficulty.pointValue) pts")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(DS.Colors.tertiaryText)
             }
             
             // Question Text
@@ -885,29 +881,13 @@ struct FeedbackFullScreen: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                     // Header
                     HStack(spacing: DS.Spacing.md) {
-                        // Use neutral learning icon + status for OEQ to avoid harsh mismatch
-                        if feedback.isOpenEnded {
-                            DSIcon("lightbulb.fill", size: 28)
-                                .foregroundStyle(.yellow)
-                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                Text(statusLabel.text)
-                                    .font(DS.Typography.headline)
-                                    .foregroundStyle(DS.Colors.primaryText)
-                                Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
-                                    .font(DS.Typography.caption)
-                                    .foregroundStyle(DS.Colors.secondaryText)
-                            }
-                        } else {
-                            DSIcon(feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill", size: 36)
-                                .foregroundStyle(feedback.isCorrect ? .green : .red)
-                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                Text(feedback.isCorrect ? "Correct" : "Incorrect")
-                                    .font(DS.Typography.headline)
-                                    .foregroundStyle(DS.Colors.primaryText)
-                                Text("\(feedback.pointsEarned)/\(feedback.maxPoints) points")
-                                    .font(DS.Typography.caption)
-                                    .foregroundStyle(DS.Colors.secondaryText)
-                            }
+                        // Show explicit correctness with check/x icon for all question types
+                        DSIcon(feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill", size: 36)
+                            .foregroundStyle(feedback.isCorrect ? .green : .red)
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text(feedback.isCorrect ? "Correct" : "Incorrect")
+                                .font(DS.Typography.headline)
+                                .foregroundStyle(DS.Colors.primaryText)
                         }
                         Spacer()
                         Text(statusLabel.text)

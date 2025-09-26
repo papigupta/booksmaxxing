@@ -314,14 +314,6 @@ struct DailyPracticeView: View {
                     .foregroundColor(theme.onSurface)
             }
             
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text("Max Points")
-                    .font(DS.Typography.caption)
-                    .foregroundColor(theme.onSurface.opacity(0.7))
-                Text("\(((test.questions ?? []).reduce(0) { $0 + $1.difficulty.pointValue }))")
-                    .font(DS.Typography.headline)
-                    .foregroundColor(theme.onSurface)
-            }
         }
         .padding(DS.Spacing.md)
         .background(theme.surfaceVariant)
