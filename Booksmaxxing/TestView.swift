@@ -8,6 +8,8 @@ struct QuestionFeedback {
     let correctAnswer: String?
     // For OEQ, this is the 280-char author feedback line.
     let explanation: String
+    // One-line Why (<=140 chars), for all types
+    let why: String?
     let pointsEarned: Int
     let maxPoints: Int
     // Flag to drive OEQ-specific UI (exemplar section)
@@ -349,6 +351,7 @@ struct TestView: View {
                         isCorrect: evaluation.isCorrect,
                         correctAnswer: evaluation.correctAnswer,
                         explanation: evaluation.feedback,
+                        why: evaluation.why,
                         pointsEarned: evaluation.pointsEarned,
                         maxPoints: question.difficulty.pointValue,
                         isOpenEnded: question.type == .openEnded
@@ -917,6 +920,19 @@ struct FeedbackFullScreen: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
+                        }
+                    }
+
+                    // Why? (<=140 chars), always eligible for both MCQ/OEQ if present
+                    if let why = feedback.why, !why.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text("Why?")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(DS.Colors.primaryText)
+                            Text(String(why.prefix(140)))
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     

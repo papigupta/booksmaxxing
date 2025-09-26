@@ -77,9 +77,9 @@ class TestEvaluationService {
     func evaluateQuestion(response: QuestionResponse, question: Question, idea: Idea) async throws -> QuestionEvaluation {
         switch question.type {
         case .mcq:
-            return evaluateMCQ(response: response, question: question)
+            return try await evaluateMCQ(response: response, question: question, idea: idea)
         case .msq:
-            return evaluateMSQ(response: response, question: question)
+            return try await evaluateMSQ(response: response, question: question, idea: idea)
         case .openEnded:
             return try await evaluateOpenEnded(response: response, question: question, idea: idea)
         }
@@ -87,7 +87,7 @@ class TestEvaluationService {
     
     // MARK: - MCQ Evaluation (Simple comparison)
     
-    private func evaluateMCQ(response: QuestionResponse, question: Question) -> QuestionEvaluation {
+    private func evaluateMCQ(response: QuestionResponse, question: Question, idea: Idea) async throws -> QuestionEvaluation {
         guard let correctAnswers = question.correctAnswers,
               let correctIndex = correctAnswers.first,
               let userAnswer = response.decodedAnswer() as? Int else {
@@ -109,19 +109,23 @@ class TestEvaluationService {
             let correctOption = question.options?[correctIndex] ?? "Unknown"
             feedback = "The correct answer was: \(correctOption)"
         }
-        
+        // Generate concise Why (<=140 chars)
+        let correctOptionText = question.options?[correctIndex]
+        let why = await generateWhy140(question: question, correctText: correctOptionText, idea: idea)
+
         return QuestionEvaluation(
             questionId: question.id,
             isCorrect: isCorrect,
             pointsEarned: points,
             feedback: feedback,
-            correctAnswer: String(correctIndex + 1)
+            correctAnswer: String(correctIndex + 1),
+            why: why
         )
     }
     
     // MARK: - MSQ Evaluation (Set comparison)
     
-    private func evaluateMSQ(response: QuestionResponse, question: Question) -> QuestionEvaluation {
+    private func evaluateMSQ(response: QuestionResponse, question: Question, idea: Idea) async throws -> QuestionEvaluation {
         guard let correctAnswers = question.correctAnswers,
               let userAnswers = response.decodedAnswer() as? [Int] else {
             return QuestionEvaluation(
@@ -174,12 +178,20 @@ class TestEvaluationService {
             feedback = feedbackParts.joined(separator: ". ")
         }
         
+        // Generate concise Why (<=140 chars) using the set of correct options
+        let correctTexts: [String] = correctAnswers.compactMap { idx in
+            guard let opts = question.options, opts.indices.contains(idx) else { return nil }
+            return opts[idx]
+        }
+        let why = await generateWhy140(question: question, correctText: correctTexts.joined(separator: "; "), idea: idea)
+
         return QuestionEvaluation(
             questionId: question.id,
             isCorrect: isCorrect,
             pointsEarned: points,
             feedback: feedback,
-            correctAnswer: correctAnswers.map { String($0 + 1) }.joined(separator: ",")
+            correctAnswer: correctAnswers.map { String($0 + 1) }.joined(separator: ","),
+            why: why
         )
     }
     
@@ -222,6 +234,7 @@ class TestEvaluationService {
         - score_percentage: 0-100 based on conceptual correctness and completeness for the prompt and difficulty (no language penalties).
         - feedback_280: single line ≤280 chars using tags BL/Keep/Polish/Do for good or BL/Fix/Fix/Do for weak. Concrete, specific, actionable. Neutral examples.
         - exemplar: complete, perfect answer (120–250 words), plain language, standalone, includes key reasoning, limits/boundaries, and one clean example if helpful.
+        - why_140: one-line ≤140 chars explaining why the correct answer is correct, plain text, no lists, no quotes.
         """
 
         let userPrompt = """
@@ -235,7 +248,7 @@ class TestEvaluationService {
         + userAnswer
         + """
 
-        Evaluate, score, and return JSON only with keys: score_percentage, feedback_280, exemplar.
+        Evaluate, score, and return JSON only with keys: score_percentage, feedback_280, exemplar, why_140.
         """
         
         let aiResponse: String
@@ -269,6 +282,7 @@ class TestEvaluationService {
             throw TestEvaluationError.invalidAIResponse
         }
         let exemplar = json["exemplar"] as? String
+        var why140 = json["why_140"] as? String
         var points = Int(Double(question.difficulty.pointValue) * Double(scorePercentage) / 100.0)
         // Universal correctness threshold for OEQ
         var pct = Double(scorePercentage) / 100.0
@@ -280,12 +294,21 @@ class TestEvaluationService {
         }
         let isCorrect = pct >= 0.70
 
+        // Ensure why140 exists; if missing, derive a compact summary from exemplar or feedback
+        if (why140 == nil || why140!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+            let source = exemplar ?? feedback280
+            why140 = Self.compactWhy(from: source)
+        }
+        // Enforce 140-char guard
+        if let w = why140 { why140 = String(w.prefix(140)) }
+
         return QuestionEvaluation(
             questionId: question.id,
             isCorrect: isCorrect,
             pointsEarned: points,
             feedback: pct == 0.0 ? fallbackFeedback(for: userAnswer) : feedback280,
-            correctAnswer: exemplar
+            correctAnswer: exemplar,
+            why: why140
         )
     }
 
@@ -324,6 +347,50 @@ class TestEvaluationService {
     }
     
     // MARK: - Helper Methods
+    
+    // Generate a concise Why explanation (<=140 chars) for objective items
+    private func generateWhy140(question: Question, correctText: String?, idea: Idea) async -> String? {
+        // If we lack context, bail early
+        let stem = question.questionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !stem.isEmpty else { return nil }
+        let correct = (correctText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let system = "You are a concise tutor. In <=140 characters, explain why the correct answer is correct. No steps, no lists, plain text."
+        var parts: [String] = []
+        parts.append("Idea: \(idea.title)")
+        parts.append("Question: \(stem)")
+        if !correct.isEmpty { parts.append("Correct: \(correct)") }
+        let user = parts.joined(separator: "\n")
+
+        do {
+            let reply = try await openAI.chat(
+                systemPrompt: system,
+                userPrompt: user,
+                model: "gpt-4.1-mini",
+                temperature: 0.2,
+                maxTokens: 60
+            )
+            let trimmed = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { return nil }
+            return String(trimmed.prefix(140))
+        } catch {
+            logger.error("WHY generation failed: \(String(describing: error))")
+            return nil
+        }
+    }
+
+    // Create a compact one-liner from longer text if the model didn't return why_140
+    private static func compactWhy(from text: String) -> String {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty { return "" }
+        // Heuristic: take first sentence-ish chunk and clamp
+        let separators: [Character] = [".", "!", "?"]
+        if let idx = t.firstIndex(where: { separators.contains($0) }) {
+            let first = String(t[...idx])
+            return String(first.trimmingCharacters(in: .whitespacesAndNewlines).prefix(140))
+        }
+        return String(t.prefix(140))
+    }
     
     // Removed in favor of SharedUtils.extractJSONObjectString
     
@@ -379,13 +446,15 @@ struct QuestionEvaluation: Codable {
     let pointsEarned: Int
     let feedback: String
     let correctAnswer: String?
+    let why: String?
     
-    init(questionId: UUID, isCorrect: Bool, pointsEarned: Int, feedback: String, correctAnswer: String? = nil) {
+    init(questionId: UUID, isCorrect: Bool, pointsEarned: Int, feedback: String, correctAnswer: String? = nil, why: String? = nil) {
         self.questionId = questionId
         self.isCorrect = isCorrect
         self.pointsEarned = pointsEarned
         self.feedback = feedback
         self.correctAnswer = correctAnswer
+        self.why = why
     }
 }
 
