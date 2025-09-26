@@ -151,7 +151,7 @@ struct TestView: View {
                                 }
                                 .font(DS.Typography.captionBold)
                             }
-                            .dsPrimaryButton()
+                            .themePrimaryButton()
                             .disabled(!isCurrentQuestionAnswered() || isEvaluatingQuestion)
                         }
                     }
