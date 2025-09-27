@@ -9,6 +9,8 @@ final class Primer {
     // New structure fields
     var thesis: String = ""
     var story: String = ""  // Default value for backward compatibility
+    // Examples stored as Data for CloudKit compatibility
+    var examplesData: Data = Data()
     // Data-backed arrays for CloudKit compatibility
     var useItWhenData: Data = Data()
     var howToApplyData: Data = Data()
@@ -31,6 +33,11 @@ final class Primer {
     @Relationship var idea: Idea?
     
     // MARK: - Computed accessors for Data-backed arrays
+    var examples: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: examplesData)) ?? [] }
+        set { examplesData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+
     var useItWhen: [String] {
         get { (try? JSONDecoder().decode([String].self, from: useItWhenData)) ?? [] }
         set { useItWhenData = (try? JSONEncoder().encode(newValue)) ?? Data() }
@@ -51,11 +58,12 @@ final class Primer {
         set { keyNuancesData = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
 
-    init(ideaId: String, thesis: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
+    init(ideaId: String, thesis: String, story: String, examples: [String], useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
         self.id = UUID()
         self.ideaId = ideaId
         self.thesis = thesis
         self.story = story
+        self.examples = examples
         self.useItWhen = useItWhen
         self.howToApply = howToApply
         self.edgesAndLimits = edgesAndLimits
@@ -81,12 +89,13 @@ final class Primer {
         // Map to new structure
         self.thesis = overview.components(separatedBy: ".").first ?? overview
         self.story = ""
+        self.examples = []
         self.useItWhen = Array(keyNuances.prefix(3))
         self.howToApply = Array(keyNuances.dropFirst(3).prefix(3))
         self.edgesAndLimits = Array(keyNuances.dropFirst(6))
         self.oneLineRecall = overview.components(separatedBy: ".").first ?? overview
         self.furtherLearning = digDeeperLinks
-        
+
         self.createdAt = Date()
     }
 }

@@ -12,6 +12,8 @@ struct PrimerView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var isRefreshing = false
+    @State private var isLoadingMoreExamples = false
+    @State private var showAllExamples = false
     
     init(idea: Idea, openAIService: OpenAIService) {
         self.idea = idea
@@ -130,6 +132,7 @@ struct PrimerView: View {
                 // Secondary sections with tighter spacing
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     storySection(primer)
+                    examplesSection(primer)
                     useItWhenSection(primer)
                     howToApplySection(primer)
                     edgesAndLimitsSection(primer)
@@ -210,6 +213,82 @@ struct PrimerView: View {
                     .lineSpacing(4)
                     .themedCard()
             }
+        }
+    }
+
+    @ViewBuilder
+    private func examplesSection(_ primer: Primer) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.sm) {
+                DSIcon("list.bullet", size: 18)
+                    .foregroundColor(theme.primary)
+                Text("Examples")
+                    .font(DS.Typography.headline)
+                    .fontWeight(.medium)
+                    .foregroundColor(DS.Colors.black)
+            }
+
+            // Always show at least the first example if available
+            if let first = primer.examples.first, !first.isEmpty {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    exampleRow(first)
+                    if showAllExamples && primer.examples.count > 1 {
+                        ForEach(Array(primer.examples.dropFirst()), id: \.self) { ex in
+                            exampleRow(ex)
+                        }
+                    }
+                }
+                .themedCard()
+            } else {
+                // No examples yet: show a subtle note
+                Text("No examples yet. Load more to see scenarios.")
+                    .font(DS.Typography.body)
+                    .foregroundStyle(theme.onSurface.opacity(0.7))
+                    .themedCard()
+            }
+
+            HStack(spacing: DS.Spacing.md) {
+                if primer.examples.count > 1 {
+                    Button(action: { showAllExamples.toggle() }) {
+                        HStack {
+                            DSIcon(showAllExamples ? "chevron.up" : "chevron.down", size: 14)
+                            Text(showAllExamples ? "Hide extra examples" : "Show \(primer.examples.count - 1) more examples")
+                                .font(DS.Typography.caption)
+                        }
+                    }
+                    .dsTertiaryButton()
+                }
+
+                Spacer()
+
+                Button(action: { loadMoreExamples() }) {
+                    HStack {
+                        if isLoadingMoreExamples {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.black))
+                                .scaleEffect(0.8)
+                        } else {
+                            DSIcon("plus", size: 14)
+                        }
+                        Text(isLoadingMoreExamples ? "Loading…" : "Load 2 more examples")
+                            .font(DS.Typography.caption)
+                    }
+                }
+                .dsTertiaryButton()
+                .disabled(isLoadingMoreExamples)
+            }
+        }
+    }
+
+    private func exampleRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: DS.Spacing.xs) {
+            DSIcon("sparkles", size: 14)
+                .padding(.top, 2)
+            Text(text)
+                .font(DS.Typography.body)
+                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
+            Spacer()
         }
     }
     
@@ -522,6 +601,29 @@ struct PrimerView: View {
                 await MainActor.run {
                     errorMessage = "Failed to refresh primer: \(error.localizedDescription)"
                     isRefreshing = false
+                }
+            }
+        }
+    }
+
+    private func loadMoreExamples(count: Int = 2) {
+        isLoadingMoreExamples = true
+        guard let service = primerService, let currentPrimer = primer else {
+            isLoadingMoreExamples = false
+            return
+        }
+        Task {
+            do {
+                let updated = try await service.appendExamples(to: currentPrimer, for: idea, count: count)
+                await MainActor.run {
+                    self.primer = updated
+                    self.isLoadingMoreExamples = false
+                    self.showAllExamples = true // reveal newly loaded examples
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to load examples: \(error.localizedDescription)"
+                    self.isLoadingMoreExamples = false
                 }
             }
         }

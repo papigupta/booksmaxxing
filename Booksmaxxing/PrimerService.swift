@@ -41,6 +41,7 @@ class PrimerService: ObservableObject {
             ideaId: idea.id,
             thesis: parsedPrimer.thesis,
             story: parsedPrimer.story,
+            examples: parsedPrimer.examples,
             useItWhen: parsedPrimer.useItWhen,
             howToApply: parsedPrimer.howToApply,
             edgesAndLimits: parsedPrimer.edgesAndLimits,
@@ -113,6 +114,12 @@ class PrimerService: ObservableObject {
         # Story (80–120 words)
         Share a compelling narrative or example that illustrates this idea in action. Use concrete details and make it memorable.
 
+        # Examples (1 example, 2–3 sentences, ≤320 characters)
+        - Write one vivid, concrete scenario showing the idea in action.
+        - Use the shape: Context → Tension → Application → Outcome.
+        - Include at least one exact term from the description; avoid redefining the idea.
+        - No meta language (don't say "this idea/the theorem").
+
         # Use it when… (3 bullets, ≤10 words each)
         Concrete cues/conditions that signal the idea applies.
 
@@ -131,15 +138,25 @@ class PrimerService: ObservableObject {
         - [Talk/lecture video]: https://youtube.com/results?search_query=<author+idea+book>
         - [Review/critique]: https://<quality-blog>/<book-or-idea-review>
 
-        Rules: No repetition across sections. No hedging. Don't invent examples; if the description includes one, compress it briefly in Story section. Total length ≤ 240 words.
+        Rules: No repetition across sections. No hedging. The example must be ≤320 characters, concrete, and non-definitional. Total length ≤ 240 words.
         """
     }
     
-    private func parsePrimerResponse(_ response: String) throws -> (thesis: String, story: String, useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
+    private func parsePrimerResponse(_ response: String) throws -> (
+        thesis: String,
+        story: String,
+        examples: [String],
+        useItWhen: [String],
+        howToApply: [String],
+        edgesAndLimits: [String],
+        oneLineRecall: String,
+        furtherLearning: [PrimerLink]
+    ) {
         let lines = response.components(separatedBy: .newlines)
         
         var thesis = ""
         var story = ""
+        var examples: [String] = []
         var useItWhen: [String] = []
         var howToApply: [String] = []
         var edgesAndLimits: [String] = []
@@ -157,6 +174,9 @@ class PrimerService: ObservableObject {
                 continue
             } else if trimmedLine.hasPrefix("# Story") {
                 currentSection = "story"
+                continue
+            } else if trimmedLine.hasPrefix("# Examples") {
+                currentSection = "examples"
                 continue
             } else if trimmedLine.hasPrefix("# Use it when") {
                 currentSection = "useItWhen"
@@ -184,6 +204,19 @@ class PrimerService: ObservableObject {
             case "story":
                 if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
                     story += trimmedLine + " "
+                }
+            case "examples":
+                if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
+                    let item = trimmedLine
+                        .replacingOccurrences(of: "- ", with: "")
+                        .replacingOccurrences(of: "• ", with: "")
+                        .trimmingCharacters(in: .whitespaces)
+                    if !item.isEmpty {
+                        examples.append(item)
+                    }
+                } else if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
+                    // Fallback if model returns a single line without bullet
+                    examples.append(trimmedLine)
                 }
             case "useItWhen":
                 if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
@@ -240,11 +273,135 @@ class PrimerService: ObservableObject {
         return (
             thesis: thesis.trimmingCharacters(in: .whitespaces),
             story: story.trimmingCharacters(in: .whitespaces),
+            examples: examples,
             useItWhen: useItWhen,
             howToApply: howToApply,
             edgesAndLimits: edgesAndLimits,
             oneLineRecall: oneLineRecall.trimmingCharacters(in: .whitespaces),
             furtherLearning: furtherLearning
         )
+    }
+
+    // MARK: - On-demand Examples Generation
+
+    func generateMoreExamples(for idea: Idea, avoiding existing: [String], count: Int = 2) async throws -> [String] {
+        let system = "You generate specific, multi-sentence scenario examples for educational primers."
+        let avoidList = existing.joined(separator: "\n- ")
+        func prompt(_ need: Int, stricter: Bool = false) -> String {
+            let strictBlock = stricter ? "\nThe last ones were too generic. Make them more specific with concrete nouns, numbers, and outcomes. Do not define the idea; show it in action.\n" : "\n"
+            return """
+            Goal: Provide \(need) new, vivid examples (2–3 sentences each, ≤320 characters) for the idea "\(idea.title)" from "\(idea.bookTitle)".
+
+            Source description (only use this, no outside facts):
+            \(idea.ideaDescription)
+
+            Avoid duplicates of these examples:
+            - \(avoidList)
+
+            Write each example as a scenario using: Context → Tension → Application → Outcome.
+            Include at least one exact term from the description; do not restate the idea.
+            No meta language (don't say "this idea/the theorem").
+            \(strictBlock)
+            Output format:
+            # Examples
+            - <example 1>
+            - <example 2>
+
+            Rules: Each example ≤320 characters. Must be specific, concrete, and outcome-focused.
+            """
+        }
+
+        func parseExamples(from response: String) -> [String] {
+            var results: [String] = []
+            let lines = response.components(separatedBy: .newlines)
+            var inExamples = false
+            for line in lines {
+                let t = line.trimmingCharacters(in: .whitespaces)
+                if t.hasPrefix("# Examples") { inExamples = true; continue }
+                if inExamples {
+                    if t.hasPrefix("-") || t.hasPrefix("•") {
+                        let item = t.replacingOccurrences(of: "- ", with: "")
+                            .replacingOccurrences(of: "• ", with: "")
+                            .trimmingCharacters(in: .whitespaces)
+                        if !item.isEmpty { results.append(item) }
+                    } else if t.hasPrefix("# ") { break }
+                }
+            }
+            return results
+        }
+
+        func containsSignificantTerm(_ s: String, from text: String) -> Bool {
+            let words = text.split{ !$0.isLetter }.map { String($0) }.filter { $0.count >= 5 }
+            let lower = s.lowercased()
+            for w in words {
+                if lower.contains(w.lowercased()) { return true }
+            }
+            return false
+        }
+
+        func validate(_ items: [String]) -> [String] {
+            items.filter { item in
+                let trimmed = item.trimmingCharacters(in: .whitespacesAndNewlines)
+                let len = trimmed.count
+                if len < 120 || len > 320 { return false }
+                let lower = trimmed.lowercased()
+                if lower.hasPrefix(idea.title.lowercased() + " is ") ||
+                    lower.hasPrefix(idea.title.lowercased() + " means ") ||
+                    lower.hasPrefix(idea.title.lowercased() + " states ") ||
+                    lower.hasPrefix(idea.title.lowercased() + " says ") {
+                    return false
+                }
+                let hasNumber = lower.range(of: "\\d", options: .regularExpression) != nil
+                let hasTerm = containsSignificantTerm(lower, from: idea.ideaDescription)
+                if !(hasNumber || hasTerm) { return false }
+                return true
+            }
+        }
+
+        // First attempt
+        let response1 = try await openAIService.chat(
+            systemPrompt: system,
+            userPrompt: prompt(count, stricter: false),
+            model: "gpt-4.1-mini",
+            temperature: 0.7,
+            maxTokens: 800
+        )
+        var collected = validate(parseExamples(from: response1))
+
+        // Retry once if needed
+        if collected.count < count {
+            let remaining = count - collected.count
+            let response2 = try await openAIService.chat(
+                systemPrompt: system,
+                userPrompt: prompt(remaining, stricter: true),
+                model: "gpt-4.1-mini",
+                temperature: 0.6,
+                maxTokens: 700
+            )
+            let second = validate(parseExamples(from: response2))
+            collected.append(contentsOf: second)
+        }
+
+        // De-duplicate against existing and within new ones
+        var unique: [String] = []
+        let existingSet = Set(existing.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+        for ex in collected {
+            let t = ex.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !existingSet.contains(t) && !unique.contains(t) {
+                unique.append(t)
+            }
+            if unique.count == count { break }
+        }
+        return unique
+    }
+
+    func appendExamples(to primer: Primer, for idea: Idea, count: Int = 2) async throws -> Primer {
+        let current = primer.examples
+        let newOnes = try await generateMoreExamples(for: idea, avoiding: current, count: count)
+        if !newOnes.isEmpty {
+            primer.examples = current + newOnes
+            try modelContext.save()
+        }
+        return primer
     }
 } 

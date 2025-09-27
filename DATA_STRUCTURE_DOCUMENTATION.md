@@ -76,6 +76,7 @@ This document provides a comprehensive overview of all data models used in the B
 | **Active Content Fields** | | | |
 | `thesis` | String | The main point in one sentence | ✅ **Used** - Core explanation |
 | `story` | String | A story or example that illustrates the idea | ✅ **Used** - Narrative learning |
+| `examples` | [String] | 2–3 sentence scenarios (≤320 chars) illustrating the idea; more load on demand | ✅ **Used** - On-demand clarity |
 | `useItWhen` | [String] | Situations where you'd apply this idea | ✅ **Used** - Practical application |
 | `howToApply` | [String] | Step-by-step instructions to use this idea | ✅ **Used** - Implementation guide |
 | `edgesAndLimits` | [String] | When this idea doesn't work or has limitations | ✅ **Used** - Critical thinking |
