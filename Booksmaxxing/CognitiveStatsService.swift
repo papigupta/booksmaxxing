@@ -9,6 +9,7 @@ final class DailyCognitiveStats {
     var bcalTotal: Int = 0
     var answeredCount: Int = 0
     var correctCount: Int = 0
+    var attentionPauses: Int = 0
 
     init(dayStart: Date) {
         self.id = UUID()
@@ -79,5 +80,36 @@ struct CognitiveStatsService {
             return (correct, total, percent)
         }
         return (0, 0, 0)
+    }
+
+    // MARK: - Attention
+    func addAttentionPauses(_ count: Int) {
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        var descriptor = FetchDescriptor<DailyCognitiveStats>(
+            predicate: #Predicate { $0.dayStart == todayStart }
+        )
+        descriptor.fetchLimit = 1
+        if let existing = try? modelContext.fetch(descriptor).first {
+            existing.attentionPauses += count
+        } else {
+            let stats = DailyCognitiveStats(dayStart: todayStart)
+            stats.attentionPauses = count
+            modelContext.insert(stats)
+        }
+        try? modelContext.save()
+    }
+
+    func todayAttentionPauses() -> Int {
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        var descriptor = FetchDescriptor<DailyCognitiveStats>(
+            predicate: #Predicate { $0.dayStart == todayStart }
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor).first?.attentionPauses) ?? 0
+    }
+
+    func todayAttentionPercent(config: AttentionConfig = AttentionConfig()) -> Int {
+        let p = todayAttentionPauses()
+        return config.percent(for: p)
     }
 }

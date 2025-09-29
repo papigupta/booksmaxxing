@@ -55,6 +55,13 @@ struct TestView: View {
     @State private var lastSelectedIndex: [UUID: Int?] = [:]
     @State private var checkedQuestions: Set<UUID> = []
     
+    // Attention tracking
+    @State private var sessionPauses: Int = 0
+    @State private var lastActivityAt: Date = Date()
+    @State private var lastInactiveAt: Date? = nil
+    private let attentionConfig = AttentionConfig()
+    private let activityTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
     private var currentQuestion: Question? {
         test.orderedQuestions.indices.contains(currentQuestionIndex) ? test.orderedQuestions[currentQuestionIndex] : nil
     }
@@ -207,17 +214,27 @@ struct TestView: View {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .inactive || phase == .background {
                     pauseTrackingForCurrentQuestion()
+                    lastInactiveAt = Date()
                 } else if phase == .active {
                     startTrackingForCurrentQuestion()
+                    if let away = lastInactiveAt {
+                        let delta = Date().timeIntervalSince(away)
+                        if delta >= attentionConfig.awayThresholdSeconds {
+                            sessionPauses += 1
+                        }
+                        lastInactiveAt = nil
+                    }
                 }
             }
             .onChange(of: currentQuestionIndex) { _, _ in
                 pauseTrackingForCurrentQuestion()
                 startTrackingForCurrentQuestion()
+                markActivity()
             }
             .onChange(of: showingPrimer) { _, isPresented in
                 if isPresented, let q = currentQuestion, !checkedQuestions.contains(q.id) {
                     primerUsedMap[q.id] = true
+                    markActivity()
                 }
             }
             .onChange(of: selectedOptions) { _, newVal in
@@ -228,6 +245,15 @@ struct TestView: View {
                     optionChangesMap[q.id, default: 0] += 1
                 }
                 lastSelectedIndex[q.id] = newIndex
+                markActivity()
+            }
+            .onReceive(activityTicker) { _ in
+                // In-app inactivity check
+                let delta = Date().timeIntervalSince(lastActivityAt)
+                if delta >= attentionConfig.inactivityThresholdSeconds {
+                    sessionPauses += 1
+                    lastActivityAt = Date() // reset window to avoid multiple increments per long stretch
+                }
             }
             .sheet(isPresented: Binding(
                 get: { shouldShowResults },
@@ -373,6 +399,7 @@ struct TestView: View {
         isEvaluatingQuestion = true
         finalizeTracking(for: question)
         saveCurrentResponse()
+        markActivity()
         
         // Force save to ensure persistence
         try? modelContext.save()
@@ -419,6 +446,7 @@ struct TestView: View {
             }
         }
         startTrackingForCurrentQuestion()
+        markActivity()
     }
     
     private func previousQuestion() {
@@ -433,6 +461,7 @@ struct TestView: View {
             }
         }
         startTrackingForCurrentQuestion()
+        markActivity()
     }
     
     private func saveCurrentResponse() {
@@ -611,6 +640,11 @@ struct TestView: View {
                 // Compute and persist Brain Calories for this session
                 let bcal = computeLessonBCal()
                 attempt.brainCalories = bcal
+                // Persist Accuracy snapshot
+                attempt.accuracyTotal = (attempt.responses ?? []).count
+                attempt.accuracyCorrect = (attempt.responses ?? []).filter { $0.isCorrect }.count
+                // Persist Attention pauses
+                attempt.attentionPauses = sessionPauses
                 
                 // Determine mastery
                 let allCorrect = correctCount == (test.questions ?? []).count
@@ -699,6 +733,10 @@ extension TestView {
         case .mcq, .msq: return 15.0
         case .openEnded: return 25.0
         }
+    }
+
+    private func markActivity() {
+        lastActivityAt = Date()
     }
 }
 

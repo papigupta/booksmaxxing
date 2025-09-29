@@ -34,6 +34,9 @@ struct DailyPracticeWithReviewView: View {
     @State private var sessionTotal: Int = 0
     @State private var todayCorrect: Int = 0
     @State private var todayTotal: Int = 0
+    @State private var sessionPauses: Int = 0
+    @State private var todayPauses: Int = 0
+    @State private var todayAttentionPercent: Int = 0
     
     enum PracticeFlowState {
         case none
@@ -137,6 +140,9 @@ struct DailyPracticeWithReviewView: View {
                         todayCorrect: todayCorrect,
                         todayTotal: todayTotal,
                         goalAccuracyPercent: 80,
+                        sessionPauses: sessionPauses,
+                        todayPauses: todayPauses,
+                        todayAttentionPercent: todayAttentionPercent,
                         onContinue: {
                             currentView = .none
                             onPracticeComplete?()
@@ -640,7 +646,7 @@ struct DailyPracticeWithReviewView: View {
         completedAttempt = attempt
         showingTest = false
         shouldShowStreakToday = didIncrementStreak
-        // Compute and persist Brain Calories for today
+        // Compute and persist Brain Calories + Accuracy + Attention for today
         sessionBCal = attempt.brainCalories
         let stats = CognitiveStatsService(modelContext: modelContext)
         stats.addBCalToToday(sessionBCal)
@@ -651,6 +657,11 @@ struct DailyPracticeWithReviewView: View {
         let acc = stats.todayAccuracy()
         todayCorrect = acc.correct
         todayTotal = acc.total
+        // Attention rollup
+        sessionPauses = attempt.attentionPauses
+        stats.addAttentionPauses(sessionPauses)
+        todayPauses = stats.todayAttentionPauses()
+        todayAttentionPercent = stats.todayAttentionPercent()
         todayBCalTotal = stats.todayBCalTotal()
         
         // Record mistakes to review queue

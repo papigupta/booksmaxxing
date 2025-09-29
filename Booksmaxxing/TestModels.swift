@@ -186,6 +186,11 @@ final class TestAttempt {
     var score: Int = 0  // Out of 150
     // Brain Calories burned in this attempt (session)
     var brainCalories: Int = 0
+    // Accuracy snapshot for this attempt
+    var accuracyCorrect: Int = 0
+    var accuracyTotal: Int = 0
+    // Attention pauses counted in this attempt
+    var attentionPauses: Int = 0
     var isComplete: Bool = false
     var masteryAchieved: MasteryType = MasteryType.none
     var retryCount: Int = 0  // Number of retry loops completed
@@ -201,6 +206,9 @@ final class TestAttempt {
         self.startedAt = Date()
         self.score = 0
         self.brainCalories = 0
+        self.accuracyCorrect = 0
+        self.accuracyTotal = 0
+        self.attentionPauses = 0
         self.isComplete = false
         self.masteryAchieved = .none
         self.retryCount = 0

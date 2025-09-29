@@ -41,6 +41,9 @@ struct DailyPracticeView: View {
     @State private var sessionTotal: Int = 0
     @State private var todayCorrect: Int = 0
     @State private var todayTotal: Int = 0
+    @State private var sessionPauses: Int = 0
+    @State private var todayPauses: Int = 0
+    @State private var todayAttentionPercent: Int = 0
     
     enum PracticeFlowState {
         case none
@@ -131,6 +134,9 @@ struct DailyPracticeView: View {
                         todayCorrect: todayCorrect,
                         todayTotal: todayTotal,
                         goalAccuracyPercent: 80,
+                        sessionPauses: sessionPauses,
+                        todayPauses: todayPauses,
+                        todayAttentionPercent: todayAttentionPercent,
                         onContinue: {
                             if !celebrationQueue.isEmpty {
                                 currentCelebrationIdea = celebrationQueue.removeFirst()
@@ -757,6 +763,11 @@ struct DailyPracticeView: View {
         todayCorrect = acc.correct
         todayTotal = acc.total
         todayBCalTotal = stats.todayBCalTotal()
+        // Attention
+        sessionPauses = attempt.attentionPauses
+        stats.addAttentionPauses(sessionPauses)
+        todayPauses = stats.todayAttentionPauses()
+        todayAttentionPercent = stats.todayAttentionPercent()
 
         if didIncrementStreak {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
