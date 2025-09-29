@@ -37,6 +37,10 @@ struct DailyPracticeView: View {
     @State private var currentCelebrationIdea: Idea? = nil
     @State private var sessionBCal: Int = 0
     @State private var todayBCalTotal: Int = 0
+    @State private var sessionCorrect: Int = 0
+    @State private var sessionTotal: Int = 0
+    @State private var todayCorrect: Int = 0
+    @State private var todayTotal: Int = 0
     
     enum PracticeFlowState {
         case none
@@ -121,7 +125,12 @@ struct DailyPracticeView: View {
                 } else if currentView == .bcal {
                     BrainCaloriesView(
                         sessionBCal: sessionBCal,
-                        todayTotal: todayBCalTotal,
+                        todayBCalTotal: todayBCalTotal,
+                        sessionCorrect: sessionCorrect,
+                        sessionTotal: sessionTotal,
+                        todayCorrect: todayCorrect,
+                        todayTotal: todayTotal,
+                        goalAccuracyPercent: 80,
                         onContinue: {
                             if !celebrationQueue.isEmpty {
                                 currentCelebrationIdea = celebrationQueue.removeFirst()
@@ -738,9 +747,16 @@ struct DailyPracticeView: View {
         // Session BCal stored on attempt by TestView
         let session = attempt.brainCalories
         sessionBCal = session
-        let bcalService = BCalService(modelContext: modelContext)
-        bcalService.addToToday(session)
-        todayBCalTotal = bcalService.todayTotal()
+        let stats = CognitiveStatsService(modelContext: modelContext)
+        stats.addBCalToToday(session)
+        // Accuracy
+        sessionTotal = (attempt.responses ?? []).count
+        sessionCorrect = (attempt.responses ?? []).filter { $0.isCorrect }.count
+        stats.addAnswers(correct: sessionCorrect, total: sessionTotal)
+        let acc = stats.todayAccuracy()
+        todayCorrect = acc.correct
+        todayTotal = acc.total
+        todayBCalTotal = stats.todayBCalTotal()
 
         if didIncrementStreak {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

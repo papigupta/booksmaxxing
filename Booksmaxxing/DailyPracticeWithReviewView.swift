@@ -30,6 +30,10 @@ struct DailyPracticeWithReviewView: View {
     @State private var shouldShowStreakToday: Bool = false
     @State private var sessionBCal: Int = 0
     @State private var todayBCalTotal: Int = 0
+    @State private var sessionCorrect: Int = 0
+    @State private var sessionTotal: Int = 0
+    @State private var todayCorrect: Int = 0
+    @State private var todayTotal: Int = 0
     
     enum PracticeFlowState {
         case none
@@ -127,7 +131,12 @@ struct DailyPracticeWithReviewView: View {
                 } else if currentView == .bcal {
                     BrainCaloriesView(
                         sessionBCal: sessionBCal,
-                        todayTotal: todayBCalTotal,
+                        todayBCalTotal: todayBCalTotal,
+                        sessionCorrect: sessionCorrect,
+                        sessionTotal: sessionTotal,
+                        todayCorrect: todayCorrect,
+                        todayTotal: todayTotal,
+                        goalAccuracyPercent: 80,
                         onContinue: {
                             currentView = .none
                             onPracticeComplete?()
@@ -633,9 +642,16 @@ struct DailyPracticeWithReviewView: View {
         shouldShowStreakToday = didIncrementStreak
         // Compute and persist Brain Calories for today
         sessionBCal = attempt.brainCalories
-        let bcalService = BCalService(modelContext: modelContext)
-        bcalService.addToToday(sessionBCal)
-        todayBCalTotal = bcalService.todayTotal()
+        let stats = CognitiveStatsService(modelContext: modelContext)
+        stats.addBCalToToday(sessionBCal)
+        // Accuracy rollup
+        sessionTotal = (attempt.responses ?? []).count
+        sessionCorrect = (attempt.responses ?? []).filter { $0.isCorrect }.count
+        stats.addAnswers(correct: sessionCorrect, total: sessionTotal)
+        let acc = stats.todayAccuracy()
+        todayCorrect = acc.correct
+        todayTotal = acc.total
+        todayBCalTotal = stats.todayBCalTotal()
         
         // Record mistakes to review queue
         if let test = combinedTest {
