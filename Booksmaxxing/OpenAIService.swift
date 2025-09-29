@@ -180,7 +180,8 @@ class OpenAIService {
                 Message(role: "user", content: userPrompt)
             ],
             max_tokens: 200,
-            temperature: 0.1
+            temperature: 0.1,
+            top_p: nil
         )
         
         guard let url = URL(string: "\(baseURL)/chat/completions") else {
@@ -294,7 +295,8 @@ class OpenAIService {
                 Message(role: "user", content: prompt)
             ],
             max_tokens: 2000,
-            temperature: 0.1
+            temperature: 0.1,
+            top_p: nil
         )
         
         guard let url = URL(string: "\(baseURL)/chat/completions") else {
@@ -458,7 +460,8 @@ class OpenAIService {
                 Message(role: "user", content: userPrompt)
             ],
             max_tokens: 500,
-            temperature: 0.7
+            temperature: 0.7,
+            top_p: nil
         )
         
         guard let url = URL(string: "\(baseURL)/chat/completions") else {
@@ -593,14 +596,16 @@ class OpenAIService {
         prompt: String,
         model: String,
         temperature: Double,
-        maxTokens: Int
+        maxTokens: Int,
+        topP: Double? = nil
     ) async throws -> String {
         return try await withRetry(maxAttempts: 5) {
             try await self.performComplete(
                 prompt: prompt,
                 model: model,
                 temperature: temperature,
-                maxTokens: maxTokens
+                maxTokens: maxTokens,
+                topP: topP
             )
         }
     }
@@ -609,7 +614,8 @@ class OpenAIService {
         prompt: String,
         model: String,
         temperature: Double,
-        maxTokens: Int
+        maxTokens: Int,
+        topP: Double?
     ) async throws -> String {
         let requestBody = ChatRequest(
             model: model,
@@ -617,7 +623,8 @@ class OpenAIService {
                 Message(role: "user", content: prompt)
             ],
             max_tokens: maxTokens,
-            temperature: temperature
+            temperature: temperature,
+            top_p: topP
         )
         
         guard let url = URL(string: "\(baseURL)/chat/completions") else {
@@ -652,13 +659,13 @@ class OpenAIService {
     }
 
     // MARK: - General Chat Method (with system + user messages)
-    func chat(systemPrompt: String?, userPrompt: String, model: String, temperature: Double, maxTokens: Int) async throws -> String {
+    func chat(systemPrompt: String?, userPrompt: String, model: String, temperature: Double, maxTokens: Int, topP: Double? = nil) async throws -> String {
         return try await withRetry(maxAttempts: 5) {
-            try await self.performChat(systemPrompt: systemPrompt, userPrompt: userPrompt, model: model, temperature: temperature, maxTokens: maxTokens)
+            try await self.performChat(systemPrompt: systemPrompt, userPrompt: userPrompt, model: model, temperature: temperature, maxTokens: maxTokens, topP: topP)
         }
     }
 
-    private func performChat(systemPrompt: String?, userPrompt: String, model: String, temperature: Double, maxTokens: Int) async throws -> String {
+    private func performChat(systemPrompt: String?, userPrompt: String, model: String, temperature: Double, maxTokens: Int, topP: Double?) async throws -> String {
         var messages: [Message] = []
         if let system = systemPrompt { messages.append(Message(role: "system", content: system)) }
         messages.append(Message(role: "user", content: userPrompt))
@@ -667,7 +674,8 @@ class OpenAIService {
             model: model,
             messages: messages,
             max_tokens: maxTokens,
-            temperature: temperature
+            temperature: temperature,
+            top_p: topP
         )
 
         guard let url = URL(string: "\(baseURL)/chat/completions") else {

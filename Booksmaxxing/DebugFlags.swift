@@ -8,7 +8,7 @@ enum DebugFlags {
     static let enableThemeLab: Bool = true
 
     // Feature flag to enable batched initial question generation (single API call for 8 items)
-    static let useBatchedInitialGeneration: Bool = true
+    static let useBatchedInitialGeneration: Bool = false
 
     // Feature flag to enable per-difficulty batched initial generation (3 API calls: Easy, Medium, Hard)
     // This supersedes the single-call batching when enabled.

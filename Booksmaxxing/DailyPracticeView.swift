@@ -550,6 +550,8 @@ struct DailyPracticeView: View {
                         isSpacedFollowUp: q.isSpacedFollowUp,
                         sourceQueueItemId: q.sourceQueueItemId
                     )
+                    // Preserve HowWield payload if present for UI/analytics
+                    if let hw = q.howWieldPayload { cloned.howWieldPayload = hw }
                     combined.append(cloned)
                     if let src = sourceMap[q.id] {
                         newMap[cloned.id] = src

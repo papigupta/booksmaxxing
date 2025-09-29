@@ -272,211 +272,7 @@ class TestGenerationService {
     // MARK: - Initial Test Generation (8 questions)
 
     // Batched generation: single call for 8 items with strict validation and fallback
-    private func generateInitialQuestionsBatched(for idea: Idea) async throws -> [Question] {
-        let start = Date()
-        logger.debug("BATCH: Starting batched initial generation for idea: \(idea.title, privacy: .public)")
-
-        // Build system and user prompts. Keep a single, tight system prompt
-        // to minimize tokens while preserving quality instructions.
-        let systemPrompt = """
-        You are an expert educational content creator.
-        Create exactly 8 high-quality questions for one lesson from a non-fiction book idea.
-        Honor Bloom type, difficulty and question type for each slot. Match tone and clarity of expert test writers.
-
-        Requirements:
-        - MCQ: exactly 4 concise, plausible options; 1 correct index; avoid “all/none of the above/both/neither”. Keep options parallel in structure and similar in length; do not make the correct option notably longer.
-        - OpenEnded: omit options/correct. For the Reframe slot (type=OpenEnded, bloom=Reframe), write a single, one‑sentence prompt that invites the learner to restate the idea "in your own words". Do not include lists, hints, or evaluation criteria.
-        - Stem: clear, unambiguous, tests understanding per Bloom intent; avoid fluff; prefer realistic contexts.
-        - Language: precise, book-appropriate, no chain-of-thought; no explanations.
-
-        Output only a valid JSON object per schema (no prose before/after).
-        """
-
-        // Fixed spec map for indices 0..7
-        let slotSpec: [(type: String, bloom: String, difficulty: String)] = [
-            ("MCQ","Recall","Easy"),
-            ("MCQ","Apply","Easy"),
-            ("MCQ","WhyImportant","Medium"),
-            ("MCQ","WhenUse","Medium"),
-            ("MCQ","Contrast","Medium"),
-            ("OpenEnded","Reframe","Medium"),
-            ("MCQ","Critique","Hard"),
-            ("OpenEnded","HowWield","Hard")
-        ]
-
-        // Schema contract text for the model
-        let schemaText = """
-        Strictly follow this JSON schema and rules:
-        {
-          "questions": [
-            {
-              "orderIndex": 0..7,
-              "type": "MCQ" | "OpenEnded",
-              "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|Reframe|Critique|HowWield",
-              "difficulty": "Easy|Medium|Hard",
-              "question": "string",
-              "options": ["A","B","C","D"],
-              "correct": [0]
-            }
-          ]
-        }
-        Rules:
-        - MCQ must have exactly 4 options and a single correct index (0-3).
-        - OpenEnded must omit options and correct.
-        - Avoid phrases like "all of the above".
-        - Make MCQ options similar length (±20% of average) and parallel; do not reveal correctness via verbosity.
-        Output only JSON. No prose.
-        """
-
-        // Assemble user prompt with concise slot specs to reduce tokens.
-        var specLines: [String] = []
-        for (idx, s) in slotSpec.enumerated() {
-            specLines.append("- orderIndex=\(idx), type=\(s.type), bloom=\(s.bloom), difficulty=\(s.difficulty)")
-        }
-
-        let userPrompt = """
-        Idea title: \(idea.title)
-        Idea description: \(idea.ideaDescription)
-        Book: \(idea.bookTitle)
-
-        Create the 8 questions in this exact distribution and order:\n\(specLines.joined(separator: "\n"))
-
-        \(schemaText)
-        """
-
-        // Call model with retry via OpenAIService
-        // Use the high-quality model, but keep the prompt compact for speed.
-        let aiResponse = try await openAI.chat(
-            systemPrompt: systemPrompt,
-            userPrompt: userPrompt,
-            model: "gpt-4.1",
-            temperature: 0.7,
-            maxTokens: 1200
-        )
-
-        // Extract JSON and decode
-        let jsonString = SharedUtils.extractJSONObjectString(aiResponse)
-
-        struct BatchedQuestionsResponse: Decodable { let questions: [BatchedItem] }
-        struct BatchedItem: Decodable {
-            let orderIndex: Int
-            let type: String
-            let bloom: String
-            let difficulty: String
-            let question: String
-            let options: [String]?
-            let correct: [Int]?
-        }
-
-        func decode(_ s: String) throws -> BatchedQuestionsResponse {
-            guard let d = s.data(using: .utf8) else { throw TestGenerationError.generationFailed("BATCH: Invalid JSON string") }
-            return try JSONDecoder().decode(BatchedQuestionsResponse.self, from: d)
-        }
-
-        var decoded: BatchedQuestionsResponse
-        do {
-            decoded = try decode(jsonString)
-        } catch {
-            // Retry once with the same model to recover from transient formatting issues
-            logger.debug("BATCH: Primary decode failed; retrying generation with compact prompt")
-            let retryResponse = try await openAI.chat(
-                systemPrompt: systemPrompt,
-                userPrompt: userPrompt,
-                model: "gpt-4.1",
-                temperature: 0.7,
-                maxTokens: 1200
-            )
-            let retryJson = SharedUtils.extractJSONObjectString(retryResponse)
-            decoded = try decode(retryJson)
-        }
-
-        // Validate and normalize
-        let items = decoded.questions
-        guard items.count == 8 else {
-            throw TestGenerationError.generationFailed("BATCH: Expected 8 items, got \(items.count)")
-        }
-        let indexSet = Set(items.map { $0.orderIndex })
-        guard indexSet == Set(0...7) else {
-            throw TestGenerationError.generationFailed("BATCH: orderIndex must be 0..7 unique")
-        }
-
-        // Build mapping by index
-        var byIndex: [Int: BatchedItem] = [:]
-        for item in items { byIndex[item.orderIndex] = item }
-
-        // Helper functions
-        func norm(_ s: String) -> String {
-            return s.lowercased()
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "[^a-z0-9 ]", with: "", options: .regularExpression)
-        }
-        let disallowed = Set(["all of the above", "none of the above", "both a and b", "neither of the above"]) 
-
-        // Validate each slot against fixed spec
-        for i in 0...7 {
-            guard let item = byIndex[i] else { continue }
-            let expected = slotSpec[i]
-            guard item.type == expected.type && item.bloom == expected.bloom && item.difficulty == expected.difficulty else {
-                throw TestGenerationError.generationFailed("BATCH: Slot \(i) spec mismatch")
-            }
-            guard !item.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw TestGenerationError.generationFailed("BATCH: Slot \(i) empty question")
-            }
-            if expected.type == "MCQ" {
-                guard let options = item.options, let correct = item.correct, options.count == 4, correct.count == 1 else {
-                    throw TestGenerationError.generationFailed("BATCH: Slot \(i) MCQ shape invalid")
-                }
-                // Option sanity
-                let normalized = options.map { norm($0) }
-                if Set(normalized).count != 4 { throw TestGenerationError.generationFailed("BATCH: Slot \(i) duplicate options") }
-                if normalized.contains(where: { disallowed.contains($0) }) { throw TestGenerationError.generationFailed("BATCH: Slot \(i) disallowed option") }
-                if !(0...3).contains(correct[0]) { throw TestGenerationError.generationFailed("BATCH: Slot \(i) correct index out of range") }
-            } else { // OpenEnded
-                if item.options != nil || item.correct != nil {
-                    throw TestGenerationError.generationFailed("BATCH: Slot \(i) OpenEnded must not include options/correct")
-                }
-            }
-        }
-
-        // Convert to internal Question objects with option shuffle
-        var out: [Question] = []
-        var randomizedCount = 0
-        for i in 0...7 {
-            guard let item = byIndex[i] else { continue }
-
-            let type: QuestionType = (item.type == "OpenEnded") ? .openEnded : .mcq
-            guard let bloom = BloomCategory(rawValue: item.bloom), let difficulty = QuestionDifficulty(rawValue: item.difficulty) else {
-                throw TestGenerationError.generationFailed("BATCH: Slot \(i) unknown enums")
-            }
-
-            var options: [String]? = item.options
-            var correct: [Int]? = item.correct
-            if type != .openEnded, let opts = options, let corr = correct {
-                // First randomize, then normalize lengths if needed
-                let (shuffled, newIdx) = randomizeOptions(opts, correctIndices: corr)
-                let normalized = await normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newIdx.first ?? 0, difficulty: difficulty, contextQuestion: item.question)
-                options = normalized
-                correct = newIdx
-                randomizedCount += 1
-            }
-
-            let finalQuestionText = (type == .openEnded && bloom == .reframe) ? "In your own words, explain '\(idea.title)' as if you were telling a friend." : item.question
-            out.append(Question(
-                ideaId: idea.id,
-                type: type,
-                difficulty: difficulty,
-                bloomCategory: bloom,
-                questionText: finalQuestionText,
-                options: options,
-                correctAnswers: correct,
-                orderIndex: i
-            ))
-        }
-
-        let elapsed = Date().timeIntervalSince(start)
-        logger.debug("BATCH: Parsed batch in \(String(format: "%.2f", elapsed))s; randomized MCQs: \(randomizedCount)")
-        return out.sorted { $0.orderIndex < $1.orderIndex }
-    }
+    // legacy single-call batched initial generation removed
 
     // Per-difficulty batched generation: 3 calls (Easy: 0-1, Medium: 2-5, Hard: 6-7)
     private func generateInitialQuestionsPerDifficultyBatched(for idea: Idea) async throws -> [Question] {
@@ -557,17 +353,29 @@ class TestGenerationService {
                     options = normalized
                     correct = newIdx
                 }
-                let finalQuestionText = (type == .openEnded && bloom == .reframe) ? "In your own words, explain '\(idea.title)' as if you were telling a friend." : item.question
-                out.append(Question(
-                    ideaId: idea.id,
-                    type: type,
-                    difficulty: difficulty,
-                    bloomCategory: bloom,
-                    questionText: finalQuestionText,
-                    options: options,
-                    correctAnswers: correct,
-                    orderIndex: i
-                ))
+                if type == .openEnded && bloom == .howWield {
+                    self.logger.debug("DIFF-BATCH->Q8: Replacing batched HowWield with situational generator at index \(i)")
+                    let q8 = try await self.generateQuestion(
+                        for: idea,
+                        type: .openEnded,
+                        difficulty: difficulty,
+                        bloomCategory: .howWield,
+                        orderIndex: i
+                    )
+                    out.append(q8)
+                } else {
+                    let finalQuestionText = (type == .openEnded && bloom == .reframe) ? "In your own words, explain '\(idea.title)' as if you were telling a friend." : item.question
+                    out.append(Question(
+                        ideaId: idea.id,
+                        type: type,
+                        difficulty: difficulty,
+                        bloomCategory: bloom,
+                        questionText: finalQuestionText,
+                        options: options,
+                        correctAnswers: correct,
+                        orderIndex: i
+                    ))
+                }
             }
             return out
         }
@@ -763,25 +571,25 @@ class TestGenerationService {
     }
 
     private func generateInitialQuestions(for idea: Idea) async throws -> [Question] {
+        logger.debug("GEN-PATH: Flags — per-difficulty=\(DebugFlags.usePerDifficultyBatchedInitialGeneration, privacy: .public), single-call removed=true")
         // Try per-difficulty batched path first when flag is enabled
         if DebugFlags.usePerDifficultyBatchedInitialGeneration {
             do {
                 let split = try await generateInitialQuestionsPerDifficultyBatched(for: idea)
+                if let q8 = split.first(where: { $0.orderIndex == 7 }) {
+                    let hasInline = q8.howWieldInlineCard != nil || q8.howWieldPayload != nil
+                    logger.debug("Q8 summary — category=\(q8.bloomCategory.rawValue, privacy: .public), hasHWFields=\(hasInline, privacy: .public), text='\(q8.questionText.prefix(120))…'")
+                    if let hw = q8.howWieldInlineCard {
+                        logger.debug("Q8 Inline — role='\(hw.role, privacy: .public)', goal='\(hw.goal, privacy: .public)', time='\(hw.timebox, privacy: .public)', dataCount=\(hw.data.count, privacy: .public)")
+                    }
+                }
                 return split
             } catch {
                 logger.debug("DIFF-BATCH: Falling back due to: \(error.localizedDescription)")
             }
         }
 
-        // Try single-call batched path when flag is enabled; fallback to legacy per-question if anything fails
-        if DebugFlags.useBatchedInitialGeneration {
-            do {
-                let batched = try await generateInitialQuestionsBatched(for: idea)
-                return batched
-            } catch {
-                logger.debug("BATCH: Falling back to legacy per-question generation due to: \(error.localizedDescription)")
-            }
-        }
+        // Single-call batched path removed
         var questions: [Question] = []
         
         // Fixed order with specific question types and difficulties:
@@ -822,6 +630,13 @@ class TestGenerationService {
         logger.debug("Final question order:")
         for (index, q) in questions.enumerated() {
             logger.debug("  Q\(index + 1): \(q.bloomCategory.rawValue) - \(q.type.rawValue) - orderIndex: \(q.orderIndex)")
+        }
+        if let q8 = questions.first(where: { $0.orderIndex == 7 }) {
+            let hasInline = q8.howWieldInlineCard != nil || q8.howWieldPayload != nil
+            logger.debug("Q8 summary — category=\(q8.bloomCategory.rawValue, privacy: .public), hasHWFields=\(hasInline, privacy: .public), text='\(q8.questionText.prefix(120))…'")
+            if let hw = q8.howWieldInlineCard {
+                logger.debug("Q8 Inline — role='\(hw.role, privacy: .public)', goal='\(hw.goal, privacy: .public)', time='\(hw.timebox, privacy: .public)', dataCount=\(hw.data.count, privacy: .public)")
+            }
         }
         
         return questions
@@ -874,6 +689,11 @@ class TestGenerationService {
         )
         guard let idea = try modelContext.fetch(descriptor).first else {
             throw TestGenerationError.generationFailed("Idea not found")
+        }
+
+        // Use situational HowWield for review-time if category is HowWield
+        if queueItem.bloomCategory == .howWield {
+            return try await generateHowWieldQuestion(for: idea, difficulty: queueItem.difficulty, orderIndex: orderIndex)
         }
 
         // Short, invitational retrieval prompt (same style family as curveball but per stored bloom)
@@ -999,6 +819,11 @@ class TestGenerationService {
         
         guard let idea = try modelContext.fetch(descriptor).first else {
             throw TestGenerationError.generationFailed("Idea not found")
+        }
+
+        // If the original was HowWield OpenEnded, use the situational generator for review as well
+        if queueItem.bloomCategory == .howWield && queueItem.questionType == .openEnded {
+            return try await generateHowWieldQuestion(for: idea, difficulty: queueItem.difficulty, orderIndex: orderIndex)
         }
         
         // Generate a similar question with the same parameters but different content
@@ -1129,6 +954,11 @@ class TestGenerationService {
         orderIndex: Int,
         isReview: Bool = false
     ) async throws -> Question {
+        // Special-case: Q8 HowWield situational apply (boss-simple)
+        if type == .openEnded && bloomCategory == .howWield {
+            logger.debug("HOWWIELD: Using situational generator for Q8 (orderIndex=\(orderIndex))")
+            return try await generateHowWieldQuestion(for: idea, difficulty: difficulty, orderIndex: orderIndex)
+        }
         // Minimal handling for Reframe Q6: no LLM, just a simple invite
         if type == .openEnded && bloomCategory == .reframe {
             return Question(
@@ -1182,6 +1012,45 @@ class TestGenerationService {
     }
     
     // MARK: - Prompt Creation
+
+    // MARK: - Q8 HowWield (Situational Apply) Prompts — Lite 2-sentence paragraph
+
+    private func createHowWieldSystemPrompt() -> String {
+        return """
+        Q8 = HowWield (Situational Apply, Lite).
+
+        Write ONE short paragraph with exactly 2 sentences. No labels.
+
+        Sentence 1: Implicit situation — clearly state who you are, a 2–3 minute time box, and 2–3 concrete facts with a small number.
+        Include 2–3 anchors (e.g., product/app name, persona name+age, a price/metric, a time window, team roles, small counts 2–7 or prob 0.7/0.8).
+        Sentence 2: A do‑now micro‑task that takes ≤3 minutes (e.g., "write 3 questions / list 3 options / pick 1"), plus the phrase "and say why in one sentence."
+
+        Rules:
+        - Plain English, zero jargon. No semicolons (;), no parentheses (). Dead simple language.
+        - Ban words: evaluate, assess, consider, explore, leverage, optimize, stakeholders, methodology, qualitative, quantitative.
+        - Include ≥1 exact term from the Idea text.
+        - Make it answerable with only the given info.
+        - Make the role, goal/timebox, situation facts, constraints, and task unmistakable (crystal clear) even without labels.
+        - The question length does not matter, but keep it clear.
+
+        Return only the 2-sentence paragraph (no JSON, no bullets, no extra lines).
+        """
+    }
+
+    private func createHowWieldUserPrompt(idea: Idea) -> String {
+        return """
+        Create ONE HowWield situational question for this idea as a 2‑sentence paragraph (no labels).
+
+        Sentence 1: who you are, a 2–3 minute time box, and 2–3 concrete facts with a small number. Include 2–3 anchors (product/app name, persona name+age, a price/metric, a time window, team roles, small counts 2–7 or prob 0.7/0.8).
+        Sentence 2: one do‑now action that takes ≤3 minutes (choose/pick/list/write/draw/rank/mark/decide/calc), and include the phrase "and say why in one sentence."
+
+        Title: \(idea.title)
+        Idea: \(idea.ideaDescription)
+        Book: \(idea.bookTitle)
+
+        Use at least one exact term from the Idea. Dead simple language. No jargon or banned words.
+        """
+    }
     
     private func createSystemPrompt(for type: QuestionType, difficulty: QuestionDifficulty, bloomCategory: BloomCategory) -> String {
         // Special-case: Reframe should be a minimal, single-sentence invitation
@@ -1220,6 +1089,93 @@ class TestGenerationService {
         
         For open-ended questions, omit options and correct fields.
         """
+    }
+
+    // MARK: - Q8 HowWield Validator & Parser
+
+    private func validateAndParseHowWield(response: String, idea: Idea) -> (String?, [String]) {
+        var failures: [String] = []
+        let text = response.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Exactly two sentences
+        let sentences = text.split(whereSeparator: { ".!?".contains($0) })
+        if sentences.count != 2 { failures.append("must be 2 sentences") }
+
+        // Must include 2–3 minute time box
+        let timeRegex = try! NSRegularExpression(pattern: #"\b(2|3) ?(min(ute)?s?)\b"#, options: [.caseInsensitive])
+        if timeRegex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: (text as NSString).length)) == nil {
+            failures.append("needs 2–3 minute time box")
+        }
+
+        // At least one small number (2–7) anywhere
+        let numRegex = try! NSRegularExpression(pattern: #"(^|[^\d])(2|3|4|5|6|7)([^\d]|$)|\b0\.[7-9]\b"#, options: [])
+        if numRegex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: (text as NSString).length)) == nil {
+            failures.append("needs a small number or prob")
+        }
+
+        // Must contain the phrase “and say why” in sentence 2
+        if !text.lowercased().contains("and say why") { failures.append("second sentence must include 'and say why'") }
+
+        // No labels and no jargon — basic checks
+        let disallowLabels = ["Role:", "Goal:", "Constraints:", "Data:", "Tools:", "Task:"]
+        if disallowLabels.contains(where: { text.contains($0) }) { failures.append("no labels allowed") }
+        let banned = ["evaluate","assess","consider","explore","leverage","optimize","stakeholders","methodology","qualitative","quantitative"]
+        if banned.contains(where: { text.lowercased().contains($0) }) { failures.append("contains banned words") }
+
+        // No semicolons/parentheses
+        if text.contains(";") || text.contains("(") || text.contains(")") { failures.append("no ; or ()") }
+
+        // Must include at least one exact idea term
+        let ideaText = (idea.title + " " + idea.ideaDescription).lowercased()
+        let tokens = ideaText.split { !$0.isLetter && !$0.isNumber && $0 != "-" }
+        let containsIdeaToken = tokens.contains { token in text.lowercased().contains(token) && token.count >= 4 }
+        if !containsIdeaToken { failures.append("missing idea term") }
+
+        return failures.isEmpty ? (text, []) : (nil, failures)
+    }
+
+    // Helper: run HowWield situational generation + validation
+    private func generateHowWieldQuestion(for idea: Idea, difficulty: QuestionDifficulty, orderIndex: Int) async throws -> Question {
+        let systemPrompt = createHowWieldSystemPrompt()
+        let userPrompt = createHowWieldUserPrompt(idea: idea)
+
+        var response = try await openAI.complete(
+            prompt: "\(systemPrompt)\n\n\(userPrompt)",
+            model: "gpt-4.1",
+            temperature: 0.3,
+            maxTokens: 500,
+            topP: 1
+        )
+
+        var (paragraph, failures) = validateAndParseHowWield(response: response, idea: idea)
+        if !failures.isEmpty {
+            logger.debug("HOWWIELD: Validation failed on first attempt (\(failures.joined(separator: ", "))). Retrying once.")
+            let retryPrompt = "\(systemPrompt)\n\n\(userPrompt)\n\nRegenerate the 2-sentence paragraph. Fix: \(failures.joined(separator: ", ")). Keep all rules."
+            response = try await openAI.complete(
+                prompt: retryPrompt,
+                model: "gpt-4.1",
+                temperature: 0.3,
+                maxTokens: 500,
+                topP: 1
+            )
+            (paragraph, failures) = validateAndParseHowWield(response: response, idea: idea)
+            if !failures.isEmpty {
+                logger.notice("HOWWIELD: Second attempt still failing validator (\(failures.joined(separator: ", "))). Accepting best-effort output.")
+            }
+        }
+
+        let question = Question(
+            ideaId: idea.id,
+            type: .openEnded,
+            difficulty: difficulty,
+            bloomCategory: .howWield,
+            questionText: paragraph ?? "You lead a small growth team at QuickCart; you have 2 minutes and conversion is 1.6% with 3 top complaints this week. In 2 minutes, list 3 options to fix the first complaint, pick 1, and say why in one sentence.",
+            options: nil,
+            correctAnswers: nil,
+            orderIndex: orderIndex
+        )
+        // Lite format stores raw text only
+        return question
     }
     
     private func createUserPrompt(for idea: Idea, type: QuestionType, bloomCategory: BloomCategory, isReview: Bool) -> String {

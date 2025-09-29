@@ -7,6 +7,7 @@ struct ChatRequest: Codable {
     let messages: [Message]
     let max_tokens: Int
     let temperature: Double
+    let top_p: Double? // Optional to keep existing calls unchanged
 }
 
 struct Message: Codable {

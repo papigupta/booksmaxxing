@@ -45,6 +45,47 @@ enum BloomCategory: String, Codable, CaseIterable {
     case howWield = "HowWield"          // Master how to use this effectively
 }
 
+// MARK: - HowWield (Q8) Payload
+
+struct HowWieldSituation: Codable {
+    let role: String
+    let goal: String
+    let constraints: [String]
+    let data: [String]
+}
+
+enum HowWieldPattern: String, Codable, CaseIterable {
+    case doWithWhy = "Do-With-Why"
+    case repairTheMisuse = "Repair-the-Misuse"
+    case tradeOffTriage = "Trade-off-Triage"
+    case checklistFirstMove = "Checklist-First-Move"
+    case smallNumbersApply = "Small-Numbers-Apply"
+}
+
+struct HowWieldPayload: Codable {
+    let question: String
+    let situation: HowWieldSituation
+    let pattern: HowWieldPattern
+    let keywords_used: [String]
+    let rubric: [String]
+    let exemplar_answer: String
+    let why_this_is_howwield: String
+    let relevance_score: Double
+}
+
+// MARK: - HowWield InlineCard (paragraph format)
+
+struct HowWieldInlineCard: Codable {
+    let role: String
+    let goal: String
+    let timebox: String
+    let constraints: [String]
+    let data: [String]
+    let tools: [String]
+    let task: String
+    let rawParagraph: String
+}
+
 // MARK: - Mastery Types
 
 enum MasteryType: String, Codable {
@@ -67,6 +108,8 @@ final class Question {
     // Data-backed arrays for CloudKit compatibility
     var optionsData: Data?
     var correctAnswersData: Data?
+    var howWieldData: Data?
+    var howWieldInlineData: Data?
     
     // Computed accessors
     var options: [String]? {
@@ -76,6 +119,26 @@ final class Question {
         }
         set {
             optionsData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    var howWieldPayload: HowWieldPayload? {
+        get {
+            guard let data = howWieldData else { return nil }
+            return try? JSONDecoder().decode(HowWieldPayload.self, from: data)
+        }
+        set {
+            howWieldData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    var howWieldInlineCard: HowWieldInlineCard? {
+        get {
+            guard let data = howWieldInlineData else { return nil }
+            return try? JSONDecoder().decode(HowWieldInlineCard.self, from: data)
+        }
+        set {
+            howWieldInlineData = try? JSONEncoder().encode(newValue)
         }
     }
     
