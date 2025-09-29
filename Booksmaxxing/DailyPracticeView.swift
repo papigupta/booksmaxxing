@@ -35,10 +35,13 @@ struct DailyPracticeView: View {
     // Celebration sequencing
     @State private var celebrationQueue: [Idea] = []
     @State private var currentCelebrationIdea: Idea? = nil
+    @State private var sessionBCal: Int = 0
+    @State private var todayBCalTotal: Int = 0
     
     enum PracticeFlowState {
         case none
         case streak
+        case bcal
         case celebration
     }
     
@@ -113,15 +116,24 @@ struct DailyPracticeView: View {
                 if currentView == .streak {
                     StreakView(onContinue: {
                         print("DEBUG: ✅ Streak onContinue tapped")
-                        if !celebrationQueue.isEmpty {
-                            currentCelebrationIdea = celebrationQueue.removeFirst()
-                            withAnimation { currentView = .celebration }
-                        } else {
-                            currentView = .none
-                            if let onComplete = onPracticeComplete { onComplete() }
-                            else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
-                        }
+                        withAnimation { currentView = .bcal }
                     })
+                } else if currentView == .bcal {
+                    BrainCaloriesView(
+                        sessionBCal: sessionBCal,
+                        todayTotal: todayBCalTotal,
+                        onContinue: {
+                            if !celebrationQueue.isEmpty {
+                                currentCelebrationIdea = celebrationQueue.removeFirst()
+                                withAnimation { currentView = .celebration }
+                            } else {
+                                currentCelebrationIdea = nil
+                                currentView = .none
+                                if let onComplete = onPracticeComplete { onComplete() }
+                                else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
+                            }
+                        }
+                    )
                 } else if currentView == .celebration {
                     if let idea = currentCelebrationIdea {
                         CelebrationView(
@@ -719,21 +731,23 @@ struct DailyPracticeView: View {
         // Order queue by numeric idea id
         celebrationQueue = masteredIdeas.sortedByNumericId()
 
-        // Decide whether to show streak view first, then celebrations
+        // Compute Brain Calories totals and decide flow
         print("DEBUG: Test completed - didIncrementStreak=\(didIncrementStreak)")
         print("DEBUG: Attempt score: \(attempt.score), responses: \((attempt.responses ?? []).count), celebrations queued=\(celebrationQueue.count)")
+
+        // Session BCal stored on attempt by TestView
+        let session = attempt.brainCalories
+        sessionBCal = session
+        let bcalService = BCalService(modelContext: modelContext)
+        bcalService.addToToday(session)
+        todayBCalTotal = bcalService.todayTotal()
 
         if didIncrementStreak {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 withAnimation { currentView = .streak }
             }
-        } else if !celebrationQueue.isEmpty {
-            currentCelebrationIdea = celebrationQueue.removeFirst()
-            withAnimation { currentView = .celebration }
         } else {
-            // No streak and nothing to celebrate; finish immediately
-            if let onComplete = onPracticeComplete { onComplete() }
-            else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
+            withAnimation { currentView = .bcal }
         }
     }
     

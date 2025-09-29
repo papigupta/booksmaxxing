@@ -184,6 +184,8 @@ final class TestAttempt {
     var startedAt: Date = Date.now
     var completedAt: Date?
     var score: Int = 0  // Out of 150
+    // Brain Calories burned in this attempt (session)
+    var brainCalories: Int = 0
     var isComplete: Bool = false
     var masteryAchieved: MasteryType = MasteryType.none
     var retryCount: Int = 0  // Number of retry loops completed
@@ -198,6 +200,7 @@ final class TestAttempt {
         self.testId = testId
         self.startedAt = Date()
         self.score = 0
+        self.brainCalories = 0
         self.isComplete = false
         self.masteryAchieved = .none
         self.retryCount = 0

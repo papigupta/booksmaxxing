@@ -30,6 +30,7 @@ struct TestView: View {
     @EnvironmentObject var streakManager: StreakManager
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var currentQuestionIndex = 0
     @State private var responses: [UUID: String] = [:]
@@ -45,6 +46,14 @@ struct TestView: View {
     @State private var currentFeedback: QuestionFeedback?
     @State private var isEvaluatingQuestion = false
     @State private var questionEvaluations: [UUID: QuestionEvaluation] = [:]
+
+    // BCal tracking state
+    @State private var trackingStart: Date? = nil
+    @State private var accumulatedSeconds: [UUID: TimeInterval] = [:]
+    @State private var primerUsedMap: [UUID: Bool] = [:]
+    @State private var optionChangesMap: [UUID: Int] = [:]
+    @State private var lastSelectedIndex: [UUID: Int?] = [:]
+    @State private var checkedQuestions: Set<UUID> = []
     
     private var currentQuestion: Question? {
         test.orderedQuestions.indices.contains(currentQuestionIndex) ? test.orderedQuestions[currentQuestionIndex] : nil
@@ -189,9 +198,36 @@ struct TestView: View {
             .onAppear {
                 initializeAttempt()
                 streakManager.isTestingActive = true
+                startTrackingForCurrentQuestion()
             }
             .onDisappear {
                 streakManager.isTestingActive = false
+                pauseTrackingForCurrentQuestion()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .inactive || phase == .background {
+                    pauseTrackingForCurrentQuestion()
+                } else if phase == .active {
+                    startTrackingForCurrentQuestion()
+                }
+            }
+            .onChange(of: currentQuestionIndex) { _, _ in
+                pauseTrackingForCurrentQuestion()
+                startTrackingForCurrentQuestion()
+            }
+            .onChange(of: showingPrimer) { _, isPresented in
+                if isPresented, let q = currentQuestion, !checkedQuestions.contains(q.id) {
+                    primerUsedMap[q.id] = true
+                }
+            }
+            .onChange(of: selectedOptions) { _, newVal in
+                guard let q = currentQuestion, q.type == .mcq, !checkedQuestions.contains(q.id) else { return }
+                let newIndex = newVal[q.id]?.first
+                let prev = lastSelectedIndex[q.id] ?? nil
+                if let p = prev, let n = newIndex, p != n {
+                    optionChangesMap[q.id, default: 0] += 1
+                }
+                lastSelectedIndex[q.id] = newIndex
             }
             .sheet(isPresented: Binding(
                 get: { shouldShowResults },
@@ -335,6 +371,7 @@ struct TestView: View {
         guard let question = currentQuestion else { return }
         
         isEvaluatingQuestion = true
+        finalizeTracking(for: question)
         saveCurrentResponse()
         
         // Force save to ensure persistence
@@ -370,6 +407,7 @@ struct TestView: View {
     }
     
     private func nextQuestion() {
+        pauseTrackingForCurrentQuestion()
         withAnimation {
             showingFeedback = false
             currentFeedback = nil
@@ -380,10 +418,12 @@ struct TestView: View {
                 try? modelContext.save()
             }
         }
+        startTrackingForCurrentQuestion()
     }
     
     private func previousQuestion() {
         saveCurrentResponse()
+        pauseTrackingForCurrentQuestion()
         withAnimation {
             currentQuestionIndex = max(currentQuestionIndex - 1, 0)
             // Save progress
@@ -392,6 +432,7 @@ struct TestView: View {
                 try? modelContext.save()
             }
         }
+        startTrackingForCurrentQuestion()
     }
     
     private func saveCurrentResponse() {
@@ -508,6 +549,7 @@ struct TestView: View {
         
         // Save the current response before submitting
         saveCurrentResponse()
+        if let q = currentQuestion { finalizeTracking(for: q) }
         
         // Also ensure all responses are saved for all questions
         for question in test.orderedQuestions {
@@ -566,6 +608,9 @@ struct TestView: View {
                 attempt.score = totalScore
                 attempt.completedAt = Date()
                 attempt.isComplete = true
+                // Compute and persist Brain Calories for this session
+                let bcal = computeLessonBCal()
+                attempt.brainCalories = bcal
                 
                 // Determine mastery
                 let allCorrect = correctCount == (test.questions ?? []).count
@@ -605,6 +650,54 @@ struct TestView: View {
                     isSubmitting = false
                 }
             }
+        }
+    }
+}
+
+// MARK: - BCal Tracking Helpers
+
+extension TestView {
+    private func startTrackingForCurrentQuestion() {
+        guard let q = currentQuestion else { return }
+        if checkedQuestions.contains(q.id) { trackingStart = nil; return }
+        trackingStart = Date()
+    }
+
+    private func pauseTrackingForCurrentQuestion() {
+        guard let q = currentQuestion, let start = trackingStart else { return }
+        let delta = Date().timeIntervalSince(start)
+        accumulatedSeconds[q.id, default: 0] += max(0, delta)
+        trackingStart = nil
+    }
+
+    private func finalizeTracking(for question: Question) {
+        if currentQuestion?.id == question.id { pauseTrackingForCurrentQuestion() }
+        checkedQuestions.insert(question.id)
+    }
+
+    private func computeLessonBCal() -> Int {
+        var items: [(BCalQuestionContext, BCalQuestionSignals)] = []
+        for q in test.orderedQuestions {
+            let secs = accumulatedSeconds[q.id] ?? defaultLatency(for: q)
+            let usedPrimer = primerUsedMap[q.id] ?? false
+            let changes = optionChangesMap[q.id] ?? 0
+            let ctx = BCalQuestionContext(
+                type: q.type,
+                difficulty: q.difficulty,
+                isCurveball: q.isCurveball,
+                isSpacedFollowUp: q.isSpacedFollowUp,
+                isReview: false
+            )
+            let sig = BCalQuestionSignals(latencySeconds: secs, primerUsed: usedPrimer, optionChanges: changes)
+            items.append((ctx, sig))
+        }
+        return BCalEngine.shared.bcalForLesson(items: items)
+    }
+
+    private func defaultLatency(for q: Question) -> Double {
+        switch q.type {
+        case .mcq, .msq: return 15.0
+        case .openEnded: return 25.0
         }
     }
 }

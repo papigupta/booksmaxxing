@@ -28,11 +28,14 @@ struct DailyPracticeWithReviewView: View {
     @State private var completedAttempt: TestAttempt?
     @State private var currentView: PracticeFlowState = .none
     @State private var shouldShowStreakToday: Bool = false
+    @State private var sessionBCal: Int = 0
+    @State private var todayBCalTotal: Int = 0
     
     enum PracticeFlowState {
         case none
         case results
         case streak
+        case bcal
     }
     
     private func getIdeaTitle(ideaId: String) -> String? {
@@ -113,19 +116,23 @@ struct DailyPracticeWithReviewView: View {
                         test: test,
                         book: book,
                         onContinue: {
-                            if shouldShowStreakToday {
-                                withAnimation { currentView = .streak }
-                            } else {
-                                currentView = .none
-                                onPracticeComplete?()
-                            }
+                            if shouldShowStreakToday { withAnimation { currentView = .streak } }
+                            else { withAnimation { currentView = .bcal } }
                         }
                     )
                 } else if currentView == .streak {
                     StreakView(onContinue: {
-                        currentView = .none
-                        onPracticeComplete?()
+                        withAnimation { currentView = .bcal }
                     })
+                } else if currentView == .bcal {
+                    BrainCaloriesView(
+                        sessionBCal: sessionBCal,
+                        todayTotal: todayBCalTotal,
+                        onContinue: {
+                            currentView = .none
+                            onPracticeComplete?()
+                        }
+                    )
                 }
             }
         }
@@ -624,6 +631,11 @@ struct DailyPracticeWithReviewView: View {
         completedAttempt = attempt
         showingTest = false
         shouldShowStreakToday = didIncrementStreak
+        // Compute and persist Brain Calories for today
+        sessionBCal = attempt.brainCalories
+        let bcalService = BCalService(modelContext: modelContext)
+        bcalService.addToToday(sessionBCal)
+        todayBCalTotal = bcalService.todayTotal()
         
         // Record mistakes to review queue
         if let test = combinedTest {
