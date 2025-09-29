@@ -285,7 +285,7 @@ class TestGenerationService {
 
         Requirements:
         - MCQ: exactly 4 concise, plausible options; 1 correct index; avoid “all/none of the above/both/neither”. Keep options parallel in structure and similar in length; do not make the correct option notably longer.
-        - OpenEnded: omit options/correct; ask for specific, defensible responses.
+        - OpenEnded: omit options/correct. For the Reframe slot (type=OpenEnded, bloom=Reframe), write a single, one‑sentence prompt that invites the learner to restate the idea "in your own words". Do not include lists, hints, or evaluation criteria.
         - Stem: clear, unambiguous, tests understanding per Bloom intent; avoid fluff; prefer realistic contexts.
         - Language: precise, book-appropriate, no chain-of-thought; no explanations.
 
@@ -460,12 +460,13 @@ class TestGenerationService {
                 randomizedCount += 1
             }
 
+            let finalQuestionText = (type == .openEnded && bloom == .reframe) ? "In your own words, explain '\(idea.title)' as if you were telling a friend." : item.question
             out.append(Question(
                 ideaId: idea.id,
                 type: type,
                 difficulty: difficulty,
                 bloomCategory: bloom,
-                questionText: item.question,
+                questionText: finalQuestionText,
                 options: options,
                 correctAnswers: correct,
                 orderIndex: i
@@ -556,12 +557,13 @@ class TestGenerationService {
                     options = normalized
                     correct = newIdx
                 }
+                let finalQuestionText = (type == .openEnded && bloom == .reframe) ? "In your own words, explain '\(idea.title)' as if you were telling a friend." : item.question
                 out.append(Question(
                     ideaId: idea.id,
                     type: type,
                     difficulty: difficulty,
                     bloomCategory: bloom,
-                    questionText: item.question,
+                    questionText: finalQuestionText,
                     options: options,
                     correctAnswers: correct,
                     orderIndex: i
@@ -611,6 +613,7 @@ class TestGenerationService {
                 Create high-quality MEDIUM questions for a non-fiction book idea.
                 Aim for moderate depth (why/when/contrast/reframe) with realistic scenarios.
                 MCQ options should reflect common misconceptions; keep options parallel and concise.
+                Special case: if a slot is type=OpenEnded and bloom=Reframe, write a single, one‑sentence prompt that simply invites the learner to restate the idea "in your own words" — no lists, hints, or evaluation criteria.
                 Language: precise, no chain-of-thought or explanations.
                 Output only a valid JSON object per schema (no prose before/after).
                 """
@@ -1126,7 +1129,20 @@ class TestGenerationService {
         orderIndex: Int,
         isReview: Bool = false
     ) async throws -> Question {
-        
+        // Minimal handling for Reframe Q6: no LLM, just a simple invite
+        if type == .openEnded && bloomCategory == .reframe {
+            return Question(
+                ideaId: idea.id,
+                type: type,
+                difficulty: difficulty,
+                bloomCategory: bloomCategory,
+                questionText: "In your own words, explain '\(idea.title)' as if you were telling a friend.",
+                options: nil,
+                correctAnswers: nil,
+                orderIndex: orderIndex
+            )
+        }
+
         let systemPrompt = createSystemPrompt(for: type, difficulty: difficulty, bloomCategory: bloomCategory)
         let userPrompt = createUserPrompt(for: idea, type: type, bloomCategory: bloomCategory, isReview: isReview)
         
@@ -1168,7 +1184,19 @@ class TestGenerationService {
     // MARK: - Prompt Creation
     
     private func createSystemPrompt(for type: QuestionType, difficulty: QuestionDifficulty, bloomCategory: BloomCategory) -> String {
-        """
+        // Special-case: Reframe should be a minimal, single-sentence invitation
+        if type == .openEnded && bloomCategory == .reframe {
+            return """
+            Write a single, simple prompt that asks the learner to explain the idea in their own words.
+            Requirements:
+            - Exactly 1 sentence
+            - Must include the phrase "in your own words"
+            - No lists, hints, sub‑questions, or evaluation criteria
+            Output ONLY a JSON object: { "question": "..." }
+            """
+        }
+
+        return """
         You are an expert educational content creator specializing in creating questions based on Bloom's Taxonomy.
         
         Create a \(type.rawValue) question at the \(bloomCategory.rawValue) level.
@@ -1195,6 +1223,21 @@ class TestGenerationService {
     }
     
     private func createUserPrompt(for idea: Idea, type: QuestionType, bloomCategory: BloomCategory, isReview: Bool) -> String {
+        // Special-case: keep the Reframe prompt context minimal to avoid over‑constraining the model
+        if type == .openEnded && bloomCategory == .reframe {
+            let shortDesc: String = {
+                let text = idea.ideaDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                if text.count <= 220 { return text }
+                let idx = text.index(text.startIndex, offsetBy: 220)
+                return String(text[..<idx]) + "…"
+            }()
+            return """
+            Idea title: \(idea.title)
+            Optional context for the model (do not include in the prompt): \(shortDesc)
+            Generate the prompt.
+            """
+        }
+
         let reviewContext = isReview ? "\nThis is a REVIEW question. Create a variation that tests the same concept from a different angle." : ""
         
         return """
