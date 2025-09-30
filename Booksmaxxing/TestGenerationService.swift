@@ -1013,36 +1013,40 @@ class TestGenerationService {
     
     // MARK: - Prompt Creation
 
-    // MARK: - Q8 HowWield (Situational Apply) Prompts — Lite 2-sentence paragraph
+    // MARK: - Q8 HowWield (Self-Reflection Apply) Prompt
 
     private func createHowWieldSystemPrompt() -> String {
         return """
-        Q8 = HowWield (Situational Apply, Lite).
+        Q8 = HowWield (Self-Reflection Apply).
 
-        Write ONE short paragraph with exactly 2 sentences. No labels.
+        Write a short prompt (1–3 sentences). No labels.
 
-        Sentence 1: Implicit situation — clearly state who you are, a 2–3 minute time box, and 2–3 concrete facts with a small number.
-        Include 2–3 anchors (e.g., product/app name, persona name+age, a price/metric, a time window, team roles, small counts 2–7 or prob 0.7/0.8).
-        Sentence 2: A do‑now micro‑task that takes ≤3 minutes (e.g., "write 3 questions / list 3 options / pick 1"), plus the phrase "and say why in one sentence."
+        Focus:
+        - Talk directly to the learner as "you".
+        - Start by nudging them to recall a recent situation, project, or challenge connected to the idea. Do not invent personas, names, or backstories.
+        - Give one clear micro-task that asks for 2–3 moves (e.g., "list 2 ways", "compare 3 options", "pick 1 approach") tied to that situation.
+        - End with the exact phrase "and say why in one sentence."
 
         Rules:
         - Plain English, zero jargon. No semicolons (;), no parentheses (). Dead simple language.
         - Ban words: evaluate, assess, consider, explore, leverage, optimize, stakeholders, methodology, qualitative, quantitative.
         - Include ≥1 exact term from the Idea text.
         - Make it answerable with only the given info.
-        - Make the role, goal/timebox, situation facts, constraints, and task unmistakable (crystal clear) even without labels.
+        - Make the situation, constraints, and task unmistakable (crystal clear) even without labels.
         - The question length does not matter, but keep it clear.
 
-        Return only the 2-sentence paragraph (no JSON, no bullets, no extra lines).
+        Return only the prompt text (no JSON, no bullets, no extra lines).
         """
     }
 
     private func createHowWieldUserPrompt(idea: Idea) -> String {
         return """
-        Create ONE HowWield situational question for this idea as a 2‑sentence paragraph (no labels).
+        Create ONE HowWield reflection question for this idea as a short prompt (1–3 sentences, no labels).
 
-        Sentence 1: who you are, a 2–3 minute time box, and 2–3 concrete facts with a small number. Include 2–3 anchors (product/app name, persona name+age, a price/metric, a time window, team roles, small counts 2–7 or prob 0.7/0.8).
-        Sentence 2: one do‑now action that takes ≤3 minutes (choose/pick/list/write/draw/rank/mark/decide/calc), and include the phrase "and say why in one sentence."
+        Requirements:
+        - Speak to the learner as "you" and reference their own recent experience connected to the idea (no invented personas or names).
+        - Ask them to recall a challenge, task, or decision they handled that ties to the idea.
+        - Give one concrete action (choose/pick/list/write/draw/rank/mark/decide/calc) that needs 2–3 responses, and end with the phrase "and say why in one sentence."
 
         Title: \(idea.title)
         Idea: \(idea.ideaDescription)
@@ -1097,24 +1101,20 @@ class TestGenerationService {
         var failures: [String] = []
         let text = response.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Exactly two sentences
-        let sentences = text.split(whereSeparator: { ".!?".contains($0) })
-        if sentences.count != 2 { failures.append("must be 2 sentences") }
-
-        // Must include 2–3 minute time box
-        let timeRegex = try! NSRegularExpression(pattern: #"\b(2|3) ?(min(ute)?s?)\b"#, options: [.caseInsensitive])
-        if timeRegex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: (text as NSString).length)) == nil {
-            failures.append("needs 2–3 minute time box")
+        // Must address the learner directly
+        let secondPersonRegex = try! NSRegularExpression(pattern: #"\b(you|your|yours)\b"#, options: [.caseInsensitive])
+        if secondPersonRegex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: (text as NSString).length)) == nil {
+            failures.append("must speak to the learner as 'you'")
         }
 
-        // At least one small number (2–7) anywhere
-        let numRegex = try! NSRegularExpression(pattern: #"(^|[^\d])(2|3|4|5|6|7)([^\d]|$)|\b0\.[7-9]\b"#, options: [])
-        if numRegex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: (text as NSString).length)) == nil {
-            failures.append("needs a small number or prob")
+        // Avoid fabricated first-person personas
+        let personaRegex = try! NSRegularExpression(pattern: #"\bI\s*(?:am|['’]m)\b"#, options: [.caseInsensitive])
+        if personaRegex.firstMatch(in: text, options: [], range: NSRange(location: 0, length: (text as NSString).length)) != nil {
+            failures.append("should not use first-person persona")
         }
 
-        // Must contain the phrase “and say why” in sentence 2
-        if !text.lowercased().contains("and say why") { failures.append("second sentence must include 'and say why'") }
+        // Must contain the phrase “and say why”
+        if !text.lowercased().contains("and say why") { failures.append("must include 'and say why'") }
 
         // No labels and no jargon — basic checks
         let disallowLabels = ["Role:", "Goal:", "Constraints:", "Data:", "Tools:", "Task:"]
@@ -1150,7 +1150,7 @@ class TestGenerationService {
         var (paragraph, failures) = validateAndParseHowWield(response: response, idea: idea)
         if !failures.isEmpty {
             logger.debug("HOWWIELD: Validation failed on first attempt (\(failures.joined(separator: ", "))). Retrying once.")
-            let retryPrompt = "\(systemPrompt)\n\n\(userPrompt)\n\nRegenerate the 2-sentence paragraph. Fix: \(failures.joined(separator: ", ")). Keep all rules."
+            let retryPrompt = "\(systemPrompt)\n\n\(userPrompt)\n\nRegenerate the prompt. Fix: \(failures.joined(separator: ", ")). Keep all rules."
             response = try await openAI.complete(
                 prompt: retryPrompt,
                 model: "gpt-4.1",
@@ -1169,7 +1169,7 @@ class TestGenerationService {
             type: .openEnded,
             difficulty: difficulty,
             bloomCategory: .howWield,
-            questionText: paragraph ?? "You lead a small growth team at QuickCart; you have 2 minutes and conversion is 1.6% with 3 top complaints this week. In 2 minutes, list 3 options to fix the first complaint, pick 1, and say why in one sentence.",
+            questionText: paragraph ?? "Think about your last sprint at QuickCart when conversion stayed at 1.6% and three complaints kept surfacing. List 3 options you could try to fix the top complaint, pick 1 to prioritize, and say why in one sentence.",
             options: nil,
             correctAnswers: nil,
             orderIndex: orderIndex
