@@ -110,6 +110,7 @@ final class Question {
     var correctAnswersData: Data?
     var howWieldData: Data?
     var howWieldInlineData: Data?
+    var cachedWhy140: String?
     
     // Computed accessors
     var options: [String]? {
@@ -188,6 +189,7 @@ final class Question {
         self.isCurveball = isCurveball
         self.isSpacedFollowUp = isSpacedFollowUp
         self.sourceQueueItemId = sourceQueueItemId
+        self.cachedWhy140 = nil
     }
 }
 

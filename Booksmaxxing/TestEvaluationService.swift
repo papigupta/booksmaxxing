@@ -109,9 +109,14 @@ class TestEvaluationService {
             let correctOption = question.options?[correctIndex] ?? "Unknown"
             feedback = "The correct answer was: \(correctOption)"
         }
-        // Generate concise Why (<=140 chars)
-        let correctOptionText = question.options?[correctIndex]
-        let why = await generateWhy140(question: question, correctText: correctOptionText, idea: idea)
+
+        let cachedRaw = await MainActor.run { question.cachedWhy140 }
+        let cachedWhy = cleanedWhy(cachedRaw)
+        if cachedWhy == nil {
+            Task {
+                await self.prefetchWhyIfNeeded(for: question, idea: idea)
+            }
+        }
 
         return QuestionEvaluation(
             questionId: question.id,
@@ -119,7 +124,7 @@ class TestEvaluationService {
             pointsEarned: points,
             feedback: feedback,
             correctAnswer: String(correctIndex + 1),
-            why: why
+            why: cachedWhy
         )
     }
     
@@ -177,13 +182,14 @@ class TestEvaluationService {
             }
             feedback = feedbackParts.joined(separator: ". ")
         }
-        
-        // Generate concise Why (<=140 chars) using the set of correct options
-        let correctTexts: [String] = correctAnswers.compactMap { idx in
-            guard let opts = question.options, opts.indices.contains(idx) else { return nil }
-            return opts[idx]
+
+        let cachedRaw = await MainActor.run { question.cachedWhy140 }
+        let cachedWhy = cleanedWhy(cachedRaw)
+        if cachedWhy == nil {
+            Task {
+                await self.prefetchWhyIfNeeded(for: question, idea: idea)
+            }
         }
-        let why = await generateWhy140(question: question, correctText: correctTexts.joined(separator: "; "), idea: idea)
 
         return QuestionEvaluation(
             questionId: question.id,
@@ -191,7 +197,7 @@ class TestEvaluationService {
             pointsEarned: points,
             feedback: feedback,
             correctAnswer: correctAnswers.map { String($0 + 1) }.joined(separator: ","),
-            why: why
+            why: cachedWhy
         )
     }
     
@@ -379,6 +385,11 @@ class TestEvaluationService {
         }
     }
 
+    private func cleanedWhy(_ text: String?) -> String? {
+        guard let value = text?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
+
     // Create a compact one-liner from longer text if the model didn't return why_140
     private static func compactWhy(from text: String) -> String {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -414,6 +425,56 @@ class TestEvaluationService {
             return "Master skillful usage and application"
         }
     }
+
+    // Prefetch and persist Why explanations ahead of answer checks
+    func prefetchWhyIfNeeded(for question: Question, idea: Idea) async {
+        guard question.type != .openEnded else { return }
+
+        let existingRaw = await MainActor.run { question.cachedWhy140 }
+        let existing = cleanedWhy(existingRaw)
+        if existing != nil { return }
+
+        guard let context = await MainActor.run(body: { correctContext(for: question) }) else { return }
+
+        guard let generated = await generateWhy140(question: question, correctText: context, idea: idea),
+              let why = cleanedWhy(generated) else { return }
+
+        await MainActor.run {
+            question.cachedWhy140 = why
+            do {
+                try modelContext.save()
+            } catch {
+                logger.error("Failed to save cached why: \(String(describing: error))")
+            }
+        }
+    }
+
+    func fetchWhy(for question: Question, idea: Idea) async -> String? {
+        await prefetchWhyIfNeeded(for: question, idea: idea)
+        let refreshed = await MainActor.run { question.cachedWhy140 }
+        return cleanedWhy(refreshed)
+    }
+
+    @MainActor
+    private func correctContext(for question: Question) -> String? {
+        guard let answers = question.correctAnswers, !answers.isEmpty else { return nil }
+        guard let options = question.options else { return nil }
+
+        switch question.type {
+        case .mcq:
+            let index = answers[0]
+            guard options.indices.contains(index) else { return nil }
+            return options[index]
+        case .msq:
+            let strings = answers.compactMap { idx -> String? in
+                guard options.indices.contains(idx) else { return nil }
+                return options[idx]
+            }
+            return strings.isEmpty ? nil : strings.joined(separator: "; ")
+        case .openEnded:
+            return nil
+        }
+    }
 }
 
 // MARK: - Evaluation Result Models
@@ -439,7 +500,6 @@ struct TestEvaluationResult {
         evaluationDetails.filter { !$0.isCorrect }
     }
 }
-
 struct QuestionEvaluation: Codable {
     let questionId: UUID
     let isCorrect: Bool

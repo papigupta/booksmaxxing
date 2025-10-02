@@ -197,7 +197,7 @@ struct BookOverviewView: View {
         let bookCoverage = coverageService.calculateBookCoverage(bookId: bookId, totalIdeas: viewModel.extractedIdeas.count)
         let _ = print("DEBUG: Book coverage for bookId '\(bookId)': \(bookCoverage)%")
         
-        return VStack(spacing: DS.Spacing.xs) {
+        VStack(spacing: DS.Spacing.xs) {
             HStack {
                 Text("Book Coverage")
                     .font(DS.Typography.caption)

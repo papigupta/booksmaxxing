@@ -44,6 +44,7 @@ struct DailyPracticeView: View {
     @State private var sessionPauses: Int = 0
     @State private var todayPauses: Int = 0
     @State private var todayAttentionPercent: Int = 0
+    @State private var hasPrefetchedExplanations = false
     
     enum PracticeFlowState {
         case none
@@ -318,6 +319,9 @@ struct DailyPracticeView: View {
         .sheet(isPresented: $showingAttempts) {
             IdeaResponsesView(idea: ideaForTest)
         }
+        .onAppear {
+            startWhyPrefetch(for: test)
+        }
     }
     
     private func practiceStatsView(_ test: Test) -> some View {
@@ -382,6 +386,21 @@ struct DailyPracticeView: View {
         .background(DS.Colors.tertiaryBackground)
         .cornerRadius(4)
     }
+
+    private func startWhyPrefetch(for test: Test) {
+        guard !hasPrefetchedExplanations else { return }
+        hasPrefetchedExplanations = true
+
+        let evaluationService = TestEvaluationService(openAI: openAIService, modelContext: modelContext)
+        let idea = ideaForTest
+
+        Task(priority: .background) {
+            let questions = await MainActor.run { test.orderedQuestions }
+            for question in questions where question.type != .openEnded {
+                await evaluationService.prefetchWhyIfNeeded(for: question, idea: idea)
+            }
+        }
+    }
     
     // MARK: - Actions
     
@@ -414,6 +433,7 @@ struct DailyPracticeView: View {
                         await MainActor.run {
                             self.generatedTest = existingTest
                             self.isGenerating = false
+                            self.hasPrefetchedExplanations = false
                         }
                         return
                     } else if existingSession.status == "generating" {
@@ -427,6 +447,7 @@ struct DailyPracticeView: View {
                                     await MainActor.run {
                                         self.generatedTest = readyTest
                                         self.isGenerating = false
+                                        self.hasPrefetchedExplanations = false
                                     }
                                     return
                                 } else if refreshed.status == "error" {
@@ -460,6 +481,7 @@ struct DailyPracticeView: View {
                     await MainActor.run {
                         self.generatedTest = existingTest
                         self.isGenerating = false
+                        self.hasPrefetchedExplanations = false
                     }
                     return
                 }
@@ -590,6 +612,7 @@ struct DailyPracticeView: View {
             await MainActor.run {
                 self.generatedTest = test
                 self.isGenerating = false
+                self.hasPrefetchedExplanations = false
             }
         } catch {
             print("ERROR: Failed to generate practice: \(error)")

@@ -14,6 +14,8 @@ struct QuestionFeedback {
     let maxPoints: Int
     // Flag to drive OEQ-specific UI (exemplar section)
     let isOpenEnded: Bool
+    // Whether the Why explanation is still loading asynchronously
+    let isWhyPending: Bool
 }
 
 struct TestView: View {
@@ -410,20 +412,15 @@ struct TestView: View {
                 let evaluation = try await evaluateCurrentQuestion(question)
                 
                 await MainActor.run {
+                    let feedback = self.makeFeedback(from: evaluation, question: question)
                     self.questionEvaluations[question.id] = evaluation
-                    self.currentFeedback = QuestionFeedback(
-                        isCorrect: evaluation.isCorrect,
-                        correctAnswer: evaluation.correctAnswer,
-                        explanation: evaluation.feedback,
-                        why: evaluation.why,
-                        pointsEarned: evaluation.pointsEarned,
-                        maxPoints: question.difficulty.pointValue,
-                        isOpenEnded: question.type == .openEnded
-                    )
+                    self.currentFeedback = feedback
                     // Present full-screen feedback view
                     self.showingFeedback = true
                     self.isEvaluatingQuestion = false
                 }
+
+                await fetchWhyIfNeeded(for: question, baseEvaluation: evaluation)
             } catch {
                 print("Error evaluating question: \(error)")
                 await MainActor.run {
@@ -538,6 +535,64 @@ struct TestView: View {
         if question.responses == nil { question.responses = [] }
         question.responses?.append(response)
         print("DEBUG: Created and saved response for question \(question.id), total responses now: \((attempt.responses ?? []).count)")
+    }
+
+    private func makeFeedback(from evaluation: QuestionEvaluation, question: Question) -> QuestionFeedback {
+        let normalizedWhy = trimmed(evaluation.why)
+        let isOpenEnded = question.type == .openEnded
+        let pendingWhy = !isOpenEnded && normalizedWhy == nil
+
+        return QuestionFeedback(
+            isCorrect: evaluation.isCorrect,
+            correctAnswer: evaluation.correctAnswer,
+            explanation: evaluation.feedback,
+            why: normalizedWhy,
+            pointsEarned: evaluation.pointsEarned,
+            maxPoints: question.difficulty.pointValue,
+            isOpenEnded: isOpenEnded,
+            isWhyPending: pendingWhy
+        )
+    }
+
+    private func trimmed(_ text: String?) -> String? {
+        guard let value = text?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
+    }
+
+    private func fetchWhyIfNeeded(for question: Question, baseEvaluation: QuestionEvaluation) async {
+        let isOpenEnded = await MainActor.run { question.type == .openEnded }
+        if isOpenEnded { return }
+        if trimmed(baseEvaluation.why) != nil { return }
+
+        let evaluationService = TestEvaluationService(openAI: openAIService, modelContext: modelContext)
+        guard let rawWhy = await evaluationService.fetchWhy(for: question, idea: idea),
+              let normalizedWhy = trimmed(rawWhy) else { return }
+
+        let updatedEvaluation = QuestionEvaluation(
+            questionId: baseEvaluation.questionId,
+            isCorrect: baseEvaluation.isCorrect,
+            pointsEarned: baseEvaluation.pointsEarned,
+            feedback: baseEvaluation.feedback,
+            correctAnswer: baseEvaluation.correctAnswer,
+            why: normalizedWhy
+        )
+
+        await MainActor.run {
+            self.questionEvaluations[question.id] = updatedEvaluation
+            if self.showingFeedback, self.currentQuestion?.id == question.id {
+                self.currentFeedback = self.makeFeedback(from: updatedEvaluation, question: question)
+            }
+        }
+    }
+
+    private func kickOffWhyPrefetchIfNeeded(for question: Question) {
+        guard question.type != .openEnded else { return }
+        let evaluationService = TestEvaluationService(openAI: openAIService, modelContext: modelContext)
+        let ideaSnapshot = idea
+
+        Task(priority: .background) {
+            await evaluationService.prefetchWhyIfNeeded(for: question, idea: ideaSnapshot)
+        }
     }
     
     private func evaluateCurrentQuestion(_ question: Question) async throws -> QuestionEvaluation {
@@ -695,6 +750,7 @@ extension TestView {
         guard let q = currentQuestion else { return }
         if checkedQuestions.contains(q.id) { trackingStart = nil; return }
         trackingStart = Date()
+        kickOffWhyPrefetchIfNeeded(for: q)
     }
 
     private func pauseTrackingForCurrentQuestion() {
@@ -1064,6 +1120,19 @@ struct FeedbackFullScreen: View {
                                 .font(DS.Typography.body)
                                 .foregroundStyle(DS.Colors.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else if !feedback.isOpenEnded && feedback.isWhyPending {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text("Why?")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(DS.Colors.primaryText)
+                            HStack(spacing: DS.Spacing.xs) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Fetching explanation…")
+                                    .font(DS.Typography.body)
+                                    .foregroundStyle(DS.Colors.secondaryText)
+                            }
                         }
                     }
                     
