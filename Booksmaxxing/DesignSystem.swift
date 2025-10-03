@@ -40,6 +40,7 @@ enum DS {
         static let divider = gray200
         static let shadow = gray950.opacity(0.08)
         static let overlay = gray950.opacity(0.04)
+        static let destructive = Color(hex: "FF3B30")
     }
     
     // MARK: - Typography

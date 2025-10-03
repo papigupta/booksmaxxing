@@ -27,7 +27,7 @@ class BookService: ObservableObject {
         book.ideas = sorted
     }
     
-    func findOrCreateBook(title: String, author: String? = nil) throws -> Book {
+    func findOrCreateBook(title: String, author: String? = nil, triggerMetadataFetch: Bool = true) throws -> Book {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         print("DEBUG: Looking for book with title: '\(normalizedTitle)'")
         
@@ -57,7 +57,7 @@ class BookService: ObservableObject {
             try modelContext.save()
             
             // Keep early Google Books fetch skipped until author known (accuracy)
-            if let author = author, !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if triggerMetadataFetch, let author = author, !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Task {
                     print("DEBUG: Starting Google Books metadata fetch for new book (author known)")
                     await fetchAndUpdateBookMetadata(for: newBook)
@@ -103,32 +103,7 @@ class BookService: ObservableObject {
             
             // Update book with metadata
             await MainActor.run {
-                book.googleBooksId = metadata.googleBooksId
-                book.subtitle = metadata.subtitle
-                book.publisher = metadata.publisher
-                book.language = metadata.language
-                book.categories = metadata.categories.joined(separator: ", ")
-                book.thumbnailUrl = metadata.thumbnailUrl
-                book.coverImageUrl = metadata.coverImageUrl
-                book.averageRating = metadata.averageRating
-                book.ratingsCount = metadata.ratingsCount
-                book.previewLink = metadata.previewLink
-                book.infoLink = metadata.infoLink
-                
-                // If we didn't have an author, use the one from Google Books
-                if book.author == nil || book.author?.isEmpty == true {
-                    book.author = metadata.authors.first
-                }
-                
-                do {
-                    try modelContext.save()
-                    print("DEBUG: Successfully updated book with Google Books metadata")
-                    print("DEBUG: - Cover URL: \(book.coverImageUrl ?? "none")")
-                    print("DEBUG: - Thumbnail URL: \(book.thumbnailUrl ?? "none")")
-                    print("DEBUG: - Rating: \(book.averageRating ?? 0) (\(book.ratingsCount ?? 0) ratings)")
-                } catch {
-                    print("DEBUG: Failed to save Google Books metadata: \(error)")
-                }
+                self.applyMetadata(metadata, to: book)
             }
         } catch {
             print("DEBUG: Error fetching Google Books metadata: \(error)")
@@ -272,6 +247,33 @@ class BookService: ObservableObject {
             // If no book found with old title, create a new one
             print("DEBUG: No book found with old title, creating new book")
             return try findOrCreateBook(title: normalizedNewTitle, author: author)
+        }
+    }
+
+    func applyMetadata(_ metadata: BookMetadata, to book: Book, overrideExisting: Bool = true) {
+        book.googleBooksId = metadata.googleBooksId
+        if overrideExisting || book.subtitle == nil { book.subtitle = metadata.subtitle }
+        if overrideExisting || book.publisher == nil { book.publisher = metadata.publisher }
+        if overrideExisting || book.language == nil { book.language = metadata.language }
+        if overrideExisting || book.categories == nil { book.categories = metadata.categories.joined(separator: ", ") }
+        if overrideExisting || book.thumbnailUrl == nil { book.thumbnailUrl = metadata.thumbnailUrl }
+        if overrideExisting || book.coverImageUrl == nil { book.coverImageUrl = metadata.coverImageUrl }
+        if overrideExisting || book.averageRating == nil { book.averageRating = metadata.averageRating }
+        if overrideExisting || book.ratingsCount == nil { book.ratingsCount = metadata.ratingsCount }
+        if overrideExisting || book.previewLink == nil { book.previewLink = metadata.previewLink }
+        if overrideExisting || book.infoLink == nil { book.infoLink = metadata.infoLink }
+        if overrideExisting || book.publishedDate == nil { book.publishedDate = metadata.publishedDate }
+        if overrideExisting || book.bookDescription == nil { book.bookDescription = metadata.description }
+
+        if overrideExisting || book.author == nil || book.author?.isEmpty == true {
+            book.author = metadata.authors.first ?? book.author
+        }
+
+        do {
+            try modelContext.save()
+            print("DEBUG: Applied metadata to book '\(book.title)' (Google ID: \(metadata.googleBooksId))")
+        } catch {
+            print("DEBUG: Failed to save metadata application: \(error)")
         }
     }
     

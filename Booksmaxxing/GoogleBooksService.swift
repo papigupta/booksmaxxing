@@ -14,6 +14,7 @@ struct GoogleBookItem: Codable {
 struct VolumeInfo: Codable {
     let title: String
     let subtitle: String?
+    let description: String?
     let authors: [String]?
     let publisher: String?
     let publishedDate: String?
@@ -41,16 +42,22 @@ struct BookMetadata {
     let googleBooksId: String
     let title: String
     let subtitle: String?
+    let description: String?
     let authors: [String]
     let publisher: String?
     let language: String?
     let categories: [String]
+    let publishedDate: String?
     let thumbnailUrl: String?
     let coverImageUrl: String?  // large or extraLarge
     let averageRating: Double?
     let ratingsCount: Int?
     let previewLink: String?
     let infoLink: String?
+}
+
+extension BookMetadata: Identifiable {
+    var id: String { googleBooksId }
 }
 
 // MARK: - Google Books Service
@@ -166,6 +173,56 @@ class GoogleBooksService {
             print("DEBUG GoogleBooks: Failed to decode response: \(error)")
             if let responseString = String(data: data, encoding: .utf8) {
                 print("DEBUG GoogleBooks: Response data: \(responseString.prefix(500))")
+            }
+            throw error
+        }
+    }
+
+    /// Lightweight search for auto-complete suggestions.
+    /// - Parameters:
+    ///   - query: Partial search text; caller should ensure at least 3 characters.
+    ///   - maxResults: Maximum number of books to return (Google Books caps this at 40).
+    /// - Returns: Array of `BookMetadata` sorted by Google relevance.
+    func searchBooks(query: String, maxResults: Int = 10) async throws -> [BookMetadata] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        var components = URLComponents(string: baseURL)!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: trimmed),
+            URLQueryItem(name: "key", value: apiKey),
+            URLQueryItem(name: "maxResults", value: String(min(max(maxResults, 1), 40))),
+            URLQueryItem(name: "printType", value: "books"),
+            URLQueryItem(name: "orderBy", value: "relevance")
+        ]
+
+        guard let url = components.url else {
+            throw GoogleBooksError.invalidURL
+        }
+
+        let (data, response) = try await session.data(from: url)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GoogleBooksError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            break
+        case 429:
+            throw GoogleBooksError.rateLimitExceeded
+        case 403:
+            throw GoogleBooksError.invalidAPIKey
+        default:
+            throw GoogleBooksError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        do {
+            let response = try JSONDecoder().decode(GoogleBooksResponse.self, from: data)
+            let items = response.items ?? []
+            return items.map { mapToBookMetadata($0) }
+        } catch {
+            if let raw = String(data: data, encoding: .utf8) {
+                print("DEBUG GoogleBooks auto-complete decode failure: \(raw.prefix(300))")
             }
             throw error
         }
@@ -331,10 +388,12 @@ class GoogleBooksService {
             googleBooksId: item.id,
             title: volumeInfo.title,
             subtitle: volumeInfo.subtitle,
+            description: volumeInfo.description,
             authors: volumeInfo.authors ?? [],
             publisher: volumeInfo.publisher,
             language: volumeInfo.language,
             categories: volumeInfo.categories ?? [],
+            publishedDate: volumeInfo.publishedDate,
             thumbnailUrl: thumbnailUrl,
             coverImageUrl: coverImageUrl,
             averageRating: volumeInfo.averageRating,

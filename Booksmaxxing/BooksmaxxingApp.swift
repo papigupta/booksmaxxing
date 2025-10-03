@@ -143,7 +143,7 @@ struct BooksmaxxingApp: App {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "paintpalette")
-                            Text("Theme")
+                            Text("Experiments")
                         }
                         .font(.system(size: 13, weight: .semibold))
                         .padding(.horizontal, 10)
@@ -156,7 +156,7 @@ struct BooksmaxxingApp: App {
                         .shadow(radius: 4)
                         .padding(12)
                     }
-                    .accessibilityLabel("Open Theme Lab")
+                    .accessibilityLabel("Open Experiments")
                     .sheet(isPresented: $showThemeLab) {
                         ThemeLabView(preset: $themePreset)
                     }

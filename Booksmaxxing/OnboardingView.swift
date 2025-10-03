@@ -6,9 +6,13 @@ struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var navigationState: NavigationState
     @EnvironmentObject var themeManager: ThemeManager
-    @State private var bookTitle: String = ""
     @State private var savedBooks: [Book] = []
     @State private var isLoadingSavedBooks = false
+    @State private var isProcessingSelection = false
+    @State private var selectionError: String?
+    @State private var selectionStatus: String?
+    @State private var selectionTask: Task<Void, Never>?
+    @State private var extractionTask: Task<Void, Never>?
     
     private var bookService: BookService {
         BookService(modelContext: modelContext)
@@ -23,7 +27,7 @@ struct OnboardingView: View {
                     
                     // Add New Book Section
                     addNewBookSection
-                    
+
                     // Continue with Saved Book Section
                     savedBooksSection
                 }
@@ -33,6 +37,10 @@ struct OnboardingView: View {
             .navigationBarHidden(true)
             .onAppear {
                 loadSavedBooks()
+            }
+            .onDisappear {
+                selectionTask?.cancel()
+                extractionTask?.cancel()
             }
         }
     }
@@ -79,22 +87,38 @@ struct OnboardingView: View {
                 Text("Which non-fic book do you want to master?")
                     .font(DS.Typography.headline)
             }
-            
-            // Input Field
-            TextField("Book title and author name", text: $bookTitle)
-                .dsTextField()
-            
-            // Add Button
-            Button(action: addNewBook) {
-                HStack {
-                    Text("Add Book")
-                    Spacer()
-                    DSIcon("arrow.right", size: 14)
+
+            Text("Use search to auto-fill from Google Books. We'll start extracting ideas instantly once you pick a match.")
+                .font(DS.Typography.caption)
+                .foregroundColor(DS.Colors.secondaryText)
+
+            BookSearchView(
+                title: "Find your book",
+                description: nil,
+                placeholder: "Search by title, author, or ISBN",
+                minimumCharacters: 3,
+                selectionHint: "Tap a result to begin extracting ideas.",
+                clearOnSelect: true,
+                onSelect: handleBookSelection
+            )
+            .disabled(isProcessingSelection)
+
+            if isProcessingSelection {
+                HStack(spacing: DS.Spacing.sm) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                    Text(selectionStatus ?? "Extracting ideas…")
+                        .font(DS.Typography.caption)
                 }
+                .padding(.horizontal, DS.Spacing.sm)
             }
-            .dsPrimaryButton()
-            .disabled(bookTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .animation(.easeInOut(duration: 0.2), value: bookTitle)
+
+            if let selectionError {
+                Text(selectionError)
+                    .font(DS.Typography.caption)
+                    .foregroundColor(DS.Colors.destructive)
+                    .padding(.horizontal, DS.Spacing.sm)
+            }
         }
     }
     
@@ -159,19 +183,6 @@ struct OnboardingView: View {
     }
     
     // MARK: - Action Handlers
-    private func addNewBook() {
-        let trimmedTitle = bookTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTitle.isEmpty else { return }
-        
-        bookTitle = ""
-        
-        // Dismiss keyboard
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        
-        // Use NavigationState to navigate with eager book creation to fix navigation race condition
-        navigationState.navigateToBookWithEagerCreation(title: trimmedTitle, modelContext: modelContext)
-    }
-    
     private func selectSavedBook(_ book: Book) {
         // Update book's last accessed time
         book.lastAccessed = Date()
@@ -197,6 +208,56 @@ struct OnboardingView: View {
                 await MainActor.run {
                     self.isLoadingSavedBooks = false
                 }
+            }
+        }
+    }
+
+    private func handleBookSelection(_ metadata: BookMetadata) {
+        selectionTask?.cancel()
+        extractionTask?.cancel()
+        selectionTask = Task { @MainActor in
+            isProcessingSelection = true
+            selectionError = nil
+            selectionStatus = "Preparing \(metadata.title)…"
+
+            do {
+                let primaryAuthor = metadata.authors.first
+                let book = try bookService.findOrCreateBook(
+                    title: metadata.title,
+                    author: primaryAuthor,
+                    triggerMetadataFetch: false
+                )
+
+                book.lastAccessed = Date()
+                bookService.applyMetadata(metadata, to: book)
+
+                selectionStatus = "Extracting ideas…"
+
+                Task { await themeManager.activateTheme(for: book) }
+
+                let extractionViewModel = IdeaExtractionViewModel(
+                    openAIService: openAIService,
+                    bookService: bookService
+                )
+                extractionTask = Task { @MainActor in
+                    await extractionViewModel.loadOrExtractIdeas(from: metadata.title, metadata: metadata)
+                    extractionTask = nil
+                }
+
+                navigationState.navigateToBook(title: book.title)
+                selectionStatus = nil
+                isProcessingSelection = false
+                selectionTask = nil
+            } catch is CancellationError {
+                selectionStatus = nil
+                selectionError = nil
+                isProcessingSelection = false
+                selectionTask = nil
+            } catch {
+                selectionStatus = nil
+                selectionError = error.localizedDescription
+                isProcessingSelection = false
+                selectionTask = nil
             }
         }
     }

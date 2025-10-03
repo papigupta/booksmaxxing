@@ -244,19 +244,44 @@ class OpenAIService {
         return SharedUtils.extractJSONObjectString(response)
     }
     
-    func extractIdeas(from text: String, author: String? = nil) async throws -> [String] {
+    func extractIdeas(from text: String, author: String? = nil, metadata: BookMetadata? = nil) async throws -> [String] {
         return try await withRetry(maxAttempts: 3) {
-            try await self.performExtractIdeas(from: text, author: author)
+            try await self.performExtractIdeas(from: text, author: author, metadata: metadata)
         }
     }
-    
-    private func performExtractIdeas(from text: String, author: String? = nil) async throws -> [String] {
+
+    private func performExtractIdeas(from text: String, author: String? = nil, metadata: BookMetadata? = nil) async throws -> [String] {
         let authorContext = author.map { " by \($0)" } ?? ""
+        let metadataContext: String = {
+            guard let metadata = metadata else { return "" }
+            var lines: [String] = []
+            if let subtitle = metadata.subtitle, !subtitle.isEmpty {
+                lines.append("Subtitle: \(subtitle)")
+            }
+            if !metadata.authors.isEmpty {
+                lines.append("Authors: \(metadata.authors.joined(separator: ", "))")
+            }
+            if let publisher = metadata.publisher, !publisher.isEmpty {
+                lines.append("Publisher: \(publisher)")
+            }
+            if let publishedDate = metadata.publishedDate, !publishedDate.isEmpty {
+                lines.append("Published: \(publishedDate)")
+            }
+            if !metadata.categories.isEmpty {
+                lines.append("Categories: \(metadata.categories.joined(separator: ", "))")
+            }
+            if let description = metadata.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+                let clipped = description.count > 600 ? String(description.prefix(600)) + "…" : description
+                lines.append("Synopsis: \(clipped)")
+            }
+            if lines.isEmpty { return "" }
+            return "\n\nAdditional metadata to inform your extraction:\n" + lines.joined(separator: "\n")
+        }()
         let prompt = """
-        Extract the core, teachable ideas from the non-fiction book titled "\(text)"\(authorContext). 
+        Extract the core, teachable ideas from the non-fiction book titled "\(text)"\(authorContext).
         Return them as a JSON array of strings.
 
-        \(text)
+        \(text)\(metadataContext)
         """
 
         let systemPrompt = """

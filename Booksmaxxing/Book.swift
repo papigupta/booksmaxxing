@@ -17,12 +17,14 @@ final class Book {
     var publisher: String?
     var language: String?
     var categories: String?  // Store as comma-separated string
+    var publishedDate: String?
     var thumbnailUrl: String?
     var coverImageUrl: String?
     var averageRating: Double?
     var ratingsCount: Int?
     var previewLink: String?
     var infoLink: String?
+    var bookDescription: String?
 
     init(title: String, author: String? = nil, createdAt: Date = Date.now) {
         self.id = UUID()

@@ -1,9 +1,16 @@
 import SwiftUI
 
 struct ThemeLabView: View {
-    enum Mode: String, CaseIterable, Identifiable { case presets = "Presets", palettes = "Palettes"; var id: String { rawValue } }
+    enum Mode: String, CaseIterable, Identifiable {
+        case bookSearch = "Book Search"
+        case presets = "Presets"
+        case palettes = "Palettes"
+
+        var id: String { rawValue }
+    }
     @Binding var preset: ThemePreset
-    @State private var mode: Mode = .presets
+    @State private var mode: Mode = .bookSearch
+    @State private var lastSelectedTitle: String? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -16,14 +23,36 @@ struct ThemeLabView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
 
-                if mode == .presets {
+                switch mode {
+                case .bookSearch:
+                    VStack(spacing: 12) {
+                        BookSearchView(
+                            title: "Google Books Auto-fill",
+                            description: "Prototype auto-complete hooked to Google Books. Suggestions update after three characters.",
+                            placeholder: "Start typing a title…",
+                            minimumCharacters: 3,
+                            selectionHint: "Tap a result to simulate filling the Add Book form.",
+                            clearOnSelect: false
+                        ) { metadata in
+                            lastSelectedTitle = metadata.title
+                            print("DEBUG: Experiments selection → \(metadata.title) by \(metadata.authors.first ?? "Unknown")")
+                        }
+
+                        if let lastSelectedTitle {
+                            Text("Selected: \(lastSelectedTitle)")
+                                .font(DS.Typography.caption)
+                                .foregroundColor(DS.Colors.secondaryText)
+                                .padding(.horizontal)
+                        }
+                    }
+                case .presets:
                     PresetsContent(preset: $preset)
                         .applyTheme(preset)
-                } else {
+                case .palettes:
                     PaletteLabView()
                 }
             }
-            .navigationTitle("Theme Lab")
+            .navigationTitle("Experiments")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
             }

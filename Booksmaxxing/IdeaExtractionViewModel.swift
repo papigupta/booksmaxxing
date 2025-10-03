@@ -14,6 +14,7 @@ class IdeaExtractionViewModel: ObservableObject {
     private let bookService: BookService
     private var currentTask: Task<Void, Never>?
     private var currentBookTitle: String = ""
+    private var metadata: BookMetadata?
     private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "IdeaExtraction")
     
     init(openAIService: OpenAIService, bookService: BookService) {
@@ -39,7 +40,7 @@ class IdeaExtractionViewModel: ObservableObject {
         print("DEBUG: Updated extractedIdeas from \(source) with \(sortedIdeas.count) ideas in order: \(sortedIdeas.map { $0.id })")
     }
     
-    func loadOrExtractIdeas(from input: String) async {
+    func loadOrExtractIdeas(from input: String, metadata incomingMetadata: BookMetadata? = nil) async {
         guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorMessage = "Book input is empty"
             return
@@ -47,11 +48,14 @@ class IdeaExtractionViewModel: ObservableObject {
         
         // Cancel any existing task
         currentTask?.cancel()
-        
+
         isLoading = true
         errorMessage = nil
-        
-        currentTask = Task { [weak self] in
+        if let incomingMetadata {
+            metadata = incomingMetadata
+        }
+
+        let task = Task { [weak self] in
             guard let self = self else { return }
             
             do {
@@ -64,13 +68,24 @@ class IdeaExtractionViewModel: ObservableObject {
                         // If book exists but has no ideas, continue with idea extraction
                         if (existingBook.ideas ?? []).isEmpty {
                             print("DEBUG: Book exists but has no ideas, continuing with extraction")
+                            let localMetadata = incomingMetadata ?? self.metadata ?? self.metadata(from: existingBook)
                             await MainActor.run {
                                 self.currentBookTitle = existingBook.title
                                 self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
                                 self.currentBook = existingBook
+                                if let localMetadata { self.metadata = localMetadata }
                             }
-                            // Store the original input for later use when updating the book
-                            // Continue to idea extraction below
+
+                            if let metadataToUse = localMetadata {
+                                print("DEBUG: Using provided metadata for extraction (Google ID: \(metadataToUse.googleBooksId))")
+                                await self.extractIdeas(
+                                    from: metadataToUse.title,
+                                    originalInput: input,
+                                    metadata: metadataToUse
+                                )
+                                return
+                            }
+                            // Continue to idea extraction below without metadata
                         } else {
                             // Sort the book's ideas to ensure consistency
                             existingBook.ideas = (existingBook.ideas ?? []).sortedByNumericId()
@@ -117,10 +132,20 @@ class IdeaExtractionViewModel: ObservableObject {
                         // If book exists but has no ideas, continue with idea extraction
                         if (existingBook.ideas ?? []).isEmpty {
                             print("DEBUG: Book with corrected title exists but has no ideas, continuing with extraction")
+                            let localMetadata = incomingMetadata ?? self.metadata ?? self.metadata(from: existingBook)
                             await MainActor.run {
                                 self.currentBook = existingBook
+                                if let localMetadata { self.metadata = localMetadata }
                             }
-                            // Continue to idea extraction below
+                            if let metadataToUse = localMetadata {
+                                await self.extractIdeas(
+                                    from: metadataToUse.title,
+                                    originalInput: input,
+                                    metadata: metadataToUse
+                                )
+                                return
+                            }
+                            // Continue to idea extraction below without metadata
                         } else {
                             // Sort the book's ideas to ensure consistency
                             existingBook.ideas = (existingBook.ideas ?? []).sortedByNumericId()
@@ -143,7 +168,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 
                 // Step 3: Extract ideas if no existing book found
                 // Pass the original input as well so we can update the correct book
-                await self.extractIdeas(from: extractedBookInfo.title, originalInput: input)
+                await self.extractIdeas(from: extractedBookInfo.title, originalInput: input, metadata: self.metadata)
                 
                 // Step 4: If no author was found but ideas were extracted, try to get author from the ideas context
                 if extractedBookInfo.author == nil && !self.extractedIdeas.isEmpty {
@@ -162,12 +187,14 @@ class IdeaExtractionViewModel: ObservableObject {
                 }
             }
         }
+        currentTask = task
+        await task.value
     }
     
-    private func extractIdeas(from title: String, originalInput: String? = nil) async {
+    private func extractIdeas(from title: String, originalInput: String? = nil, metadata: BookMetadata? = nil) async {
         do {
             print("DEBUG: Starting idea extraction for: '\(title)'")
-            let ideas = try await openAIService.extractIdeas(from: title, author: bookInfo?.author)
+            let ideas = try await openAIService.extractIdeas(from: title, author: bookInfo?.author, metadata: metadata)
             
             // Check if task was cancelled
             try Task.checkCancellation()
@@ -209,6 +236,9 @@ class IdeaExtractionViewModel: ObservableObject {
                     newTitle: currentBookTitle,  // Update to the corrected title
                     author: bookInfo?.author
                 )
+                if let metadata = metadata ?? self.metadata {
+                    self.bookService.applyMetadata(metadata, to: book)
+                }
                 try bookService.saveIdeas(parsedIdeas, for: book)
                 // Ensure book.ideas is sorted after saving
                 book.ideas = (book.ideas ?? []).sortedByNumericId()
@@ -222,7 +252,9 @@ class IdeaExtractionViewModel: ObservableObject {
                 prefetcher.prefetchLesson(book: book, lessonNumber: 1)
                 print("DEBUG: Prefetch for Lesson 1 triggered from IdeaExtractionViewModel after save")
                 // After updating title/author, force-refresh Google Books metadata to improve cover accuracy
-                Task { await self.bookService.fetchAndUpdateBookMetadata(for: book, force: true) }
+                if book.googleBooksId == nil {
+                    Task { await self.bookService.fetchAndUpdateBookMetadata(for: book, force: true) }
+                }
             } catch {
                 print("DEBUG: Error saving ideas: \(error)")
                 // Even if saving fails, show the ideas to the user
@@ -257,6 +289,33 @@ class IdeaExtractionViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func metadata(from book: Book) -> BookMetadata? {
+        guard let googleId = book.googleBooksId else { return nil }
+        let authors = book.author.map { [$0] } ?? []
+        let categories = book.categories?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+
+        return BookMetadata(
+            googleBooksId: googleId,
+            title: book.title,
+            subtitle: book.subtitle,
+            description: book.bookDescription,
+            authors: authors,
+            publisher: book.publisher,
+            language: book.language,
+            categories: categories,
+            publishedDate: book.publishedDate,
+            thumbnailUrl: book.thumbnailUrl,
+            coverImageUrl: book.coverImageUrl,
+            averageRating: book.averageRating,
+            ratingsCount: book.ratingsCount,
+            previewLink: book.previewLink,
+            infoLink: book.infoLink
+        )
     }
     
     func cancelExtraction() {
