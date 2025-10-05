@@ -11,6 +11,8 @@ struct BookOverviewView: View {
     @State private var showingDailyPractice = false
     @State private var showingProfile = false
     @State private var didPrefetchLesson1 = false
+    @State private var showingDeleteAlert = false
+    @State private var showDeletionToast = false
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var streakManager: StreakManager
@@ -105,6 +107,26 @@ struct BookOverviewView: View {
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.top, DS.Spacing.xs)
         .background(theme.background)
+        .overlay(alignment: .bottom) {
+            if showDeletionToast {
+                let t = themeManager.currentTokens(for: colorScheme)
+                Text("Book deleted")
+                    .font(DS.Typography.caption)
+                    .foregroundColor(t.onPrimary)
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.xs)
+                    .background(t.primary)
+                    .cornerRadius(16)
+                    .shadow(radius: 3)
+                    .padding(.bottom, DS.Spacing.lg)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            withAnimation { showDeletionToast = false }
+                        }
+                    }
+            }
+        }
         .task {
             print("DEBUG: BookOverviewView task triggered")
             await viewModel.loadOrExtractIdeas(from: bookTitle)
@@ -171,8 +193,41 @@ struct BookOverviewView: View {
                 DailyPracticeHomepage(book: book, openAIService: openAIService)
             }
         }
+        .alert("Delete \"\(viewModel.bookInfo?.title ?? bookTitle)\"?", isPresented: $showingDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                Task { await deleteCurrentBook() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently delete all data and progress for this book, including generated questions, practice sessions, coverage, review queue, primers, and your answers. This action cannot be undone.")
+        }
     }
-    
+
+    private func deleteCurrentBook() async {
+        guard let book = viewModel.currentBook ?? (try? BookService(modelContext: modelContext).getBook(withTitle: bookTitle)) ?? nil else {
+            return
+        }
+        do {
+            let service = BookService(modelContext: modelContext)
+            // Proactively detach UI state to avoid holding references during deletion
+            await MainActor.run {
+                viewModel.extractedIdeas = []
+                viewModel.currentBook = nil
+            }
+            try service.deleteBookAndAllData(book: book)
+            showingDailyPractice = false
+            showingProfile = false
+            await MainActor.run {
+                withAnimation { showDeletionToast = true }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                navigationState.navigateToBookSelection()
+            }
+        } catch {
+            print("ERROR: Failed to delete book: \(error)")
+        }
+    }
+
     // MARK: - Book Coverage View
     private func getBookId() -> String {
         // Ensure we use the actual book UUID, not the title
@@ -286,6 +341,12 @@ struct BookOverviewView: View {
                             }) {
                                 Label("Force Curveball Due", systemImage: "bolt.fill")
                             }
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            showingDeleteAlert = true
+                        } label: {
+                            Label("Delete this book", systemImage: "trash")
                         }
                     }
                     Button("Profile") { showingProfile = true }
