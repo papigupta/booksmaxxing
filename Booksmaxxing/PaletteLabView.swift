@@ -13,6 +13,8 @@ struct PaletteLabView: View {
     @State private var roles: [PaletteRole] = []
     @State private var exportJSON: String = ""
     @State private var selection: PhotosPickerItem? = nil
+    @State private var monochromeRoles: [PaletteRole] = ExperimentsPaletteStore.defaultMonochromeRoles
+    @State private var monochromeJSON: String = ExperimentsPaletteStore.defaultMonochromeJSON
 
     enum Source { case currentBook, url, photos }
     @State private var source: Source = .currentBook
@@ -97,6 +99,32 @@ struct PaletteLabView: View {
                         }
                     }
                 }
+
+                if !monochromeRoles.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Default Monochrome Palette")
+                                .font(DS.Typography.subheadline)
+                            Spacer()
+                            Button("Copy JSON") { copyToPasteboard(monochromeJSON) }
+                                .dsSmallButton()
+                        }
+
+                        ForEach(monochromeRoles, id: \.name) { role in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(role.name).font(DS.Typography.captionEmphasized)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(role.tones, id: \.tone) { tone in
+                                            Swatch(color: tone.color, label: "T\(tone.tone)")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 16)
+                }
             }
             .padding(16)
         }
@@ -168,30 +196,19 @@ struct PaletteLabView: View {
         let seedList = PaletteGenerator.scoreSeeds(clustersRes)
         self.seeds = seedList
         self.roles = PaletteGenerator.generateRoles(from: seedList)
-        self.exportJSON = makeJSON(roles: self.roles)
-    }
-
-    private func makeJSON(roles: [PaletteRole]) -> String {
-        var dict: [String: [String: String]] = [:]
-        for role in roles {
-            var tones: [String: String] = [:]
-            for t in role.tones {
-                tones["T\(t.tone)"] = t.color.toHexString() ?? ""
-            }
-            dict[role.name] = tones
-        }
-        if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted]) {
-            return String(data: data, encoding: .utf8) ?? ""
-        }
-        return ""
+        self.exportJSON = PaletteGenerator.serializeRolesToJSON(self.roles)
     }
 
     private func copyJSON() {
+        copyToPasteboard(exportJSON)
+    }
+
+    private func copyToPasteboard(_ string: String) {
         #if canImport(UIKit)
-        UIPasteboard.general.string = exportJSON
+        UIPasteboard.general.string = string
         #elseif canImport(AppKit)
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(exportJSON, forType: .string)
+        NSPasteboard.general.setString(string, forType: .string)
         #endif
     }
 }

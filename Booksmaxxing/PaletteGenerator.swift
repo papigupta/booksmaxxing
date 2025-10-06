@@ -49,5 +49,41 @@ struct PaletteGenerator {
 
         return [primary, secondary, tertiary, neutral, neutralVariant]
     }
-}
 
+    static func generateMonochromeRoles() -> [PaletteRole] {
+        // Use the same role structure as dynamic palettes but clamp chroma to zero
+        func grayscaleTones(name: String, toneStops: [Int]) -> PaletteRole {
+            let swatches: [(Int, Color)] = toneStops.map { tone in
+                let lightness = Double(tone) / 100.0
+                let color = oklchToSRGBClamped(OKLCH(L: lightness, C: 0.0, h: 0.0))
+                return (tone, color)
+            }
+            return PaletteRole(name: name, tones: swatches)
+        }
+
+        let primary = grayscaleTones(name: "Primary", toneStops: [95,90,80,70,60,50,40,30])
+        let secondary = grayscaleTones(name: "Secondary", toneStops: [95,90,80,70,60,50,40,30])
+        let tertiary = grayscaleTones(name: "Tertiary", toneStops: [95,90,80,70,60,50,40,30])
+        let neutral = grayscaleTones(name: "Neutral", toneStops: [98,96,94,92,90,80,70,60,50,40,30])
+        let neutralVariant = grayscaleTones(name: "Neutral Variant", toneStops: [98,96,94,92,90,80,70,60,50,40,30])
+
+        return [primary, secondary, tertiary, neutral, neutralVariant]
+    }
+
+    static func serializeRolesToJSON(_ roles: [PaletteRole]) -> String {
+        var dict: [String: [String: String]] = [:]
+        for role in roles {
+            var tones: [String: String] = [:]
+            for tone in role.tones {
+                tones["T\(tone.tone)"] = tone.color.toHexString() ?? ""
+            }
+            dict[role.name] = tones
+        }
+
+        guard let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted]) else {
+            return ""
+        }
+
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+}
