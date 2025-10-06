@@ -99,6 +99,15 @@ private struct PresetsContent: View {
                 .padding()
                 .dsCard()
 
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Palette-aware Primary Button")
+                        .font(DS.Typography.subheadline)
+                        .foregroundColor(DS.Colors.primaryText)
+                    PalettePrimaryButtonSample()
+                }
+                .padding()
+                .dsCard()
+
                 VStack(spacing: 16) {
                     HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 8) {

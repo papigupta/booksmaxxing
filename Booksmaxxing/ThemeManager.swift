@@ -25,6 +25,9 @@ final class ThemeManager: ObservableObject {
     )
 
     @Published private(set) var tokensDark: ThemeTokens? = nil
+    @Published private(set) var activeRoles: [PaletteRole] = PaletteGenerator.generateMonochromeRoles()
+    @Published private(set) var activeSeedHexes: [String] = []
+    @Published private(set) var usingBookPalette: Bool = false
 
     private var modelContext: ModelContext?
     func attachModelContext(_ ctx: ModelContext) { self.modelContext = ctx }
@@ -41,7 +44,9 @@ final class ThemeManager: ObservableObject {
         if let existing = try? mc.fetch(descriptor).first(where: { $0.bookId == book.id }) {
             if let roles = try? JSONDecoder().decode([PaletteRoleDTO].self, from: existing.rolesJSON) {
                 let rolesModels = roles.map { $0.model }
-                applyRoles(rolesModels)
+                applyRoles(rolesModels, seeds: nil)
+                activeSeedHexes = existing.seedHex.isEmpty ? [] : [existing.seedHex]
+                usingBookPalette = true
                 return
             }
         }
@@ -72,7 +77,8 @@ final class ThemeManager: ObservableObject {
             let clusters = KMeansQuantizer.quantize(labPoints: labs, k: 5, maxIterations: 10)
             let seeds = PaletteGenerator.scoreSeeds(clusters)
             let roles = PaletteGenerator.generateRoles(from: seeds)
-            applyRoles(roles)
+            applyRoles(roles, seeds: seeds)
+            usingBookPalette = true
             // Persist
             let dto: [PaletteRoleDTO] = roles.map { role in
                 let dict = Dictionary(uniqueKeysWithValues: role.tones.map { ($0.tone, $0.color.toHexString() ?? "#000000") })
@@ -88,11 +94,33 @@ final class ThemeManager: ObservableObject {
         }
     }
 
-    private func applyRoles(_ roles: [PaletteRole]) {
+    private func applyRoles(_ roles: [PaletteRole], seeds: [SeedColor]?) {
         let light = ThemeEngine.resolveTokens(roles: roles, mode: .light)
         let dark = ThemeEngine.resolveTokens(roles: roles, mode: .dark)
         self.tokensLight = light
         self.tokensDark = dark
+        self.activeRoles = roles
+        if let seeds {
+            self.activeSeedHexes = seeds.compactMap { $0.color.toHexString() }
+        } else {
+            self.activeSeedHexes = []
+        }
+    }
+
+    func seedColor(at index: Int) -> Color? {
+        guard index >= 0, index < activeSeedHexes.count else { return nil }
+        return Color(hex: activeSeedHexes[index])
+    }
+
+    func resetToDefaultPalette() {
+        let roles = PaletteGenerator.generateMonochromeRoles()
+        applyRoles(roles, seeds: nil)
+        usingBookPalette = false
+    }
+
+    func previewRoles(_ roles: [PaletteRole], seeds: [SeedColor]) {
+        applyRoles(roles, seeds: seeds)
+        usingBookPalette = true
     }
 }
 

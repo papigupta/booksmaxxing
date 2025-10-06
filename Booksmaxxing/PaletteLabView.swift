@@ -15,6 +15,7 @@ struct PaletteLabView: View {
     @State private var selection: PhotosPickerItem? = nil
     @State private var monochromeRoles: [PaletteRole] = ExperimentsPaletteStore.defaultMonochromeRoles
     @State private var monochromeJSON: String = ExperimentsPaletteStore.defaultMonochromeJSON
+    @EnvironmentObject private var themeManager: ThemeManager
 
     enum Source { case currentBook, url, photos }
     @State private var source: Source = .currentBook
@@ -99,6 +100,13 @@ struct PaletteLabView: View {
                         }
                     }
                 }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Palette-aware Primary Button Preview")
+                        .font(DS.Typography.captionEmphasized)
+                    PalettePrimaryButtonSample()
+                }
+                .padding(.top, 16)
 
                 if !monochromeRoles.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
@@ -197,6 +205,7 @@ struct PaletteLabView: View {
         self.seeds = seedList
         self.roles = PaletteGenerator.generateRoles(from: seedList)
         self.exportJSON = PaletteGenerator.serializeRolesToJSON(self.roles)
+        themeManager.previewRoles(self.roles, seeds: seedList)
     }
 
     private func copyJSON() {

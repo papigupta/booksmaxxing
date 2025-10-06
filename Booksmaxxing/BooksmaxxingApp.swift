@@ -159,6 +159,7 @@ struct BooksmaxxingApp: App {
                     .accessibilityLabel("Open Experiments")
                     .sheet(isPresented: $showThemeLab) {
                         ThemeLabView(preset: $themePreset)
+                            .environmentObject(themeManager)
                     }
                 }
             }
