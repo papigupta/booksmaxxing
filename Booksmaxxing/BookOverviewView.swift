@@ -13,6 +13,7 @@ struct BookOverviewView: View {
     @State private var didPrefetchLesson1 = false
     @State private var showingDeleteAlert = false
     @State private var showDeletionToast = false
+    @State private var showingBookSelectionLab = false
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var streakManager: StreakManager
@@ -184,6 +185,9 @@ struct BookOverviewView: View {
         .sheet(isPresented: $showingProfile) {
             ProfileView(authManager: authManager)
         }
+        .sheet(isPresented: $showingBookSelectionLab) {
+            BookSelectionDevToolsView(openAIService: openAIService)
+        }
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $navigateToOnboarding) {
             OnboardingView(openAIService: openAIService)
@@ -340,6 +344,11 @@ struct BookOverviewView: View {
                                 service.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
                             }) {
                                 Label("Force Curveball Due", systemImage: "bolt.fill")
+                            }
+                            Button(action: {
+                                showingBookSelectionLab = true
+                            }) {
+                                Label("Book Selection Lab", systemImage: "sparkles.rectangle.stack")
                             }
                         }
                         Divider()

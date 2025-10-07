@@ -1,0 +1,720 @@
+import SwiftUI
+import SwiftData
+
+struct BookSelectionView: View {
+    let openAIService: OpenAIService
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var navigationState: NavigationState
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
+
+    @Query(sort: \Book.createdAt, order: .reverse)
+    private var allBooks: [Book]
+
+    @State private var selectedIndex: Int = 0
+    @State private var isProcessingSelection = false
+    @State private var selectionStatus: String?
+    @State private var selectionError: String?
+    @State private var animateIn = false
+    @State private var showSearchSheet = false
+
+    private let addButtonDiameter: CGFloat = 56
+    private let addButtonGap: CGFloat = 12
+
+    private var bookService: BookService {
+        BookService(modelContext: modelContext)
+    }
+
+    init(openAIService: OpenAIService) {
+        self.openAIService = openAIService
+    }
+
+    private var carouselBooks: [Book] {
+        Array(allBooks.prefix(6))
+    }
+
+    private var activeBook: Book? {
+        guard !carouselBooks.isEmpty, selectedIndex < carouselBooks.count else { return nil }
+        return carouselBooks[selectedIndex]
+    }
+
+    var body: some View {
+        ZStack {
+            backgroundGradient
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 32)
+
+                carouselSection
+                    .frame(height: 420)
+                    .padding(.bottom, 24)
+
+                dotsSection
+
+                bookDetailSection
+                    .padding(.top, 32)
+                    .padding(.horizontal, 40)
+
+                Spacer()
+
+                bottomToolbar
+                    .padding(.horizontal, 40)
+            }
+        }
+        .ignoresSafeArea()
+        .onAppear { handleInitialAppear() }
+        .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
+        .onChange(of: selectedIndex) { _, newValue in handleSelectionChange(newValue) }
+        .sheet(isPresented: $showSearchSheet) {
+            NavigationStack {
+                bookSearchSheet
+            }
+        }
+    }
+
+    private var backgroundGradient: some View {
+        let tokens = themeManager.currentTokens(for: colorScheme)
+        return LinearGradient(
+            colors: [tokens.background, tokens.primary.opacity(0.08)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var carouselSection: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(Array(carouselBooks.enumerated()), id: \.element.id) { index, book in
+                    if let geometry = geometry(for: index) {
+                        BookCarouselCard(
+                            book: book,
+                            isActive: index == selectedIndex,
+                            geometry: geometry
+                        )
+                        .frame(width: 320, height: 320)
+                        .scaleEffect(geometry.scale)
+                        .rotationEffect(.degrees(geometry.rotation))
+                        .offset(animateIn ? geometry.finalOffset : geometry.initialOffset)
+                        .opacity(geometry.opacity)
+                        .zIndex(geometry.zIndex)
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
+                                selectedIndex = index
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .contentShape(Rectangle())
+            .gesture(swipeGesture)
+            .animation(.spring(response: 0.6, dampingFraction: 0.85), value: selectedIndex)
+            .animation(.easeOut(duration: 0.5), value: animateIn)
+            .onChange(of: carouselBooks.map { $0.id }) { _, _ in
+                resetEntryAnimation()
+            }
+        }
+    }
+
+    private var dotsSection: some View {
+        HStack(spacing: 10) {
+            ForEach(visibleDotIndices, id: \.self) { index in
+                DotView(
+                    color: dotColor(for: index),
+                    size: index == selectedIndex ? 12 : 8
+                )
+            }
+        }
+    }
+
+    private var bookDetailSection: some View {
+        VStack(spacing: 16) {
+            if let book = activeBook {
+                VStack(spacing: 8) {
+                    Text(book.title)
+                        .font(DS.Typography.largeTitle)
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
+
+                    if let author = book.author, !author.isEmpty {
+                        Text(author)
+                            .font(DS.Typography.body)
+                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top, spacing: 24) {
+                        if let description = book.bookDescription, !description.isEmpty {
+                            Text(description)
+                                .font(DS.Typography.body)
+                                .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.82))
+                                .lineSpacing(6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        BookStatsView(book: book)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            } else {
+                Text("Add a book to get started")
+                    .font(DS.Typography.body)
+                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.6))
+            }
+        }
+    }
+
+    private var bottomToolbar: some View {
+        ZStack(alignment: .top) {
+            Color.clear
+
+            VStack(spacing: 0) {
+                Spacer().frame(height: 12)
+
+                HStack {
+                    Spacer()
+                    selectButtonControl
+                        .shadow(color: themeManager.currentTokens(for: colorScheme).primary.opacity(0.22), radius: 22, x: 0, y: 12)
+                    Spacer()
+                }
+                .overlay(alignment: .trailing) {
+                    addBookButton
+                        .padding(.trailing, 24)
+                        .offset(x: addButtonGap)
+                }
+
+                if let error = selectionError {
+                    Text(error)
+                        .font(DS.Typography.caption)
+                        .foregroundColor(DS.Colors.destructive)
+                        .multilineTextAlignment(.leading)
+                        .padding(.top, DS.Spacing.xs)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 100, alignment: .top)
+    }
+
+    private var selectButtonControl: some View {
+        Button(action: confirmSelection) {
+            Text(isProcessingSelection ? (selectionStatus ?? "Choosing…") : "Select this book")
+                .font(DS.Typography.bodyBold)
+        }
+        .buttonStyle(PaletteAwarePrimaryButtonStyle())
+        .disabled(activeBook == nil || isProcessingSelection)
+    }
+
+    private var addBookButton: some View {
+        Button(action: { if !isProcessingSelection { showSearchSheet = true } }) {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .regular))
+                .frame(width: addButtonDiameter, height: addButtonDiameter)
+        }
+        .buttonStyle(PaletteAwareCircleButtonStyle(diameter: addButtonDiameter))
+        .disabled(isProcessingSelection)
+    }
+
+    private func confirmSelection() {
+        guard let book = activeBook else { return }
+        selectionError = nil
+
+        Task { @MainActor in
+            isProcessingSelection = true
+            selectionStatus = "Opening book…"
+
+            book.lastAccessed = Date()
+            try? modelContext.save()
+
+            navigationState.navigateToBook(title: book.title)
+            selectionStatus = nil
+            isProcessingSelection = false
+        }
+    }
+
+    private func handleInitialAppear() {
+        adjustSelectionForBookChanges()
+        resetEntryAnimation()
+
+        if let book = activeBook {
+            Task { await themeManager.activateTheme(for: book) }
+        }
+    }
+
+    private func adjustSelectionForBookChanges() {
+        if selectedIndex >= carouselBooks.count {
+            selectedIndex = max(0, carouselBooks.count - 1)
+        }
+    }
+
+    private func handleSelectionChange(_ newValue: Int) {
+        guard newValue < carouselBooks.count else { return }
+        let book = carouselBooks[newValue]
+        Task { await themeManager.activateTheme(for: book) }
+        resetEntryAnimation()
+    }
+
+    private func resetEntryAnimation() {
+        withAnimation(.easeOut(duration: 0.001)) { animateIn = false }
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.5)) { animateIn = true }
+        }
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                let horizontal = value.translation.width
+                if horizontal < -40 {
+                    let next = min(selectedIndex + 1, carouselBooks.count - 1)
+                    if next != selectedIndex {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                            selectedIndex = next
+                        }
+                    }
+                } else if horizontal > 40 {
+                    let prev = max(selectedIndex - 1, 0)
+                    if prev != selectedIndex {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                            selectedIndex = prev
+                        }
+                    }
+                }
+            }
+    }
+
+    private var visibleDotIndices: [Int] {
+        guard !carouselBooks.isEmpty else { return [] }
+        let lower = max(0, selectedIndex - 3)
+        let upper = min(carouselBooks.count - 1, selectedIndex + 3)
+        return Array(lower...upper)
+    }
+
+    private func dotColor(for index: Int) -> Color {
+        let base = themeManager.seedColor(at: 0) ?? themeManager.currentTokens(for: colorScheme).primary
+        let distance = abs(index - selectedIndex)
+        switch distance {
+        case 0: return base
+        case 1: return base.opacity(0.6)
+        case 2: return base.opacity(0.4)
+        default: return base.opacity(0.2)
+        }
+    }
+
+    private func geometry(for index: Int) -> CarouselGeometry? {
+        guard !carouselBooks.isEmpty else { return nil }
+        let relativePosition = index - selectedIndex
+        guard abs(relativePosition) <= 3 else { return nil }
+
+        let baseOffset: CGFloat = 48
+        let rotation = Double(relativePosition) * 15.0
+        let scale: CGFloat
+        let opacity: Double
+        let zIndex = Double(10 - abs(relativePosition))
+
+        switch abs(relativePosition) {
+        case 0:
+            scale = 1.0
+            opacity = 1.0
+        case 1:
+            scale = 0.92
+            opacity = 0.85
+        case 2:
+            scale = 0.82
+            opacity = 0.6
+        default:
+            scale = 0.7
+            opacity = 0.35
+        }
+
+        let angleRadians = CGFloat(rotation * Double.pi / 180)
+        let distance = baseOffset * CGFloat(abs(relativePosition))
+        let offsetX = sin(angleRadians) * distance
+        let offsetY = -cos(angleRadians) * distance + (abs(relativePosition) == 0 ? 0 : 12 * CGFloat(abs(relativePosition)))
+        let finalOffset = CGSize(width: offsetX, height: offsetY)
+
+        var initialOffset = finalOffset
+        if relativePosition == 0 {
+            initialOffset.height -= 120
+        } else {
+            let vector = CGVector(dx: finalOffset.width, dy: finalOffset.height)
+            let length = max(1, sqrt(vector.dx * vector.dx + vector.dy * vector.dy))
+            let normalized = CGVector(dx: vector.dx / length, dy: vector.dy / length)
+            initialOffset.width += normalized.dx * 80
+            initialOffset.height += normalized.dy * 80
+        }
+
+        return CarouselGeometry(
+            rotation: rotation,
+            scale: scale,
+            opacity: opacity,
+            finalOffset: finalOffset,
+            initialOffset: initialOffset,
+            zIndex: zIndex
+        )
+    }
+
+    private var bookSearchSheet: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            Text("Add a book")
+                .font(DS.Typography.headline)
+                .padding(.top, DS.Spacing.md)
+
+            BookSearchView(
+                title: "Find your book",
+                description: "Search Google Books and pick the cover that matches.",
+                placeholder: "Title, author, or ISBN",
+                minimumCharacters: 3,
+                selectionHint: "Tap to add",
+                clearOnSelect: true,
+                onSelect: handleBookSelection
+            )
+
+            if isProcessingSelection {
+                HStack(spacing: DS.Spacing.sm) {
+                    ProgressView()
+                    Text(selectionStatus ?? "Adding book…")
+                        .font(DS.Typography.caption)
+                }
+                .padding(.vertical, DS.Spacing.xs)
+            }
+
+            if let selectionError {
+                Text(selectionError)
+                    .font(DS.Typography.caption)
+                    .foregroundColor(DS.Colors.destructive)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Done") { showSearchSheet = false }
+            }
+        }
+    }
+
+    private func handleBookSelection(_ metadata: BookMetadata) {
+        selectionError = nil
+        selectionStatus = nil
+
+        Task { @MainActor in
+            isProcessingSelection = true
+            selectionStatus = "Adding \(metadata.title)…"
+
+            do {
+                let primaryAuthor = metadata.authors.first
+                let book = try bookService.findOrCreateBook(
+                    title: metadata.title,
+                    author: primaryAuthor,
+                    triggerMetadataFetch: false
+                )
+
+                book.lastAccessed = Date()
+                bookService.applyMetadata(metadata, to: book)
+
+                Task { await themeManager.activateTheme(for: book) }
+
+                // Kick off idea extraction in background just like onboarding
+                let extractionViewModel = IdeaExtractionViewModel(
+                    openAIService: openAIService,
+                    bookService: bookService
+                )
+                Task.detached(priority: .background) {
+                    await extractionViewModel.loadOrExtractIdeas(from: metadata.title, metadata: metadata)
+                }
+
+                selectionStatus = nil
+                isProcessingSelection = false
+                showSearchSheet = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if let index = carouselBooks.firstIndex(where: { $0.id == book.id }) {
+                        selectedIndex = index
+                    } else {
+                        selectedIndex = 0
+                    }
+                }
+            } catch {
+                selectionStatus = nil
+                selectionError = error.localizedDescription
+                isProcessingSelection = false
+            }
+        }
+    }
+}
+
+// MARK: - Supporting Types
+private struct CarouselGeometry {
+    let rotation: Double
+    let scale: CGFloat
+    let opacity: Double
+    let finalOffset: CGSize
+    let initialOffset: CGSize
+    let zIndex: Double
+}
+
+private struct BookCarouselCard: View {
+    let book: Book
+    let isActive: Bool
+    let geometry: CarouselGeometry
+    @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill((themeManager.seedColor(at: 0) ?? themeManager.currentTokens(for: colorScheme).primary).opacity(0.5))
+                .frame(width: 468, height: 468)
+                .blur(radius: 120)
+
+            BookCoverView(
+                thumbnailUrl: book.thumbnailUrl,
+                coverUrl: book.coverImageUrl,
+                isLargeView: true
+            )
+            .frame(maxWidth: 240, maxHeight: 320)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.white.opacity(isActive ? 0.35 : 0.2), lineWidth: isActive ? 1.2 : 0.6)
+            )
+            .shadow(color: Color.black.opacity(isActive ? 0.28 : 0.12), radius: isActive ? 24 : 12, x: 0, y: 18)
+        }
+    }
+}
+
+private struct DotView: View {
+    let color: Color
+    let size: CGFloat
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+    }
+}
+
+private struct BookStatsView: View {
+    let book: Book
+    @Environment(\.modelContext) private var modelContext
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            summaryText
+                .font(DS.Typography.caption)
+                .foregroundColor(DS.Colors.secondaryText)
+            statsText
+                .font(DS.Typography.caption)
+                .foregroundColor(DS.Colors.secondaryText)
+        }
+    }
+
+    private var summaryText: Text {
+        let totalIdeas = book.ideas?.count ?? 0
+        let mastered = book.ideas?.filter { $0.masteryLevel >= 3 }.count ?? 0
+        if totalIdeas == 0 {
+            return Text("We haven’t extracted ideas from this book yet.")
+        } else {
+            return Text("\(book.title) has ")
+                + Text("\(totalIdeas)").italic()
+                + Text(" unique ideas. You’ve mastered ")
+                + Text("\(mastered)").italic()
+                + Text(".")
+        }
+    }
+
+    private var statsText: Text {
+        let bookIdentifier = book.id.uuidString
+        let descriptor = FetchDescriptor<IdeaCoverage>(
+            predicate: #Predicate { $0.bookId == bookIdentifier }
+        )
+        let coverages = (try? modelContext.fetch(descriptor)) ?? []
+        let totalQuestions = coverages.reduce(0) { $0 + $1.totalQuestionsSeen }
+        let totalCorrect = coverages.reduce(0) { $0 + $1.totalQuestionsCorrect }
+        let accuracyPercent = totalQuestions > 0 ? (Double(totalCorrect) / Double(totalQuestions)) * 100.0 : 0.0
+        let ideaCount = book.ideas?.count ?? 0
+        let coveragePercent: Double
+        if ideaCount > 0 {
+            coveragePercent = CoverageService(modelContext: modelContext)
+                .calculateBookCoverage(bookId: bookIdentifier, totalIdeas: ideaCount)
+        } else {
+            coveragePercent = 0.0
+        }
+
+        return Text("Coverage sits at ")
+            + Text("\(Int(coveragePercent))% ").italic()
+            + Text("• Accuracy ")
+            + Text("\(Int(accuracyPercent))%.").italic()
+    }
+}
+
+
+private struct PaletteAwareCircleButtonStyle: ButtonStyle {
+    let diameter: CGFloat
+    @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let colors = resolveColors()
+        return CircleButtonContent(
+            configuration: configuration,
+            colors: colors,
+            diameter: diameter,
+            isEnabled: isEnabled
+        )
+    }
+
+    private func resolveColors() -> PaletteButtonSwatch {
+        let palette = themeManager.usingBookPalette ? themeManager.activeRoles : PaletteGenerator.generateMonochromeRoles()
+        let background = palette.color(role: .primary, tone: 90) ?? DS.Colors.gray100
+        let stroke = palette.color(role: .primary, tone: 80) ?? DS.Colors.gray200
+        let bigShadow = palette.color(role: .primary, tone: 80) ?? DS.Colors.gray300
+        let smallShadow = palette.color(role: .primary, tone: 70) ?? DS.Colors.gray400
+        let innerBright = palette.color(role: .primary, tone: 96) ?? DS.Colors.gray100
+        let innerDark = palette.color(role: .primary, tone: 60) ?? DS.Colors.gray500
+        let text = palette.color(role: .primary, tone: 30) ?? DS.Colors.primaryText
+        return PaletteButtonSwatch(
+            background: background,
+            text: text,
+            stroke: stroke,
+            bigShadow: bigShadow,
+            smallShadow: smallShadow,
+            innerBright: innerBright,
+            innerDark: innerDark
+        )
+    }
+
+    private struct CircleButtonContent: View {
+        let configuration: ButtonStyle.Configuration
+        let colors: PaletteButtonSwatch
+        let diameter: CGFloat
+        let isEnabled: Bool
+        @State private var pressProgress: CGFloat = 0
+
+        private let pressInAnimation: Animation = .spring(response: 0.28, dampingFraction: 0.7)
+        private let pressOutAnimation: Animation = .spring(response: 0.5, dampingFraction: 0.8)
+
+        var body: some View {
+            configuration.label
+                .foregroundColor(textColor)
+                .frame(width: diameter, height: diameter)
+                .background(background)
+                .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: configuration.isPressed)
+                .onChange(of: configuration.isPressed) { _, pressed in
+                    withAnimation(pressed ? pressInAnimation : pressOutAnimation) {
+                        pressProgress = pressed ? 1.0 : 0.0
+                    }
+                }
+        }
+
+        private var textColor: Color {
+            isEnabled ? colors.text : colors.text.opacity(0.45)
+        }
+
+        private var background: some View {
+            PaletteCircularButtonBackground(
+                colors: colors,
+                pressProgress: pressProgress,
+                isEnabled: isEnabled
+            )
+        }
+    }
+}
+
+private struct PaletteCircularButtonBackground: View {
+    let colors: PaletteButtonSwatch
+    let pressProgress: CGFloat
+    let isEnabled: Bool
+
+    var body: some View {
+        Circle()
+            .fill(baseBackground)
+            .overlay(Circle().stroke(colors.stroke.opacity(isEnabled ? 1.0 : 0.4), lineWidth: 2.2))
+            .shadow(color: colors.bigShadow.opacity(outerShadowOpacity), radius: outerShadowRadius, x: 0, y: outerShadowOffset)
+            .shadow(color: colors.smallShadow.opacity(innerShadowOpacity), radius: innerShadowRadius, x: -innerShadowOffset, y: -innerShadowOffset)
+            .overlay(highlight)
+            .overlay(lowlight)
+    }
+
+    private var baseBackground: Color {
+        isEnabled ? colors.background : colors.background.opacity(0.5)
+    }
+
+    private var highlight: some View {
+        Circle()
+            .stroke(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.85), colors.innerBright.opacity(0.3), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1.3
+            )
+            .blur(radius: 1.8)
+            .offset(x: 2, y: 3)
+            .mask(
+                Circle().fill(
+                    LinearGradient(
+                        colors: [.white, .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            )
+            .compositingGroup()
+    }
+
+    private var lowlight: some View {
+        Circle()
+            .stroke(
+                LinearGradient(
+                    colors: [.clear, colors.innerDark.opacity(0.45 + 0.3 * Double(pressProgress)), colors.innerDark.opacity(0.7 + 0.2 * Double(pressProgress))],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: 1.6
+            )
+            .blur(radius: 2.5)
+            .offset(x: -2, y: -3)
+            .mask(
+                Circle().fill(
+                    LinearGradient(
+                        colors: [.clear, .black],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            )
+            .blendMode(.multiply)
+            .compositingGroup()
+    }
+
+    private var outerShadowRadius: CGFloat { interpolate(from: 18, to: 9) }
+    private var outerShadowOffset: CGFloat { interpolate(from: 10, to: 4) }
+    private var outerShadowOpacity: Double { interpolate(from: 0.5, to: 0.3) }
+
+    private var innerShadowRadius: CGFloat { interpolate(from: 6, to: 3) }
+    private var innerShadowOpacity: Double { interpolate(from: 0.25, to: 0.18) }
+    private var innerShadowOffset: CGFloat { interpolate(from: 2, to: 1) }
+
+    private func interpolate(from start: CGFloat, to end: CGFloat) -> CGFloat {
+        start + (end - start) * pressProgress
+    }
+
+    private func interpolate(from start: Double, to end: Double) -> Double {
+        start + (end - start) * Double(pressProgress)
+    }
+}
+
+private struct PaletteButtonSwatch {
+    let background: Color
+    let text: Color
+    let stroke: Color
+    let bigShadow: Color
+    let smallShadow: Color
+    let innerBright: Color
+    let innerDark: Color
+}

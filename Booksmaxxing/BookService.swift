@@ -494,7 +494,7 @@ class BookService: ObservableObject {
                     for test in tests {
                         if var questions = test.questions {
                             for q in questions {
-                                if var responses = q.responses { responses.forEach { resp in resp.attempt = nil; resp.question = nil; modelContext.delete(resp) } }
+                                if let responses = q.responses { responses.forEach { resp in resp.attempt = nil; resp.question = nil; modelContext.delete(resp) } }
                                 q.test = nil
                                 modelContext.delete(q)
                             }
