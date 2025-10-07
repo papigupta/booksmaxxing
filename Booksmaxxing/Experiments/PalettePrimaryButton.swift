@@ -83,6 +83,7 @@ private struct StyledPalettePrimaryButtonContent: View {
             .contentShape(Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(DS.Animation.spring, value: configuration.isPressed)
+            .onAppear(perform: prepareSoftHaptic)
             // Trigger ripple/haptic on press state change (center-based)
             .onChange(of: configuration.isPressed) { _, pressed in
                 if pressed {
@@ -108,9 +109,13 @@ private struct StyledPalettePrimaryButtonContent: View {
 
     private func triggerSoftHaptic() {
         #if canImport(UIKit)
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.prepare()
-        generator.impactOccurred(intensity: 0.7)
+        PaletteButtonHaptics.shared.fire()
+        #endif
+    }
+
+    private func prepareSoftHaptic() {
+        #if canImport(UIKit)
+        PaletteButtonHaptics.shared.prepare()
         #endif
     }
 }
@@ -197,6 +202,28 @@ private struct PaletteButtonColors {
     let innerBright: Color
     let innerDark: Color
 }
+
+#if canImport(UIKit)
+private final class PaletteButtonHaptics {
+    static let shared = PaletteButtonHaptics()
+
+    private let impactGenerator: UIImpactFeedbackGenerator
+
+    private init() {
+        impactGenerator = UIImpactFeedbackGenerator(style: .soft)
+        impactGenerator.prepare()
+    }
+
+    func prepare() {
+        impactGenerator.prepare()
+    }
+
+    func fire() {
+        impactGenerator.impactOccurred(intensity: 1.0)
+        impactGenerator.prepare()
+    }
+}
+#endif
 
 private struct PalettePrimaryButtonBackground: View {
     let background: Color
