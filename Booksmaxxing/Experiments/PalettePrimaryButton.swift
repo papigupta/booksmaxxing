@@ -49,9 +49,13 @@ private struct StyledPalettePrimaryButtonContent: View {
 
     @State private var ripples: [RippleItem] = []
     @State private var buttonSize: CGSize = .zero
+    @State private var pressProgress: CGFloat = 0
 
     private let rippleDuration: Double = 0.4 // shorter, snappier
-    private let rippleIntensity: Double = 0.25
+    private let rippleIntensity: Double = 0.125
+    private let pressInAnimation: Animation = .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.12)
+    private let pressOutAnimation: Animation = .interactiveSpring(response: 0.32, dampingFraction: 0.68, blendDuration: 0.12)
+    private let bounceReleaseDelay: Double = 0.04
 
     var body: some View {
         configuration.label
@@ -66,7 +70,8 @@ private struct StyledPalettePrimaryButtonContent: View {
                     bigShadow: colors.bigShadow,
                     smallShadow: colors.smallShadow,
                     innerBright: colors.innerBright,
-                    innerDark: colors.innerDark
+                    innerDark: colors.innerDark,
+                    pressProgress: pressProgress
                 )
             )
             // Place ripple above background and label to ensure visibility
@@ -81,21 +86,28 @@ private struct StyledPalettePrimaryButtonContent: View {
             )
             .onPreferenceChange(ButtonSizePreferenceKey.self) { buttonSize = $0 }
             .contentShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(DS.Animation.spring, value: configuration.isPressed)
+            .scaleEffect(scaleAmount)
             .onAppear(perform: prepareSoftHaptic)
             // Trigger ripple/haptic on press state change (center-based)
             .onChange(of: configuration.isPressed) { _, pressed in
                 if pressed {
+                    withAnimation(pressInAnimation) { pressProgress = 1.0 }
                     addRipple(at: CGPoint(x: effectiveSize.width/2, y: effectiveSize.height/2))
                     triggerSoftHaptic()
+                } else {
+                    triggerBounceSequence()
                 }
             }
             // Also trigger on a regular tap so quick taps show feedback reliably
             .onTapGesture {
+                triggerBounceSequence()
                 addRipple(at: CGPoint(x: effectiveSize.width/2, y: effectiveSize.height/2))
                 triggerSoftHaptic()
             }
+    }
+
+    private var scaleAmount: CGFloat {
+        1.0 - (0.14 * pressProgress)
     }
 
     private var effectiveSize: CGSize {
@@ -117,6 +129,23 @@ private struct StyledPalettePrimaryButtonContent: View {
         #if canImport(UIKit)
         PaletteButtonHaptics.shared.prepare()
         #endif
+    }
+
+    private func triggerBounceSequence() {
+        if pressProgress < 1.0 {
+            withAnimation(pressInAnimation) {
+                pressProgress = 1.0
+            }
+        }
+        triggerBounceReset()
+    }
+
+    private func triggerBounceReset() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + bounceReleaseDelay) {
+            withAnimation(pressOutAnimation) {
+                pressProgress = 0.0
+            }
+        }
     }
 }
 
@@ -232,6 +261,7 @@ private struct PalettePrimaryButtonBackground: View {
     let smallShadow: Color
     let innerBright: Color
     let innerDark: Color
+    let pressProgress: CGFloat
 
     var body: some View {
         Capsule()
@@ -240,11 +270,19 @@ private struct PalettePrimaryButtonBackground: View {
                 Capsule()
                     .strokeBorder(stroke, lineWidth: 3)
             )
-            .shadow(color: bigShadow.opacity(1.0), radius: 24, x: 0, y: 0)
-            .shadow(color: smallShadow.opacity(0.2), radius: 3, x: 2, y: 2)
+            .shadow(color: bigShadow.opacity(outerShadowOpacity), radius: outerShadowRadius, x: 0, y: outerShadowOffset)
+            .shadow(color: smallShadow.opacity(innerShadowOpacity), radius: innerShadowRadius, x: innerShadowOffset, y: innerShadowOffset)
             .overlay(innerBrightOverlay)
             .overlay(innerDarkOverlay)
     }
+
+    private var outerShadowRadius: CGFloat { interpolated(from: 24, to: 8) }
+    private var outerShadowOpacity: Double { interpolated(from: 1.0, to: 0.65) }
+    private var outerShadowOffset: CGFloat { interpolated(from: 0, to: 8) }
+
+    private var innerShadowRadius: CGFloat { interpolated(from: 3, to: 1) }
+    private var innerShadowOpacity: Double { interpolated(from: 0.2, to: 0.4) }
+    private var innerShadowOffset: CGFloat { interpolated(from: 2, to: 1) }
 
     private var innerBrightOverlay: some View {
         Capsule()
@@ -300,6 +338,14 @@ private struct PalettePrimaryButtonBackground: View {
             )
             .blendMode(.multiply)
             .compositingGroup()
+    }
+
+    private func interpolated(from start: CGFloat, to end: CGFloat) -> CGFloat {
+        start + (end - start) * pressProgress
+    }
+
+    private func interpolated(from start: Double, to end: Double) -> Double {
+        start + (end - start) * pressProgress
     }
 }
 
