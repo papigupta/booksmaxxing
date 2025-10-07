@@ -23,7 +23,7 @@ struct PaletteAwarePrimaryButtonStyle: ButtonStyle {
         // - innerBright should use the brightest primary tone
         // - innerDark should use a darker primary tone for contrast
         let innerBright = palette.color(role: .primary, tone: 95) ?? DS.Colors.gray100
-        let innerDark = palette.color(role: .primary, tone: 60) ?? DS.Colors.gray500
+        let innerDark = palette.color(role: .primary, tone: 70) ?? DS.Colors.gray400
 
         // Text should always be a darker shade of the primary
         // to avoid low contrast on light backgrounds.
@@ -53,9 +53,9 @@ private struct StyledPalettePrimaryButtonContent: View {
 
     private let rippleDuration: Double = 0.4 // shorter, snappier
     private let rippleIntensity: Double = 0.125
-    private let pressInAnimation: Animation = .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.12)
+    private let pressInAnimation: Animation = .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.2)
     private let pressOutAnimation: Animation = .interactiveSpring(response: 0.32, dampingFraction: 0.68, blendDuration: 0.12)
-    private let bounceReleaseDelay: Double = 0.04
+    private let bounceReleaseDelay: Double = 0.1
 
     var body: some View {
         configuration.label
@@ -268,7 +268,7 @@ private struct PalettePrimaryButtonBackground: View {
             .fill(background)
             .overlay(
                 Capsule()
-                    .strokeBorder(stroke, lineWidth: 3)
+                    .strokeBorder(stroke, lineWidth: 2.5)
             )
             .shadow(color: bigShadow.opacity(outerShadowOpacity), radius: outerShadowRadius, x: 0, y: outerShadowOffset)
             .shadow(color: smallShadow.opacity(innerShadowOpacity), radius: innerShadowRadius, x: innerShadowOffset, y: innerShadowOffset)
@@ -277,7 +277,7 @@ private struct PalettePrimaryButtonBackground: View {
     }
 
     private var outerShadowRadius: CGFloat { interpolated(from: 24, to: 8) }
-    private var outerShadowOpacity: Double { interpolated(from: 1.0, to: 0.65) }
+    private var outerShadowOpacity: Double { interpolated(from: 0.66, to: 0.429) }
     private var outerShadowOffset: CGFloat { interpolated(from: 0, to: 8) }
 
     private var innerShadowRadius: CGFloat { interpolated(from: 3, to: 1) }
@@ -325,7 +325,7 @@ private struct PalettePrimaryButtonBackground: View {
             // Reduced blur to sharpen the edge a touch
             .blur(radius: 3)
             // Matches Figma: X -3, Y -4 (dark inner shadow)
-            .offset(x: -3, y: -4)
+            .offset(x: -2, y: -3)
             .mask(
                 Capsule()
                     .fill(
