@@ -65,9 +65,23 @@ struct BookSelectionView: View {
         }
         .ignoresSafeArea()
         .overlay(alignment: .bottom) {
-            bottomToolbar
-                .padding(.horizontal, 40)
-                .padding(.bottom, 16)
+            GeometryReader { proxy in
+                let safeBottom = proxy.safeAreaInsets.bottom + 0
+                ZStack {
+                    // Centered primary CTA
+                    selectButtonControl
+                        .shadow(color: themeManager.currentTokens(for: colorScheme).primary.opacity(0.22), radius: 22, x: 0, y: 12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, safeBottom)
+
+                    // Trailing plus FAB
+                    HStack { Spacer(); addBookButton }
+                        .padding(.trailing, 32)
+                        .padding(.bottom, safeBottom)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                }
+                .ignoresSafeArea()
+            }
         }
         .overlay(alignment: .top) {
             dotsSection
@@ -215,8 +229,8 @@ struct BookSelectionView: View {
                 }
                 .overlay(alignment: .trailing) {
                     addBookButton
-                        .padding(.trailing, 24)
-                        .offset(x: addButtonGap)
+                        .padding(.trailing, 32)
+                        .offset(x: 0)
                 }
 
                 if let error = selectionError {
