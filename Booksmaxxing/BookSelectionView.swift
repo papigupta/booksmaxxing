@@ -49,8 +49,6 @@ struct BookSelectionView: View {
                     .frame(height: 420)
                     .padding(.bottom, 24)
 
-                dotsSection
-
                 bookDetailSection
                     .padding(.top, 32)
 
@@ -61,6 +59,11 @@ struct BookSelectionView: View {
             }
         }
         .ignoresSafeArea()
+        .overlay(alignment: .top) {
+            dotsSection
+                .padding(.top, 104)
+                .allowsHitTesting(false)
+        }
         .onAppear { handleInitialAppear() }
         .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
         .onChange(of: selectedIndex) { _, newValue in handleSelectionChange(newValue) }
@@ -122,8 +125,11 @@ struct BookSelectionView: View {
                     color: dotColor(for: index),
                     size: index == selectedIndex ? 12 : 8
                 )
+                .transition(.opacity.combined(with: .scale))
             }
         }
+        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: selectedIndex)
+        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: visibleDotIndices)
     }
 
     private var bookDetailSection: some View {
