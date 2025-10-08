@@ -21,9 +21,13 @@ struct BookSelectionView: View {
     private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
     // Prevent layout jumping: fix heights for title, author, and details block
-    private let titleFixedHeight: CGFloat = 48   // ~2 lines at 20pt
-    private let authorFixedHeight: CGFloat = 18  // single line at 14pt
+    private let titleAuthorBlockHeight: CGFloat = 72 // fits 2-line title + 1-line author + 4pt gap
     private let detailsFixedHeight: CGFloat = 140 // description + stats area
+    // Dots positioning and carousel offset to avoid overlap
+    private let dotsTop: CGFloat = 104
+    private let dotRowHeight: CGFloat = 12
+    private let dotCarouselGap: CGFloat = 48
+    private var carouselTopOffset: CGFloat { dotsTop + dotRowHeight + dotCarouselGap }
 
     private var bookService: BookService {
         BookService(modelContext: modelContext)
@@ -47,25 +51,27 @@ struct BookSelectionView: View {
             backgroundGradient
 
             VStack(spacing: 0) {
-                Spacer(minLength: 32)
+                Spacer(minLength: carouselTopOffset)
 
                 carouselSection
-                    .frame(height: 420)
-                    .padding(.bottom, 24)
+                    .frame(height: 320)
+                    .padding(.bottom, 0)
 
                 bookDetailSection
                     .padding(.top, 32)
 
                 Spacer()
-
-                bottomToolbar
-                    .padding(.horizontal, 40)
             }
         }
         .ignoresSafeArea()
+        .overlay(alignment: .bottom) {
+            bottomToolbar
+                .padding(.horizontal, 40)
+                .padding(.bottom, 16)
+        }
         .overlay(alignment: .top) {
             dotsSection
-                .padding(.top, 104)
+                .padding(.top, dotsTop)
                 .allowsHitTesting(false)
         }
         .onAppear { handleInitialAppear() }
@@ -88,7 +94,7 @@ struct BookSelectionView: View {
     }
 
     private var carouselSection: some View {
-        ZStack(alignment: .center) {
+        ZStack(alignment: .top) {
             ForEach(Array(carouselBooks.enumerated()), id: \.element.id) { index, book in
                 if let geometry = geometry(for: index) {
                     BookCarouselCard(
@@ -135,15 +141,14 @@ struct BookSelectionView: View {
     }
 
     private var bookDetailSection: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 32) {
             if let book = activeBook {
-                VStack(spacing: 4) {
+                VStack(spacing: 0) {
                     Text(book.title)
                         .font(DS.Typography.title2)
                         .tracking(DS.Typography.tightTracking(for: 20))
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
-                        .frame(height: titleFixedHeight)
                         .foregroundColor(
                             themeManager.activeRoles.color(role: .primary, tone: 30)
                             ?? DS.Colors.primaryText
@@ -153,8 +158,8 @@ struct BookSelectionView: View {
                         Text(author)
                             .font(DS.Typography.fraunces(size: 14, weight: .regular))
                             .tracking(DS.Typography.tightTracking(for: 14))
+                            .padding(.top, 4)
                             .lineLimit(1)
-                            .frame(height: authorFixedHeight)
                             .foregroundColor(
                                 themeManager.activeRoles.color(role: .primary, tone: 40)
                                 ?? DS.Colors.primaryText
@@ -162,6 +167,7 @@ struct BookSelectionView: View {
                     }
                 }
                 .padding(.horizontal, 64)
+                .frame(height: titleAuthorBlockHeight, alignment: .bottom)
 
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .top, spacing: 24) {
