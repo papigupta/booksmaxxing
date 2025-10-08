@@ -18,7 +18,7 @@ struct BookSelectionView: View {
     @State private var animateIn = false
     @State private var showSearchSheet = false
 
-    private let addButtonDiameter: CGFloat = 56
+    private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
 
     private var bookService: BookService {
@@ -209,10 +209,9 @@ struct BookSelectionView: View {
     private var addBookButton: some View {
         Button(action: { if !isProcessingSelection { showSearchSheet = true } }) {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .regular))
-                .frame(width: addButtonDiameter, height: addButtonDiameter)
+                .font(.system(size: 16, weight: .regular))
         }
-        .buttonStyle(PaletteAwareCircleButtonStyle(diameter: addButtonDiameter))
+        .buttonStyle(PaletteAwarePrimaryButtonStyle(iconDiameter: addButtonDiameter))
         .disabled(isProcessingSelection)
     }
 
@@ -465,7 +464,7 @@ private struct BookCarouselCard: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill((themeManager.seedColor(at: 0) ?? themeManager.currentTokens(for: colorScheme).primary).opacity(0.5))
+                .fill(glowColor.opacity(0.5))
                 .frame(width: 468, height: 468)
                 .blur(radius: 120)
 
@@ -482,6 +481,11 @@ private struct BookCarouselCard: View {
             )
             .shadow(color: Color.black.opacity(isActive ? 0.28 : 0.12), radius: isActive ? 24 : 12, x: 0, y: 18)
         }
+    }
+
+    private var glowColor: Color {
+        themeManager.activeRoles.color(role: .primary, tone: 90)
+            ?? themeManager.currentTokens(for: colorScheme).primaryContainer
     }
 }
 
@@ -548,173 +552,4 @@ private struct BookStatsView: View {
             + Text("• Accuracy ")
             + Text("\(Int(accuracyPercent))%.").italic()
     }
-}
-
-
-private struct PaletteAwareCircleButtonStyle: ButtonStyle {
-    let diameter: CGFloat
-    @EnvironmentObject private var themeManager: ThemeManager
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        let colors = resolveColors()
-        return CircleButtonContent(
-            configuration: configuration,
-            colors: colors,
-            diameter: diameter,
-            isEnabled: isEnabled
-        )
-    }
-
-    private func resolveColors() -> PaletteButtonSwatch {
-        let palette = themeManager.usingBookPalette ? themeManager.activeRoles : PaletteGenerator.generateMonochromeRoles()
-        let background = palette.color(role: .primary, tone: 90) ?? DS.Colors.gray100
-        let stroke = palette.color(role: .primary, tone: 80) ?? DS.Colors.gray200
-        let bigShadow = palette.color(role: .primary, tone: 80) ?? DS.Colors.gray300
-        let smallShadow = palette.color(role: .primary, tone: 70) ?? DS.Colors.gray400
-        let innerBright = palette.color(role: .primary, tone: 96) ?? DS.Colors.gray100
-        let innerDark = palette.color(role: .primary, tone: 60) ?? DS.Colors.gray500
-        let text = palette.color(role: .primary, tone: 30) ?? DS.Colors.primaryText
-        return PaletteButtonSwatch(
-            background: background,
-            text: text,
-            stroke: stroke,
-            bigShadow: bigShadow,
-            smallShadow: smallShadow,
-            innerBright: innerBright,
-            innerDark: innerDark
-        )
-    }
-
-    private struct CircleButtonContent: View {
-        let configuration: ButtonStyle.Configuration
-        let colors: PaletteButtonSwatch
-        let diameter: CGFloat
-        let isEnabled: Bool
-        @State private var pressProgress: CGFloat = 0
-
-        private let pressInAnimation: Animation = .spring(response: 0.28, dampingFraction: 0.7)
-        private let pressOutAnimation: Animation = .spring(response: 0.5, dampingFraction: 0.8)
-
-        var body: some View {
-            configuration.label
-                .foregroundColor(textColor)
-                .frame(width: diameter, height: diameter)
-                .background(background)
-                .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: configuration.isPressed)
-                .onChange(of: configuration.isPressed) { _, pressed in
-                    withAnimation(pressed ? pressInAnimation : pressOutAnimation) {
-                        pressProgress = pressed ? 1.0 : 0.0
-                    }
-                }
-        }
-
-        private var textColor: Color {
-            isEnabled ? colors.text : colors.text.opacity(0.45)
-        }
-
-        private var background: some View {
-            PaletteCircularButtonBackground(
-                colors: colors,
-                pressProgress: pressProgress,
-                isEnabled: isEnabled
-            )
-        }
-    }
-}
-
-private struct PaletteCircularButtonBackground: View {
-    let colors: PaletteButtonSwatch
-    let pressProgress: CGFloat
-    let isEnabled: Bool
-
-    var body: some View {
-        Circle()
-            .fill(baseBackground)
-            .overlay(Circle().stroke(colors.stroke.opacity(isEnabled ? 1.0 : 0.4), lineWidth: 2.2))
-            .shadow(color: colors.bigShadow.opacity(outerShadowOpacity), radius: outerShadowRadius, x: 0, y: outerShadowOffset)
-            .shadow(color: colors.smallShadow.opacity(innerShadowOpacity), radius: innerShadowRadius, x: -innerShadowOffset, y: -innerShadowOffset)
-            .overlay(highlight)
-            .overlay(lowlight)
-    }
-
-    private var baseBackground: Color {
-        isEnabled ? colors.background : colors.background.opacity(0.5)
-    }
-
-    private var highlight: some View {
-        Circle()
-            .stroke(
-                LinearGradient(
-                    colors: [Color.white.opacity(0.85), colors.innerBright.opacity(0.3), .clear],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 1.3
-            )
-            .blur(radius: 1.8)
-            .offset(x: 2, y: 3)
-            .mask(
-                Circle().fill(
-                    LinearGradient(
-                        colors: [.white, .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            )
-            .compositingGroup()
-    }
-
-    private var lowlight: some View {
-        Circle()
-            .stroke(
-                LinearGradient(
-                    colors: [.clear, colors.innerDark.opacity(0.45 + 0.3 * Double(pressProgress)), colors.innerDark.opacity(0.7 + 0.2 * Double(pressProgress))],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 1.6
-            )
-            .blur(radius: 2.5)
-            .offset(x: -2, y: -3)
-            .mask(
-                Circle().fill(
-                    LinearGradient(
-                        colors: [.clear, .black],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            )
-            .blendMode(.multiply)
-            .compositingGroup()
-    }
-
-    private var outerShadowRadius: CGFloat { interpolate(from: 18, to: 9) }
-    private var outerShadowOffset: CGFloat { interpolate(from: 10, to: 4) }
-    private var outerShadowOpacity: Double { interpolate(from: 0.5, to: 0.3) }
-
-    private var innerShadowRadius: CGFloat { interpolate(from: 6, to: 3) }
-    private var innerShadowOpacity: Double { interpolate(from: 0.25, to: 0.18) }
-    private var innerShadowOffset: CGFloat { interpolate(from: 2, to: 1) }
-
-    private func interpolate(from start: CGFloat, to end: CGFloat) -> CGFloat {
-        start + (end - start) * pressProgress
-    }
-
-    private func interpolate(from start: Double, to end: Double) -> Double {
-        start + (end - start) * Double(pressProgress)
-    }
-}
-
-private struct PaletteButtonSwatch {
-    let background: Color
-    let text: Color
-    let stroke: Color
-    let bigShadow: Color
-    let smallShadow: Color
-    let innerBright: Color
-    let innerDark: Color
 }

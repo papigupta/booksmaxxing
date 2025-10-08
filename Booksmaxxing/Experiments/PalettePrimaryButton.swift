@@ -7,11 +7,61 @@ struct PaletteAwarePrimaryButtonStyle: ButtonStyle {
     @EnvironmentObject private var themeManager: ThemeManager
     private static let defaultPalette = PaletteGenerator.generateMonochromeRoles()
 
+    struct PalettePrimaryButtonLayout {
+        let horizontalPadding: CGFloat
+        let verticalPadding: CGFloat
+        let minHeight: CGFloat
+    }
+
+    private enum Variant {
+        case text(PalettePrimaryButtonLayout)
+        case icon(diameter: CGFloat)
+    }
+
+    private let variant: Variant
+
+    init(horizontalPadding: CGFloat = 24, verticalPadding: CGFloat = 16, minHeight: CGFloat = 52) {
+        let layout = PalettePrimaryButtonLayout(
+            horizontalPadding: horizontalPadding,
+            verticalPadding: verticalPadding,
+            minHeight: minHeight
+        )
+        self.variant = .text(layout)
+    }
+
+    init(iconDiameter: CGFloat) {
+        self.variant = .icon(diameter: iconDiameter)
+    }
+
     func makeBody(configuration: Configuration) -> some View {
         let palette = themeManager.usingBookPalette ? themeManager.activeRoles : Self.defaultPalette
         let colors = PaletteAwarePrimaryButtonStyle.resolveColors(palette: palette, themeManager: themeManager)
+        return makeContent(configuration: configuration, colors: colors)
+    }
 
-        return StyledPalettePrimaryButtonContent(configuration: configuration, colors: colors)
+    @ViewBuilder
+    private func makeContent(configuration: Configuration, colors: PaletteButtonColors) -> some View {
+        switch variant {
+        case .text(let layout):
+            StyledPalettePrimaryButtonContent(
+                configuration: configuration,
+                colors: colors,
+                layout: layout,
+                fixedSize: nil
+            )
+        case .icon(let diameter):
+            let layout = PalettePrimaryButtonLayout(
+                horizontalPadding: 0,
+                verticalPadding: 0,
+                minHeight: diameter
+            )
+            StyledPalettePrimaryButtonContent(
+                configuration: configuration,
+                colors: colors,
+                layout: layout,
+                fixedSize: diameter
+            )
+        }
     }
 
     private static func resolveColors(palette: [PaletteRole], themeManager: ThemeManager) -> PaletteButtonColors {
@@ -46,7 +96,10 @@ struct PaletteAwarePrimaryButtonStyle: ButtonStyle {
 private struct StyledPalettePrimaryButtonContent: View {
     let configuration: ButtonStyle.Configuration
     let colors: PaletteButtonColors
+    let layout: PaletteAwarePrimaryButtonStyle.PalettePrimaryButtonLayout
+    let fixedSize: CGFloat?
 
+    @Environment(\.isEnabled) private var isEnabled
     @State private var ripples: [RippleItem] = []
     @State private var buttonSize: CGSize = .zero
     @State private var pressProgress: CGFloat = 0
@@ -58,11 +111,19 @@ private struct StyledPalettePrimaryButtonContent: View {
     private let bounceReleaseDelay: Double = 0.1
 
     var body: some View {
-        configuration.label
-            .foregroundColor(colors.text)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .frame(minHeight: 52)
+        buttonContent
+    }
+
+    private var buttonContent: some View {
+        let cornerRadius = layout.minHeight / 2
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        return configuration.label
+            .foregroundColor(labelColor)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.vertical, layout.verticalPadding)
+            .frame(minHeight: layout.minHeight)
+            .modifier(FixedFrameModifier(fixedSize: fixedSize))
             .background(
                 PalettePrimaryButtonBackground(
                     background: colors.background,
@@ -71,37 +132,40 @@ private struct StyledPalettePrimaryButtonContent: View {
                     smallShadow: colors.smallShadow,
                     innerBright: colors.innerBright,
                     innerDark: colors.innerDark,
-                    pressProgress: pressProgress
+                    pressProgress: pressProgress,
+                    cornerRadius: cornerRadius
                 )
             )
-            // Place ripple above background and label to ensure visibility
             .overlay(
-                RippleLayer(ripples: $ripples, size: effectiveSize, duration: rippleDuration, intensity: rippleIntensity)
+                RippleLayer(
+                    ripples: $ripples,
+                    size: effectiveSize,
+                    duration: rippleDuration,
+                    intensity: rippleIntensity,
+                    shape: shape
+                )
             )
-            // Measure size with overlay to avoid layout quirks
             .overlay(
                 GeometryReader { proxy in
                     Color.clear.preference(key: ButtonSizePreferenceKey.self, value: proxy.size)
                 }
             )
             .onPreferenceChange(ButtonSizePreferenceKey.self) { buttonSize = $0 }
-            .contentShape(Capsule())
+            .contentShape(shape)
             .scaleEffect(scaleAmount)
             .onAppear(perform: prepareSoftHaptic)
-            // Trigger ripple/haptic on press state change (center-based)
             .onChange(of: configuration.isPressed) { _, pressed in
                 if pressed {
                     withAnimation(pressInAnimation) { pressProgress = 1.0 }
-                    addRipple(at: CGPoint(x: effectiveSize.width/2, y: effectiveSize.height/2))
+                    addRipple(at: CGPoint(x: effectiveSize.width / 2, y: effectiveSize.height / 2))
                     triggerSoftHaptic()
                 } else {
                     triggerBounceSequence()
                 }
             }
-            // Also trigger on a regular tap so quick taps show feedback reliably
             .onTapGesture {
                 triggerBounceSequence()
-                addRipple(at: CGPoint(x: effectiveSize.width/2, y: effectiveSize.height/2))
+                addRipple(at: CGPoint(x: effectiveSize.width / 2, y: effectiveSize.height / 2))
                 triggerSoftHaptic()
             }
     }
@@ -111,8 +175,17 @@ private struct StyledPalettePrimaryButtonContent: View {
     }
 
     private var effectiveSize: CGSize {
-        if buttonSize == .zero { return CGSize(width: 280, height: 52) }
+        if buttonSize == .zero {
+            if let fixedSize {
+                return CGSize(width: fixedSize, height: fixedSize)
+            }
+            return CGSize(width: 280, height: layout.minHeight)
+        }
         return buttonSize
+    }
+
+    private var labelColor: Color {
+        isEnabled ? colors.text : colors.text.opacity(0.45)
     }
 
     private func addRipple(at point: CGPoint) {
@@ -149,16 +222,18 @@ private struct StyledPalettePrimaryButtonContent: View {
     }
 }
 
+
 private struct RippleItem: Identifiable, Equatable {
     let id = UUID()
     let center: CGPoint
 }
 
-private struct RippleLayer: View {
+private struct RippleLayer<S: Shape>: View {
     @Binding var ripples: [RippleItem]
     let size: CGSize
     let duration: Double
     let intensity: Double
+    let shape: S
 
     var body: some View {
         ZStack {
@@ -168,7 +243,7 @@ private struct RippleLayer: View {
                 }
             }
         }
-        .clipShape(Capsule())
+        .clipShape(shape)
         .allowsHitTesting(false)
     }
 }
@@ -232,6 +307,18 @@ private struct PaletteButtonColors {
     let innerDark: Color
 }
 
+private struct FixedFrameModifier: ViewModifier {
+    let fixedSize: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let fixedSize {
+            content.frame(width: fixedSize, height: fixedSize)
+        } else {
+            content
+        }
+    }
+}
+
 #if canImport(UIKit)
 private final class PaletteButtonHaptics {
     static let shared = PaletteButtonHaptics()
@@ -262,12 +349,13 @@ private struct PalettePrimaryButtonBackground: View {
     let innerBright: Color
     let innerDark: Color
     let pressProgress: CGFloat
+    let cornerRadius: CGFloat
 
     var body: some View {
-        Capsule()
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(background)
             .overlay(
-                Capsule()
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(stroke, lineWidth: 2.5)
             )
             .shadow(color: bigShadow.opacity(outerShadowOpacity), radius: outerShadowRadius, x: 0, y: outerShadowOffset)
@@ -285,7 +373,7 @@ private struct PalettePrimaryButtonBackground: View {
     private var innerShadowOffset: CGFloat { interpolated(from: 2, to: 1) }
 
     private var innerBrightOverlay: some View {
-        Capsule()
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .stroke(
                 // Slightly lighter highlight by leaning toward white
                 LinearGradient(
@@ -299,7 +387,7 @@ private struct PalettePrimaryButtonBackground: View {
             // Matches Figma: X 3, Y 4 (light inner shadow)
             .offset(x: 3, y: 4)
             .mask(
-                Capsule()
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [.white, .clear],
@@ -312,7 +400,7 @@ private struct PalettePrimaryButtonBackground: View {
     }
 
     private var innerDarkOverlay: some View {
-        Capsule()
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .stroke(
                 LinearGradient(
                     colors: [.clear, innerDark.opacity(0.6), innerDark.opacity(0.9)],
@@ -327,7 +415,7 @@ private struct PalettePrimaryButtonBackground: View {
             // Matches Figma: X -3, Y -4 (dark inner shadow)
             .offset(x: -2, y: -3)
             .mask(
-                Capsule()
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [.clear, .black],
@@ -348,6 +436,8 @@ private struct PalettePrimaryButtonBackground: View {
         start + (end - start) * pressProgress
     }
 }
+
+
 
 struct PalettePrimaryButtonSample: View {
     var action: () -> Void = {}
