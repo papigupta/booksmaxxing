@@ -53,7 +53,6 @@ struct BookSelectionView: View {
 
                 bookDetailSection
                     .padding(.top, 32)
-                    .padding(.horizontal, 40)
 
                 Spacer()
 
@@ -128,34 +127,47 @@ struct BookSelectionView: View {
     }
 
     private var bookDetailSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 24) {
             if let book = activeBook {
-                VStack(spacing: 8) {
+                VStack(spacing: 4) {
                     Text(book.title)
-                        .font(DS.Typography.largeTitle)
+                        .font(DS.Typography.title2)
+                        .tracking(DS.Typography.tightTracking(for: 20))
                         .multilineTextAlignment(.center)
-                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
+                        .foregroundColor(
+                            themeManager.activeRoles.color(role: .primary, tone: 30)
+                            ?? DS.Colors.primaryText
+                        )
 
                     if let author = book.author, !author.isEmpty {
                         Text(author)
-                            .font(DS.Typography.body)
-                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
+                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                            .tracking(DS.Typography.tightTracking(for: 14))
+                            .foregroundColor(
+                                themeManager.activeRoles.color(role: .primary, tone: 40)
+                                ?? DS.Colors.primaryText
+                            )
                     }
                 }
+                .padding(.horizontal, 64)
 
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .top, spacing: 24) {
                         if let description = book.bookDescription, !description.isEmpty {
                             Text(description)
-                                .font(DS.Typography.body)
-                                .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.82))
-                                .lineSpacing(6)
+                                .font(DS.Typography.fraunces(size: 11, weight: .regular))
+                                .tracking(DS.Typography.tightTracking(for: 11))
+                                .foregroundColor(
+                                    themeManager.activeRoles.color(role: .primary, tone: 40)
+                                    ?? DS.Colors.primaryText
+                                )
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
                         BookStatsView(book: book)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .padding(.horizontal, 64)
                 }
             } else {
                 Text("Add a book to get started")
@@ -503,16 +515,29 @@ private struct DotView: View {
 private struct BookStatsView: View {
     let book: Book
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             summaryText
-                .font(DS.Typography.caption)
-                .foregroundColor(DS.Colors.secondaryText)
+                .font(DS.Typography.fraunces(size: 11, weight: .regular))
+                .tracking(DS.Typography.tightTracking(for: 11))
+                .foregroundColor(
+                    themeColorT40
+                )
             statsText
-                .font(DS.Typography.caption)
-                .foregroundColor(DS.Colors.secondaryText)
+                .font(DS.Typography.fraunces(size: 11, weight: .regular))
+                .tracking(DS.Typography.tightTracking(for: 11))
+                .foregroundColor(
+                    themeColorT40
+                )
         }
+    }
+
+    private var themeColorT40: Color {
+        themeManager.activeRoles.color(role: .primary, tone: 40)
+        ?? DS.Colors.primaryText
     }
 
     private var summaryText: Text {
