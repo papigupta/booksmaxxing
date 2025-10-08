@@ -7,18 +7,27 @@ import AppKit
 typealias PlatformImage = NSImage
 #endif
 
+// Utility to allow conditional clipShape
+struct AnyShape: Shape {
+    private let pathBuilder: (CGRect) -> Path
+    init<S: Shape>(_ wrapped: S) { self.pathBuilder = { rect in wrapped.path(in: rect) } }
+    func path(in rect: CGRect) -> Path { pathBuilder(rect) }
+}
+
 struct BookCoverView: View {
     let thumbnailUrl: String?
     let coverUrl: String?
     let isLargeView: Bool
+    let cornerRadius: CGFloat?
     
     @State private var image: PlatformImage? = nil
     @State private var isLoading = false
     
-    init(thumbnailUrl: String? = nil, coverUrl: String? = nil, isLargeView: Bool = false) {
+    init(thumbnailUrl: String? = nil, coverUrl: String? = nil, isLargeView: Bool = false, cornerRadius: CGFloat? = nil) {
         self.thumbnailUrl = thumbnailUrl
         self.coverUrl = coverUrl
         self.isLargeView = isLargeView
+        self.cornerRadius = cornerRadius
     }
     
     var body: some View {
@@ -41,10 +50,10 @@ struct BookCoverView: View {
                 ProgressView()
                     .frame(width: isLargeView ? 200 : 60, height: isLargeView ? 300 : 90)
                     .background(Color.gray.opacity(0.1))
-                    .cornerRadius(8)
+                    .cornerRadius(cornerRadius ?? 8)
             } else {
                 // Placeholder when no image
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: cornerRadius ?? 8)
                     .fill(Color.gray.opacity(0.2))
                     .frame(width: isLargeView ? 200 : 60, height: isLargeView ? 300 : 90)
                     .overlay(
@@ -54,6 +63,11 @@ struct BookCoverView: View {
                     )
             }
         }
+        .clipShape(
+            cornerRadius != nil
+                ? AnyShape(RoundedRectangle(cornerRadius: cornerRadius!, style: .continuous))
+                : AnyShape(Rectangle())
+        )
         .onAppear {
             loadImage()
         }

@@ -110,7 +110,7 @@ struct BookSelectionView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .contentShape(Rectangle())
             .gesture(swipeGesture)
-            .animation(.spring(response: 0.6, dampingFraction: 0.85), value: selectedIndex)
+            .animation(.interpolatingSpring(stiffness: 120, damping: 18).speed(0.95), value: selectedIndex)
             .animation(.easeOut(duration: 0.5), value: animateIn)
             .onChange(of: carouselBooks.map { $0.id }) { _, _ in
                 resetEntryAnimation()
@@ -322,44 +322,28 @@ struct BookSelectionView: View {
     private func geometry(for index: Int) -> CarouselGeometry? {
         guard !carouselBooks.isEmpty else { return nil }
         let relativePosition = index - selectedIndex
-        guard abs(relativePosition) <= 3 else { return nil }
+        guard abs(relativePosition) <= 2 else { return nil }
 
-        let baseOffset: CGFloat = 48
-        let rotation = Double(relativePosition) * 15.0
-        let scale: CGFloat
-        let opacity: Double
+        // Fan-style layout constants (tweak as needed)
+        let rotations: [Int: Double] = [-2: -14, -1: -7, 0: 0, 1: 7, 2: 14]
+        let scales: [Int: CGFloat] = [-2: 0.78, -1: 0.88, 0: 1.0, 1: 0.88, 2: 0.78]
+        let opacities: [Int: Double] = [-2: 0.5, -1: 0.82, 0: 1.0, 1: 0.82, 2: 0.5]
+        let offsetsX: [Int: CGFloat] = [-2: -220, -1: -120, 0: 0, 1: 120, 2: 220]
+        let offsetsY: [Int: CGFloat] = [-2: 12, -1: 8, 0: 0, 1: 8, 2: 12]
+
+        let rotation = rotations[relativePosition] ?? 0
+        let scale = scales[relativePosition] ?? 1
+        let opacity = opacities[relativePosition] ?? 1
+        let finalOffset = CGSize(width: offsetsX[relativePosition] ?? 0, height: offsetsY[relativePosition] ?? 0)
         let zIndex = Double(10 - abs(relativePosition))
 
-        switch abs(relativePosition) {
-        case 0:
-            scale = 1.0
-            opacity = 1.0
-        case 1:
-            scale = 0.92
-            opacity = 0.85
-        case 2:
-            scale = 0.82
-            opacity = 0.6
-        default:
-            scale = 0.7
-            opacity = 0.35
-        }
-
-        let angleRadians = CGFloat(rotation * Double.pi / 180)
-        let distance = baseOffset * CGFloat(abs(relativePosition))
-        let offsetX = sin(angleRadians) * distance
-        let offsetY = -cos(angleRadians) * distance + (abs(relativePosition) == 0 ? 0 : 12 * CGFloat(abs(relativePosition)))
-        let finalOffset = CGSize(width: offsetX, height: offsetY)
-
+        // Entry animation: slide softly from above/side
         var initialOffset = finalOffset
         if relativePosition == 0 {
-            initialOffset.height -= 120
+            initialOffset.height -= 100
         } else {
-            let vector = CGVector(dx: finalOffset.width, dy: finalOffset.height)
-            let length = max(1, sqrt(vector.dx * vector.dx + vector.dy * vector.dy))
-            let normalized = CGVector(dx: vector.dx / length, dy: vector.dy / length)
-            initialOffset.width += normalized.dx * 80
-            initialOffset.height += normalized.dy * 80
+            initialOffset.width *= 1.15
+            initialOffset.height -= 40
         }
 
         return CarouselGeometry(
@@ -489,14 +473,10 @@ private struct BookCarouselCard: View {
             BookCoverView(
                 thumbnailUrl: book.thumbnailUrl,
                 coverUrl: book.coverImageUrl,
-                isLargeView: true
+                isLargeView: true,
+                cornerRadius: 16
             )
             .frame(maxWidth: 240, maxHeight: 320)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(isActive ? 0.35 : 0.2), lineWidth: isActive ? 1.2 : 0.6)
-            )
             .shadow(color: Color.black.opacity(isActive ? 0.28 : 0.12), radius: isActive ? 24 : 12, x: 0, y: 18)
         }
     }
