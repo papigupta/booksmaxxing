@@ -358,9 +358,9 @@ struct BookSelectionView: View {
         // Fan-style layout constants (tweak as needed)
         let rotations: [Int: Double] = [-2: -14, -1: -7, 0: 0, 1: 7, 2: 14]
         let scales: [Int: CGFloat] = [-2: 0.78, -1: 0.88, 0: 1.0, 1: 0.88, 2: 0.78]
-        let opacities: [Int: Double] = [-2: 0.5, -1: 0.82, 0: 1.0, 1: 0.82, 2: 0.5]
-        let offsetsX: [Int: CGFloat] = [-2: -220, -1: -120, 0: 0, 1: 120, 2: 220]
-        let offsetsY: [Int: CGFloat] = [-2: 12, -1: 8, 0: 0, 1: 8, 2: 12]
+        let opacities: [Int: Double] = [-2: 1.0, -1: 1.0, 0: 1.0, 1: 1.0, 2: 1.0]
+        let offsetsX: [Int: CGFloat] = [-2: -520, -1: -260, 0: 0, 1: 260, 2: 520]
+        let offsetsY: [Int: CGFloat] = [-2: 48, -1: 32, 0: 0, 1: 32, 2: 48]
 
         let rotation = rotations[relativePosition] ?? 0
         let scale = scales[relativePosition] ?? 1
