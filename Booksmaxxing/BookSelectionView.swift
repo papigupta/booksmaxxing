@@ -20,6 +20,10 @@ struct BookSelectionView: View {
 
     private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
+    // Prevent layout jumping: fix heights for title, author, and details block
+    private let titleFixedHeight: CGFloat = 48   // ~2 lines at 20pt
+    private let authorFixedHeight: CGFloat = 18  // single line at 14pt
+    private let detailsFixedHeight: CGFloat = 140 // description + stats area
 
     private var bookService: BookService {
         BookService(modelContext: modelContext)
@@ -84,37 +88,35 @@ struct BookSelectionView: View {
     }
 
     private var carouselSection: some View {
-        GeometryReader { proxy in
-            ZStack {
-                ForEach(Array(carouselBooks.enumerated()), id: \.element.id) { index, book in
-                    if let geometry = geometry(for: index) {
-                        BookCarouselCard(
-                            book: book,
-                            isActive: index == selectedIndex,
-                            geometry: geometry
-                        )
-                        .frame(width: 320, height: 320)
-                        .scaleEffect(geometry.scale)
-                        .rotationEffect(.degrees(geometry.rotation))
-                        .offset(animateIn ? geometry.finalOffset : geometry.initialOffset)
-                        .opacity(geometry.opacity)
-                        .zIndex(geometry.zIndex)
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.9)) {
-                                selectedIndex = index
-                            }
+        ZStack(alignment: .center) {
+            ForEach(Array(carouselBooks.enumerated()), id: \.element.id) { index, book in
+                if let geometry = geometry(for: index) {
+                    BookCarouselCard(
+                        book: book,
+                        isActive: index == selectedIndex,
+                        geometry: geometry
+                    )
+                    .frame(width: 320, height: 320)
+                    .scaleEffect(geometry.scale)
+                    .rotationEffect(.degrees(geometry.rotation))
+                    .offset(animateIn ? geometry.finalOffset : geometry.initialOffset)
+                    .opacity(geometry.opacity)
+                    .zIndex(geometry.zIndex)
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.55, dampingFraction: 0.88)) {
+                            selectedIndex = index
                         }
                     }
                 }
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .contentShape(Rectangle())
-            .gesture(swipeGesture)
-            .animation(.interpolatingSpring(stiffness: 120, damping: 18).speed(0.95), value: selectedIndex)
-            .animation(.easeOut(duration: 0.5), value: animateIn)
-            .onChange(of: carouselBooks.map { $0.id }) { _, _ in
-                resetEntryAnimation()
-            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .gesture(swipeGesture)
+        .animation(.interpolatingSpring(stiffness: 120, damping: 18).speed(0.95), value: selectedIndex)
+        .animation(.easeOut(duration: 0.5), value: animateIn)
+        .onChange(of: carouselBooks.map { $0.id }) { _, _ in
+            resetEntryAnimation()
         }
     }
 
@@ -140,6 +142,8 @@ struct BookSelectionView: View {
                         .font(DS.Typography.title2)
                         .tracking(DS.Typography.tightTracking(for: 20))
                         .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .frame(height: titleFixedHeight)
                         .foregroundColor(
                             themeManager.activeRoles.color(role: .primary, tone: 30)
                             ?? DS.Colors.primaryText
@@ -149,6 +153,8 @@ struct BookSelectionView: View {
                         Text(author)
                             .font(DS.Typography.fraunces(size: 14, weight: .regular))
                             .tracking(DS.Typography.tightTracking(for: 14))
+                            .lineLimit(1)
+                            .frame(height: authorFixedHeight)
                             .foregroundColor(
                                 themeManager.activeRoles.color(role: .primary, tone: 40)
                                 ?? DS.Colors.primaryText
@@ -167,12 +173,17 @@ struct BookSelectionView: View {
                                     themeManager.activeRoles.color(role: .primary, tone: 40)
                                     ?? DS.Colors.primaryText
                                 )
+                                .lineLimit(10)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(maxHeight: .infinity, alignment: .top)
                         }
 
                         BookStatsView(book: book)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                            .lineLimit(10)
                     }
+                    .frame(height: detailsFixedHeight, alignment: .top)
                     .padding(.horizontal, 64)
                 }
             } else {
@@ -269,7 +280,7 @@ struct BookSelectionView: View {
         guard newValue < carouselBooks.count else { return }
         let book = carouselBooks[newValue]
         Task { await themeManager.activateTheme(for: book) }
-        resetEntryAnimation()
+        // Do not reset entry animation on selection; keeps layout stable
     }
 
     private func resetEntryAnimation() {
