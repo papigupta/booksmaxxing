@@ -24,9 +24,9 @@ struct BookSelectionView: View {
     private let titleAuthorBlockHeight: CGFloat = 72 // fits 2-line title + 1-line author + 4pt gap
     private let detailsFixedHeight: CGFloat = 140 // description + stats area
     // Dots positioning and carousel offset to avoid overlap
-    private let dotsTop: CGFloat = 104
+    private let dotsTop: CGFloat = 40
     private let dotRowHeight: CGFloat = 12
-    private let dotCarouselGap: CGFloat = 48
+    private let dotCarouselGap: CGFloat = 0
     private var carouselTopOffset: CGFloat { dotsTop + dotRowHeight + dotCarouselGap }
 
     private var bookService: BookService {
