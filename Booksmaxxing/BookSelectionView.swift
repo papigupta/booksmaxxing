@@ -587,15 +587,14 @@ private struct BookStatsView: View {
 
     private var summaryText: Text {
         let totalIdeas = book.ideas?.count ?? 0
-        let mastered = book.ideas?.filter { $0.masteryLevel >= 3 }.count ?? 0
         if totalIdeas == 0 {
             return Text("We haven’t extracted ideas from this book yet.")
         } else {
-            return Text("\(book.title) has ")
+            return Text("The ")
+                + Text("\(book.title)")
+                + Text(" has ")
                 + Text("\(totalIdeas)").italic()
-                + Text(" unique ideas. You’ve mastered ")
-                + Text("\(mastered)").italic()
-                + Text(".")
+                + Text(" unique ideas.")
         }
     }
 
@@ -609,17 +608,19 @@ private struct BookStatsView: View {
         let totalCorrect = coverages.reduce(0) { $0 + $1.totalQuestionsCorrect }
         let accuracyPercent = totalQuestions > 0 ? (Double(totalCorrect) / Double(totalQuestions)) * 100.0 : 0.0
         let ideaCount = book.ideas?.count ?? 0
-        let coveragePercent: Double
-        if ideaCount > 0 {
-            coveragePercent = CoverageService(modelContext: modelContext)
-                .calculateBookCoverage(bookId: bookIdentifier, totalIdeas: ideaCount)
-        } else {
-            coveragePercent = 0.0
-        }
 
-        return Text("Coverage sits at ")
-            + Text("\(Int(coveragePercent))% ").italic()
-            + Text("• Accuracy ")
-            + Text("\(Int(accuracyPercent))%.").italic()
+        let coveredIdeas = coverages.filter { $0.isFullyCovered }.count
+        let masteredIdeas = book.ideas?.filter { $0.masteryLevel >= 3 }.count ?? 0
+        let accuracyRounded = Int(accuracyPercent.rounded())
+
+        return Text("You’ve covered ")
+            + Text("\(coveredIdeas)/\(ideaCount)").italic()
+            + Text(".\n")
+            + Text("You’ve mastered ")
+            + Text("\(masteredIdeas)/\(ideaCount)").italic()
+            + Text(".\n")
+            + Text("Your average accuracy is ")
+            + Text("\(accuracyRounded)%").italic()
+            + Text(".")
     }
 }
