@@ -26,6 +26,7 @@ struct BookSelectionView: View {
     // Dots positioning and carousel offset to avoid overlap
     private let dotsTop: CGFloat = 40
     private let dotRowHeight: CGFloat = 12
+    private let dotSpacing: CGFloat = 20
     private let dotCarouselGap: CGFloat = 0
     private var carouselTopOffset: CGFloat { dotsTop + dotRowHeight + dotCarouselGap }
 
@@ -141,17 +142,26 @@ struct BookSelectionView: View {
     }
 
     private var dotsSection: some View {
-        HStack(spacing: 10) {
+        ZStack {
             ForEach(visibleDotIndices, id: \.self) { index in
+                let distance = abs(index - selectedIndex)
                 DotView(
                     color: dotColor(for: index),
-                    size: index == selectedIndex ? 12 : 8
+                    size: dotSize(forDistance: distance)
                 )
+                .opacity(dotOpacity(forDistance: distance))
+                .offset(x: dotSpacing * CGFloat(index - selectedIndex))
                 .transition(.opacity.combined(with: .scale))
+                .animation(
+                    .interpolatingSpring(stiffness: 140, damping: 18)
+                        .speed(0.95)
+                        .delay(0.015 * Double(distance)),
+                    value: selectedIndex
+                )
             }
         }
-        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: selectedIndex)
-        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: visibleDotIndices)
+        .frame(maxWidth: .infinity, minHeight: dotRowHeight, maxHeight: dotRowHeight, alignment: .center)
+        .animation(.spring(response: 0.45, dampingFraction: 0.86), value: visibleDotIndices)
     }
 
     private var bookDetailSection: some View {
@@ -344,9 +354,27 @@ struct BookSelectionView: View {
         let distance = abs(index - selectedIndex)
         switch distance {
         case 0: return base
-        case 1: return base.opacity(0.6)
-        case 2: return base.opacity(0.4)
-        default: return base.opacity(0.2)
+        case 1: return base.opacity(0.75)
+        case 2: return base.opacity(0.55)
+        default: return base.opacity(0.35)
+        }
+    }
+
+    private func dotSize(forDistance distance: Int) -> CGFloat {
+        switch distance {
+        case 0: return 12
+        case 1: return 10
+        case 2: return 8
+        default: return 6
+        }
+    }
+
+    private func dotOpacity(forDistance distance: Int) -> Double {
+        switch distance {
+        case 0: return 1.0
+        case 1: return 0.9
+        case 2: return 0.7
+        default: return 0.5
         }
     }
 
