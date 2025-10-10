@@ -23,6 +23,11 @@ struct BookSelectionView: View {
     @GestureState private var dragX: CGFloat = 0
     @State private var themeUpdateTask: Task<Void, Never>? = nil
     @State private var isTransitioning: Bool = false
+    // Details text transition state
+    @State private var detailDisplayedIndex: Int = 0
+    @State private var detailBaseOpacity: Double = 1.0
+    @State private var detailDragOpacityFreeze: Double? = nil
+    @State private var detailsTransitionInFlight: Bool = false
 
     private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
@@ -56,6 +61,13 @@ struct BookSelectionView: View {
     private var activeBook: Book? {
         guard !carouselBooks.isEmpty, selectedIndex < carouselBooks.count else { return nil }
         return carouselBooks[selectedIndex]
+    }
+
+    private var activeDetailBook: Book? {
+        guard !carouselBooks.isEmpty else { return nil }
+        let safeIndex = max(0, min(detailDisplayedIndex, carouselBooks.count - 1))
+        guard safeIndex < carouselBooks.count else { return nil }
+        return carouselBooks[safeIndex]
     }
 
     var body: some View {
@@ -178,59 +190,60 @@ struct BookSelectionView: View {
 
     private var bookDetailSection: some View {
         VStack(spacing: 32) {
-            if let book = activeBook {
-                VStack(spacing: 0) {
-                    Text(book.title)
-                        .font(DS.Typography.title2)
-                        .tracking(DS.Typography.tightTracking(for: 20))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .foregroundColor(
-                            themeManager.activeRoles.color(role: .primary, tone: 30)
-                            ?? DS.Colors.primaryText
-                        )
-
-                    if let author = book.author, !author.isEmpty {
-                        Text(author)
-                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
-                            .tracking(DS.Typography.tightTracking(for: 14))
-                            .padding(.top, 4)
-                            .lineLimit(1)
+            if let book = activeDetailBook {
+                Group {
+                    VStack(spacing: 0) {
+                        Text(book.title)
+                            .font(DS.Typography.title2)
+                            .tracking(DS.Typography.tightTracking(for: 20))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
                             .foregroundColor(
-                                themeManager.activeRoles.color(role: .primary, tone: 40)
+                                themeManager.activeRoles.color(role: .primary, tone: 30)
                                 ?? DS.Colors.primaryText
                             )
-                    }
-                }
-                .padding(.horizontal, 64)
-                .frame(height: titleAuthorBlockHeight, alignment: .bottom)
 
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .top, spacing: 24) {
-                        if let description = book.bookDescription, !description.isEmpty {
-                            Text(description)
-                                .font(DS.Typography.fraunces(size: 11, weight: .regular))
-                                .tracking(DS.Typography.tightTracking(for: 11))
+                        if let author = book.author, !author.isEmpty {
+                            Text(author)
+                                .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                                .tracking(DS.Typography.tightTracking(for: 14))
+                                .padding(.top, 4)
+                                .lineLimit(1)
                                 .foregroundColor(
                                     themeManager.activeRoles.color(role: .primary, tone: 40)
                                     ?? DS.Colors.primaryText
                                 )
-                                .lineLimit(10)
+                        }
+                    }
+                    .padding(.horizontal, 64)
+                    .frame(height: titleAuthorBlockHeight, alignment: .bottom)
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .top, spacing: 24) {
+                            if let description = book.bookDescription, !description.isEmpty {
+                                Text(description)
+                                    .font(DS.Typography.fraunces(size: 11, weight: .regular))
+                                    .tracking(DS.Typography.tightTracking(for: 11))
+                                    .foregroundColor(
+                                        themeManager.activeRoles.color(role: .primary, tone: 40)
+                                        ?? DS.Colors.primaryText
+                                    )
+                                    .lineLimit(10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .frame(maxHeight: .infinity, alignment: .top)
+                            }
+
+                            BookStatsView(book: book)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .frame(maxHeight: .infinity, alignment: .top)
+                                .lineLimit(10)
                         }
-
-                        BookStatsView(book: book)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(maxHeight: .infinity, alignment: .top)
-                            .lineLimit(10)
+                        .frame(height: detailsFixedHeight, alignment: .top)
+                        .padding(.horizontal, 64)
                     }
-                    .frame(height: detailsFixedHeight, alignment: .top)
-                    .padding(.horizontal, 64)
                 }
                 .id(book.id)
-                .transition(.opacity)
-                .animation(.easeOut(duration: 0.15), value: selectedIndex)
+                .opacity(detailEffectiveOpacity)
             } else {
                 Text("Add a book to get started")
                     .font(DS.Typography.body)
@@ -311,6 +324,11 @@ struct BookSelectionView: View {
         adjustSelectionForBookChanges()
         resetEntryAnimation()
 
+        // Initialize details to match the selected item
+        detailDisplayedIndex = selectedIndex
+        detailBaseOpacity = 1.0
+        detailDragOpacityFreeze = nil
+
         if let book = activeBook {
             Task { await themeManager.activateTheme(for: book) }
         }
@@ -319,6 +337,9 @@ struct BookSelectionView: View {
     private func adjustSelectionForBookChanges() {
         if selectedIndex >= carouselBooks.count {
             selectedIndex = max(0, carouselBooks.count - 1)
+        }
+        if detailDisplayedIndex >= carouselBooks.count {
+            detailDisplayedIndex = max(0, carouselBooks.count - 1)
         }
     }
 
@@ -336,6 +357,26 @@ struct BookSelectionView: View {
         }
         // Do not reset entry animation on selection; keeps layout stable
         prefetchAdjacentCovers(around: newValue)
+
+        // If selection changed without a drag commit (e.g., tap), run details crossfade
+        if !detailsTransitionInFlight {
+            detailsTransitionInFlight = true
+            // No drag component; keep it fully visible until we animate out
+            detailDragOpacityFreeze = 1.0
+            withAnimation(.easeIn(duration: 0.18)) {
+                detailBaseOpacity = 0.0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                detailDisplayedIndex = newValue
+                detailDragOpacityFreeze = nil
+                withAnimation(.easeIn(duration: 0.20)) {
+                    detailBaseOpacity = 1.0
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) {
+                    detailsTransitionInFlight = false
+                }
+            }
+        }
     }
 
     // MARK: - Haptics
@@ -383,6 +424,10 @@ struct BookSelectionView: View {
             .updating($dragX) { value, state, _ in
                 state = value.translation.width
             }
+            .onChanged { _ in
+                // While dragging, unfreeze so opacity follows gesture
+                detailDragOpacityFreeze = nil
+            }
             .onEnded { value in
                 guard !carouselBooks.isEmpty else { return }
                 let baseSpacing: CGFloat = 240
@@ -399,10 +444,39 @@ struct BookSelectionView: View {
                 }
 
                 if target != startIndex {
+                    // Freeze current drag-driven opacity and finish fading out
+                    detailsTransitionInFlight = true
+                    let pClamped = max(0.0, min(1.0, abs(p)))
+                    let frozenDrag = 1.0 - pow(pClamped, 1.6)
+                    detailDragOpacityFreeze = frozenDrag
+                    withAnimation(.easeIn(duration: 0.18)) {
+                        detailBaseOpacity = 0.0
+                    }
+                    // After outgoing fade completes, swap details and fade in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        detailDisplayedIndex = target
+                        detailDragOpacityFreeze = nil
+                        withAnimation(.easeIn(duration: 0.10)) {
+                            detailBaseOpacity = 1.0
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.20) {
+                            detailsTransitionInFlight = false
+                        }
+                    }
                     isTransitioning = true
                     withAnimation(selectionSpring) { selectedIndex = target }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { isTransitioning = false }
                 } else {
+                    // Cancel: return opacity smoothly and clear freeze
+                    let pClamped = max(0.0, min(1.0, abs(p)))
+                    let frozenDrag = 1.0 - pow(pClamped, 1.6)
+                    detailDragOpacityFreeze = frozenDrag
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        detailBaseOpacity = 1.0
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        detailDragOpacityFreeze = nil
+                    }
                     withAnimation(selectionSpring) { }
                 }
             }
@@ -526,6 +600,19 @@ struct BookSelectionView: View {
     // Show fewer neighbors while dragging to cut overdraw
     private var visibleSpan: Double {
         abs(currentDragProgress) > 0.001 ? 1.0 : 2.0
+    }
+
+    // MARK: - Details opacity helpers
+    private var detailDragOpacity: Double {
+        // Ease-in mapping: slow at start, faster near the end
+        let p = max(0.0, min(1.0, abs(currentDragProgress)))
+        let eased = pow(p, 1.6)
+        return 1.0 - eased
+    }
+
+    private var detailEffectiveOpacity: Double {
+        let dragComponent = detailDragOpacityFreeze ?? detailDragOpacity
+        return max(0.0, min(1.0, detailBaseOpacity * dragComponent))
     }
 
     // Linear interpolation helpers
