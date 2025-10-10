@@ -1,4 +1,5 @@
 import SwiftUI
+import ImageIO
 #if canImport(UIKit)
 import UIKit
 typealias PlatformImage = UIImage
@@ -48,17 +49,17 @@ struct BookCoverView: View {
                 #endif
             } else if isLoading {
                 ProgressView()
-                    .frame(width: isLargeView ? 200 : 60, height: isLargeView ? 300 : 90)
+                    .frame(width: isLargeView ? 240 : 60, height: isLargeView ? 320 : 90)
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(cornerRadius ?? 8)
             } else {
                 // Placeholder when no image
                 RoundedRectangle(cornerRadius: cornerRadius ?? 8)
                     .fill(Color.gray.opacity(0.2))
-                    .frame(width: isLargeView ? 200 : 60, height: isLargeView ? 300 : 90)
+                    .frame(width: isLargeView ? 240 : 60, height: isLargeView ? 320 : 90)
                     .overlay(
                         Image(systemName: "book.closed")
-                            .font(.system(size: isLargeView ? 40 : 20))
+                            .font(.system(size: isLargeView ? 42 : 20))
                             .foregroundColor(.gray.opacity(0.5))
                     )
             }
@@ -95,16 +96,19 @@ struct BookCoverView: View {
         Task {
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
-                
-                #if canImport(UIKit)
-                let downloadedImage = UIImage(data: data)
-                #elseif canImport(AppKit)
-                let downloadedImage = NSImage(data: data)
-                #else
-                let downloadedImage: PlatformImage? = nil
-                #endif
-                
-                if let downloadedImage = downloadedImage {
+                // Downsample to target view size to reduce memory and upload cost
+                let targetSize = isLargeView ? CGSize(width: 240, height: 320) : CGSize(width: 60, height: 90)
+                let scale: CGFloat = {
+                    #if canImport(UIKit)
+                    return UIScreen.main.scale
+                    #elseif canImport(AppKit)
+                    return NSScreen.main?.backingScaleFactor ?? 2.0
+                    #else
+                    return 2.0
+                    #endif
+                }()
+
+                if let downloadedImage = downsampledImage(data: data, to: targetSize, scale: scale) {
                     await MainActor.run {
                         self.image = downloadedImage
                         self.isLoading = false
@@ -120,6 +124,31 @@ struct BookCoverView: View {
             }
         }
     }
+}
+
+// MARK: - Downsampling helper
+private func downsampledImage(data: Data, to pointSize: CGSize, scale: CGFloat) -> PlatformImage? {
+    let maxDimensionInPixels = max(pointSize.width, pointSize.height) * scale
+    let options: [CFString: Any] = [
+        kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
+        kCGImageSourceShouldCacheImmediately: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceThumbnailMaxPixelSize: Int(maxDimensionInPixels)
+    ]
+    guard let cfData = data as CFData?,
+          let source = CGImageSourceCreateWithData(cfData, nil),
+          let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+        return nil
+    }
+    #if canImport(UIKit)
+    return UIImage(cgImage: cgImage, scale: scale, orientation: .up)
+    #elseif canImport(AppKit)
+    let size = NSSize(width: pointSize.width, height: pointSize.height)
+    let image = NSImage(cgImage: cgImage, size: size)
+    return image
+    #else
+    return nil
+    #endif
 }
 
 // Simple image cache to avoid re-downloading
@@ -138,5 +167,32 @@ class ImageCache {
     
     func setImage(_ image: PlatformImage, for key: String) {
         cache.setObject(image, forKey: key as NSString)
+    }
+
+    // Prefetch and cache a downsampled image in the background
+    func prefetch(urlString: String, targetSize: CGSize) {
+        if self.getImage(for: urlString) != nil { return }
+        guard let url = URL(string: urlString) else { return }
+        Task.detached(priority: .background) {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let scale: CGFloat = {
+                    #if canImport(UIKit)
+                    return UIScreen.main.scale
+                    #elseif canImport(AppKit)
+                    return NSScreen.main?.backingScaleFactor ?? 2.0
+                    #else
+                    return 2.0
+                    #endif
+                }()
+                if let img = downsampledImage(data: data, to: targetSize, scale: scale) {
+                    await MainActor.run {
+                        self.setImage(img, for: urlString)
+                    }
+                }
+            } catch {
+                // Silently ignore prefetch errors
+            }
+        }
     }
 }

@@ -17,6 +17,9 @@ struct BookSelectionView: View {
     @State private var selectionError: String?
     @State private var animateIn = false
     @State private var showSearchSheet = false
+    @GestureState private var dragX: CGFloat = 0
+    @State private var themeUpdateTask: Task<Void, Never>? = nil
+    @State private var isTransitioning: Bool = false
 
     private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
@@ -32,6 +35,11 @@ struct BookSelectionView: View {
 
     private var bookService: BookService {
         BookService(modelContext: modelContext)
+    }
+
+    // Unified spring for all selection changes
+    private var selectionSpring: Animation {
+        .spring(response: 0.5, dampingFraction: 0.70, blendDuration: 0.05)
     }
 
     init(openAIService: OpenAIService) {
@@ -92,6 +100,7 @@ struct BookSelectionView: View {
         .onAppear { handleInitialAppear() }
         .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
         .onChange(of: selectedIndex) { _, newValue in handleSelectionChange(newValue) }
+        .onDisappear { themeUpdateTask?.cancel() }
         .sheet(isPresented: $showSearchSheet) {
             NavigationStack {
                 bookSearchSheet
@@ -111,7 +120,7 @@ struct BookSelectionView: View {
     private var carouselSection: some View {
         ZStack(alignment: .top) {
             ForEach(Array(carouselBooks.enumerated()), id: \.element.id) { index, book in
-                if let geometry = geometry(for: index) {
+                if let geometry = geometry(for: index, dragProgress: currentDragProgress) {
                     BookCarouselCard(
                         book: book,
                         isActive: index == selectedIndex,
@@ -124,17 +133,17 @@ struct BookSelectionView: View {
                     .opacity(geometry.opacity)
                     .zIndex(geometry.zIndex)
                     .onTapGesture {
-                        withAnimation(.spring(response: 0.55, dampingFraction: 0.88)) {
-                            selectedIndex = index
-                        }
+                        guard abs(currentDragProgress) < 0.02, !isTransitioning else { return }
+                        isTransitioning = true
+                        withAnimation(selectionSpring) { selectedIndex = index }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { isTransitioning = false }
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
-        .gesture(swipeGesture)
-        .animation(.interpolatingSpring(stiffness: 120, damping: 18).speed(0.95), value: selectedIndex)
+        .gesture(interactiveDragGesture)
         .animation(.easeOut(duration: 0.5), value: animateIn)
         .onChange(of: carouselBooks.map { $0.id }) { _, _ in
             resetEntryAnimation()
@@ -144,24 +153,24 @@ struct BookSelectionView: View {
     private var dotsSection: some View {
         ZStack {
             ForEach(visibleDotIndices, id: \.self) { index in
-                let distance = abs(index - selectedIndex)
+                let relative = Double(index - selectedIndex) + currentDragProgress
+                let absRel = abs(relative)
+                let incomingIndex: Int? = {
+                    let dir = currentDragProgress
+                    guard abs(dir) > 0.5 else { return nil }
+                    return selectedIndex + (dir < 0 ? 1 : -1)
+                }()
+                let baseSize = dotSize(forRelative: absRel)
+                let size = baseSize * ((incomingIndex == index) ? 1.06 : 1.0)
                 DotView(
                     color: dotColor(for: index),
-                    size: dotSize(forDistance: distance)
+                    size: size
                 )
-                .opacity(dotOpacity(forDistance: distance))
-                .offset(x: dotSpacing * CGFloat(index - selectedIndex))
-                .transition(.opacity.combined(with: .scale))
-                .animation(
-                    .interpolatingSpring(stiffness: 140, damping: 18)
-                        .speed(0.95)
-                        .delay(0.015 * Double(distance)),
-                    value: selectedIndex
-                )
+                .opacity(dotOpacity(forRelative: absRel))
+                .offset(x: dotSpacing * (CGFloat(index - selectedIndex) - CGFloat(currentDragProgress)))
             }
         }
         .frame(maxWidth: .infinity, minHeight: dotRowHeight, maxHeight: dotRowHeight, alignment: .center)
-        .animation(.spring(response: 0.45, dampingFraction: 0.86), value: visibleDotIndices)
     }
 
     private var bookDetailSection: some View {
@@ -216,6 +225,9 @@ struct BookSelectionView: View {
                     .frame(height: detailsFixedHeight, alignment: .top)
                     .padding(.horizontal, 64)
                 }
+                .id(book.id)
+                .transition(.opacity)
+                .animation(.easeOut(duration: 0.15), value: selectedIndex)
             } else {
                 Text("Add a book to get started")
                     .font(DS.Typography.body)
@@ -309,8 +321,16 @@ struct BookSelectionView: View {
     private func handleSelectionChange(_ newValue: Int) {
         guard newValue < carouselBooks.count else { return }
         let book = carouselBooks[newValue]
-        Task { await themeManager.activateTheme(for: book) }
+        // Defer theme change until selection animation settles to avoid jank
+        themeUpdateTask?.cancel()
+        let delayNs: UInt64 = 220_000_000 // ~0.22s
+        themeUpdateTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: delayNs)
+            guard !Task.isCancelled else { return }
+            await themeManager.activateTheme(for: book)
+        }
         // Do not reset entry animation on selection; keeps layout stable
+        prefetchAdjacentCovers(around: newValue)
     }
 
     private func resetEntryAnimation() {
@@ -318,26 +338,47 @@ struct BookSelectionView: View {
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: 0.5)) { animateIn = true }
         }
+        // Prefetch initial neighbors for smoother first interactions
+        prefetchAdjacentCovers(around: selectedIndex)
     }
 
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
+    private func prefetchAdjacentCovers(around index: Int) {
+        guard !carouselBooks.isEmpty else { return }
+        let indices = [index - 1, index + 1].filter { $0 >= 0 && $0 < carouselBooks.count }
+        let targetSize = CGSize(width: 240, height: 320)
+        for i in indices {
+            let b = carouselBooks[i]
+            let urlString = b.coverImageUrl ?? b.thumbnailUrl
+            if let urlString { ImageCache.shared.prefetch(urlString: urlString, targetSize: targetSize) }
+        }
+    }
+
+    private var interactiveDragGesture: some Gesture {
+        DragGesture(minimumDistance: 5)
+            .updating($dragX) { value, state, _ in
+                state = value.translation.width
+            }
             .onEnded { value in
-                let horizontal = value.translation.width
-                if horizontal < -40 {
-                    let next = min(selectedIndex + 1, carouselBooks.count - 1)
-                    if next != selectedIndex {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                            selectedIndex = next
-                        }
-                    }
-                } else if horizontal > 40 {
-                    let prev = max(selectedIndex - 1, 0)
-                    if prev != selectedIndex {
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                            selectedIndex = prev
-                        }
-                    }
+                guard !carouselBooks.isEmpty else { return }
+                let baseSpacing: CGFloat = 240
+                let p = Double(value.translation.width / baseSpacing)
+                let pp = Double(value.predictedEndTranslation.width / baseSpacing)
+                let commitThreshold = 0.35
+
+                let startIndex = selectedIndex
+                var target = startIndex
+                if (p <= -commitThreshold || pp <= -commitThreshold) {
+                    target = min(startIndex + 1, carouselBooks.count - 1)
+                } else if (p >= commitThreshold || pp >= commitThreshold) {
+                    target = max(startIndex - 1, 0)
+                }
+
+                if target != startIndex {
+                    isTransitioning = true
+                    withAnimation(selectionSpring) { selectedIndex = target }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { isTransitioning = false }
+                } else {
+                    withAnimation(selectionSpring) { }
                 }
             }
     }
@@ -360,45 +401,67 @@ struct BookSelectionView: View {
         }
     }
 
-    private func dotSize(forDistance distance: Int) -> CGFloat {
-        switch distance {
-        case 0: return 12
-        case 1: return 10
-        case 2: return 8
-        default: return 6
-        }
+    private func dotSize(forRelative d: Double) -> CGFloat {
+        // Sizes at integer distances: 0 -> 12, 1 -> 10, 2 -> 8, 3+ -> 6
+        let keys = [0.0, 1.0, 2.0, 3.0]
+        let vals: [Double: Double] = [0:12, 1:10, 2:8, 3:6]
+        return CGFloat(lerpTable(d: d, keys: keys, vals: vals))
     }
 
-    private func dotOpacity(forDistance distance: Int) -> Double {
-        switch distance {
-        case 0: return 1.0
-        case 1: return 0.9
-        case 2: return 0.7
-        default: return 0.5
-        }
+    private func dotOpacity(forRelative d: Double) -> Double {
+        // Opacities at integer distances: 0 -> 1.0, 1 -> 0.9, 2 -> 0.7, 3+ -> 0.5
+        let keys = [0.0, 1.0, 2.0, 3.0]
+        let vals: [Double: Double] = [0:1.0, 1:0.9, 2:0.7, 3:0.5]
+        return lerpTable(d: d, keys: keys, vals: vals)
     }
 
-    private func geometry(for index: Int) -> CarouselGeometry? {
+    private func lerpTable(d: Double, keys: [Double], vals: [Double: Double]) -> Double {
+        let sorted = keys.sorted()
+        let clamped = max(sorted.first ?? 0.0, min(sorted.last ?? 0.0, d))
+        var lowerKey = sorted.first ?? 0.0
+        var upperKey = sorted.last ?? 0.0
+        for i in 0..<(sorted.count - 1) {
+            if clamped >= sorted[i] && clamped <= sorted[i+1] {
+                lowerKey = sorted[i]
+                upperKey = sorted[i+1]
+                break
+            }
+        }
+        if lowerKey == upperKey { return vals[lowerKey] ?? 0 }
+        let a = vals[lowerKey] ?? 0
+        let b = vals[upperKey] ?? a
+        let t = (clamped - lowerKey) / (upperKey - lowerKey)
+        return a + (b - a) * t
+    }
+
+    private func geometry(for index: Int, dragProgress: Double) -> CarouselGeometry? {
         guard !carouselBooks.isEmpty else { return nil }
-        let relativePosition = index - selectedIndex
-        guard abs(relativePosition) <= 2 else { return nil }
 
-        // Fan-style layout constants (tweak as needed)
-        let rotations: [Int: Double] = [-2: -14, -1: -7, 0: 0, 1: 7, 2: 14]
-        let scales: [Int: CGFloat] = [-2: 0.78, -1: 0.88, 0: 1.0, 1: 0.88, 2: 0.78]
+        // progress is negative when dragging left toward next item
+        let rp = Double(index - selectedIndex) + dragProgress
+        // Limit visible neighbors: show ±1 while interacting, ±2 when idle
+        let span = visibleSpan
+        guard abs(rp) <= span else { return nil }
+
+        // Fan-style layout reference points (tighter for snappier feel)
+        let rotations: [Int: Double] = [-2: -12, -1: -6, 0: 0, 1: 6, 2: 12]
+        let scales: [Int: Double] = [-2: 0.82, -1: 0.90, 0: 1.0, 1: 0.90, 2: 0.82]
         let opacities: [Int: Double] = [-2: 1.0, -1: 1.0, 0: 1.0, 1: 1.0, 2: 1.0]
-        let offsetsX: [Int: CGFloat] = [-2: -520, -1: -260, 0: 0, 1: 260, 2: 520]
-        let offsetsY: [Int: CGFloat] = [-2: 48, -1: 32, 0: 0, 1: 32, 2: 48]
+        let offsetsX: [Int: Double] = [-2: -520, -1: -260, 0: 0, 1: 260, 2: 520]
+        let offsetsY: [Int: Double] = [-2: 44, -1: 28, 0: 0, 1: 28, 2: 44]
 
-        let rotation = rotations[relativePosition] ?? 0
-        let scale = scales[relativePosition] ?? 1
-        let opacity = opacities[relativePosition] ?? 1
-        let finalOffset = CGSize(width: offsetsX[relativePosition] ?? 0, height: offsetsY[relativePosition] ?? 0)
-        let zIndex = Double(10 - abs(relativePosition))
+        let rotation = value(for: rp, in: rotations, eased: true)
+        let scale = value(for: rp, in: scales, eased: true)
+        let opacity = value(for: rp, in: opacities, eased: true)
+        let offsetX = value(for: rp, in: offsetsX, eased: true)
+        let offsetY = value(for: rp, in: offsetsY, eased: true)
 
-        // Entry animation: slide softly from above/side
+        let finalOffset = CGSize(width: offsetX, height: offsetY)
+        let zIndex = Double(10 - abs(rp))
+
+        // Entry animation: slide softly from above/side based on nearest slot
         var initialOffset = finalOffset
-        if relativePosition == 0 {
+        if abs(rp) < 0.5 {
             initialOffset.height -= 100
         } else {
             initialOffset.width *= 1.15
@@ -407,12 +470,53 @@ struct BookSelectionView: View {
 
         return CarouselGeometry(
             rotation: rotation,
-            scale: scale,
+            scale: CGFloat(scale),
             opacity: opacity,
             finalOffset: finalOffset,
             initialOffset: initialOffset,
             zIndex: zIndex
         )
+    }
+
+    // Normalized interactive progress in [-1, 1], respecting edges
+    private var currentDragProgress: Double {
+        guard !carouselBooks.isEmpty else { return 0 }
+        let baseSpacing: CGFloat = 240 // matches slot spacing used by offsetsX
+        let raw = Double(dragX / baseSpacing)
+        let atFirst = selectedIndex == 0
+        let atLast = selectedIndex == (carouselBooks.count - 1)
+
+        // Apply rubber-banding only when dragging toward a non-existent neighbor
+        let k = 0.6
+        func band(_ x: Double) -> Double { (x * k) / (abs(x) * k + 1.0) }
+
+        var effective = raw
+        if atFirst && raw > 0 { effective = band(raw) }
+        if atLast && raw < 0 { effective = -band(-raw) }
+
+        // Always clamp to [-1, 1] for stability
+        return max(-1.0, min(1.0, effective))
+    }
+
+    // Show fewer neighbors while dragging to cut overdraw
+    private var visibleSpan: Double {
+        abs(currentDragProgress) > 0.001 ? 1.0 : 2.0
+    }
+
+    // Linear interpolation helpers
+    private func value(for rp: Double, in table: [Int: Double], eased: Bool = false) -> Double {
+        let clamped = max(-2.0, min(2.0, rp))
+        let lower = max(-2, min(1, Int(floor(clamped))))
+        let upper = lower + 1
+        if lower == upper { return table[lower] ?? 0 }
+        let a = table[lower] ?? 0
+        let b = table[upper] ?? a
+        var t = clamped - Double(lower)
+        if eased {
+            // Smoothstep easing for organic interpolation
+            t = t * t * (3 - 2 * t)
+        }
+        return a + (b - a) * t
     }
 
     private var bookSearchSheet: some View {
@@ -524,10 +628,20 @@ private struct BookCarouselCard: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(glowColor.opacity(0.5))
-                .frame(width: 468, height: 468)
-                .blur(radius: 120)
+            if isActive {
+                // Lightweight gradient glow only for the active card (no blur)
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [glowColor.opacity(0.28), glowColor.opacity(0.0)],
+                            center: .center,
+                            startRadius: 12,
+                            endRadius: 240
+                        )
+                    )
+                    .frame(width: 420, height: 420)
+                    .allowsHitTesting(false)
+            }
 
             BookCoverView(
                 thumbnailUrl: book.thumbnailUrl,
@@ -536,7 +650,8 @@ private struct BookCarouselCard: View {
                 cornerRadius: 16
             )
             .frame(maxWidth: 240, maxHeight: 320)
-            .shadow(color: Color.black.opacity(isActive ? 0.28 : 0.12), radius: isActive ? 24 : 12, x: 0, y: 18)
+            // Constant radius shadow; animate opacity only for cheaper compositing
+            .shadow(color: Color.black.opacity(isActive ? 0.24 : 0.12), radius: 18, x: 0, y: 14)
         }
     }
 
