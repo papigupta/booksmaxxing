@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct BookSelectionView: View {
     let openAIService: OpenAIService
@@ -291,6 +294,7 @@ struct BookSelectionView: View {
         selectionError = nil
 
         Task { @MainActor in
+            triggerConfirmHaptic()
             isProcessingSelection = true
             selectionStatus = "Opening book…"
 
@@ -321,6 +325,7 @@ struct BookSelectionView: View {
     private func handleSelectionChange(_ newValue: Int) {
         guard newValue < carouselBooks.count else { return }
         let book = carouselBooks[newValue]
+        triggerSelectionHaptic()
         // Defer theme change until selection animation settles to avoid jank
         themeUpdateTask?.cancel()
         let delayNs: UInt64 = 220_000_000 // ~0.22s
@@ -331,6 +336,26 @@ struct BookSelectionView: View {
         }
         // Do not reset entry animation on selection; keeps layout stable
         prefetchAdjacentCovers(around: newValue)
+    }
+
+    // MARK: - Haptics
+    private func triggerSelectionHaptic() {
+        #if canImport(UIKit)
+        let generator = UISelectionFeedbackGenerator()
+        generator.selectionChanged()
+        #endif
+    }
+
+    private func triggerConfirmHaptic() {
+        #if canImport(UIKit)
+        if #available(iOS 13.0, *) {
+            let generator = UIImpactFeedbackGenerator(style: .soft)
+            generator.impactOccurred(intensity: 0.7)
+        } else {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+        }
+        #endif
     }
 
     private func resetEntryAnimation() {
