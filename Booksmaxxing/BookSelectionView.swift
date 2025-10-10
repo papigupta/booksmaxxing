@@ -92,9 +92,8 @@ struct BookSelectionView: View {
             GeometryReader { proxy in
                 let safeBottom = proxy.safeAreaInsets.bottom + 0
                 ZStack {
-                    // Centered primary CTA
+                    // Centered primary CTA (shadow handled inside style)
                     selectButtonControl
-                        .shadow(color: themeManager.currentTokens(for: colorScheme).primary.opacity(0.22), radius: 22, x: 0, y: 12)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, safeBottom)
 
@@ -262,7 +261,6 @@ struct BookSelectionView: View {
                 HStack {
                     Spacer()
                     selectButtonControl
-                        .shadow(color: themeManager.currentTokens(for: colorScheme).primary.opacity(0.22), radius: 22, x: 0, y: 12)
                     Spacer()
                 }
                 .overlay(alignment: .trailing) {
@@ -289,7 +287,7 @@ struct BookSelectionView: View {
             Text(isProcessingSelection ? (selectionStatus ?? "Choosing…") : "Select this book")
                 .font(DS.Typography.bodyBold)
         }
-        .buttonStyle(PaletteAwarePrimaryButtonStyle())
+        .dsPalettePrimaryButton()
         .disabled(activeBook == nil || isProcessingSelection)
     }
 
@@ -298,7 +296,7 @@ struct BookSelectionView: View {
             Image(systemName: "plus")
                 .font(.system(size: 16, weight: .regular))
         }
-        .buttonStyle(PaletteAwarePrimaryButtonStyle(iconDiameter: addButtonDiameter))
+        .dsPaletteIconButton(diameter: addButtonDiameter)
         .disabled(isProcessingSelection)
     }
 
