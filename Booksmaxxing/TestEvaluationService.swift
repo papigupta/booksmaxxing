@@ -339,13 +339,104 @@ class TestEvaluationService {
     }
 
     // MARK: - Meta-gaming heuristic (self-referential praise / scoring talk)
+    // NOTE: Keep guardrails strict for genuine meta talk, but avoid
+    //       false positives like "goal scorer" or sports/math usage.
     private func isMetaGaming(_ text: String) -> Bool {
-        let lowered = text.lowercased()
-        let patterns = [
-            "correct answer", "perfect understanding", "this shows perfect", "i deserve full marks", "full marks", "score", "points", "rubric", "evaluate", "this response", "this answer", "the learner is", "as an ai", "as a language model"
+        let t = text.lowercased()
+
+        // 1) Strong phrases that clearly indicate meta-evaluation intent
+        let strongPhrases: [String] = [
+            "correct answer",
+            "this answer is correct",
+            "this response is correct",
+            "perfect score",
+            "full marks",
+            "i deserve full marks",
+            "100/100", "10/10",
+            "grade me", "grade this",
+            "evaluate my answer", "evaluate this",
+            "give me points", "award points",
+            "as an ai", "as a language model",
+            "rubric"
         ]
-        for p in patterns { if lowered.contains(p) { return true } }
+        if strongPhrases.contains(where: { t.contains($0) }) { return true }
+
+        // 2) Co-occurrence heuristic for generic evaluation terms; requires both sides
+        //    to reduce false positives. Word-boundary matching avoids substrings like
+        //    "scorer" matching "score".
+        let evalTerms = ["score", "points", "grade", "grading", "evaluate", "evaluation"]
+        let incentiveTerms = ["give", "award", "deserve", "full", "perfect", "maximum", "100", "10/10", "marks"]
+
+        // Quick check: both families must appear at least once by word-boundary
+        let hasEval = containsAnyWordBounded(t, words: evalTerms)
+        let hasIncentive = incentiveTerms.contains { t.contains($0) }
+        if hasEval && hasIncentive {
+            // Optional proximity rule: if they occur within 40 chars, treat as meta.
+            if termsAreNear(t, left: evalTerms, right: incentiveTerms, window: 40) { return true }
+        }
+
         return false
+    }
+
+    // Word-boundary search for a list of words
+    private func containsAnyWordBounded(_ text: String, words: [String]) -> Bool {
+        for w in words {
+            if containsWordBounded(text, word: w) { return true }
+        }
+        return false
+    }
+
+    // Returns true if \bword\b exists in text (case-insensitive assumed pre-lowered)
+    private func containsWordBounded(_ text: String, word: String) -> Bool {
+        // Escape regex meta characters in word
+        let pattern = "\\b" + NSRegularExpression.escapedPattern(for: word) + "\\b"
+        do {
+            let re = try NSRegularExpression(pattern: pattern, options: [])
+            let range = NSRange(location: 0, length: text.utf16.count)
+            return re.firstMatch(in: text, options: [], range: range) != nil
+        } catch {
+            return false
+        }
+    }
+
+    // Check if any occurrence of any left term is within `window` chars of any right term
+    private func termsAreNear(_ text: String, left: [String], right: [String], window: Int) -> Bool {
+        // Precompute ranges for left and right terms with word boundaries where applicable
+        let leftRanges = termRanges(text, terms: left, wordBounded: true)
+        if leftRanges.isEmpty { return false }
+        let rightRanges = termRanges(text, terms: right, wordBounded: false) // incentive terms may be fragments like "10/10"
+        if rightRanges.isEmpty { return false }
+
+        for l in leftRanges {
+            for r in rightRanges {
+                let distance = abs(l.location - r.location)
+                if distance <= window { return true }
+            }
+        }
+        return false
+    }
+
+    // Find NSRange positions for terms in `text`.
+    private func termRanges(_ text: String, terms: [String], wordBounded: Bool) -> [NSRange] {
+        var results: [NSRange] = []
+        let fullRange = NSRange(location: 0, length: text.utf16.count)
+        for term in terms {
+            let pattern: String
+            if wordBounded {
+                pattern = "\\b" + NSRegularExpression.escapedPattern(for: term) + "\\b"
+            } else {
+                pattern = NSRegularExpression.escapedPattern(for: term)
+            }
+            do {
+                let re = try NSRegularExpression(pattern: pattern, options: [])
+                re.enumerateMatches(in: text, options: [], range: fullRange) { match, _, _ in
+                    if let m = match { results.append(m.range) }
+                }
+            } catch {
+                continue
+            }
+        }
+        return results
     }
 
     // MARK: - Fallback feedback for junk answers
