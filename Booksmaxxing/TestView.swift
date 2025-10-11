@@ -715,9 +715,14 @@ struct TestView: View {
                 // Save changes
                 try modelContext.save()
                 
+                // Compute dynamic max score based on the questions in this test
+                let dynamicMaxScore = (test.questions ?? []).reduce(0) { acc, q in
+                    acc + q.difficulty.pointValue
+                }
+
                 let result = TestEvaluationResult(
                     totalScore: totalScore,
-                    maxScore: 130, // 2×10 (easy) + 4×15 (medium) + 2×25 (hard) = 20 + 60 + 50 = 130
+                    maxScore: dynamicMaxScore,
                     correctCount: correctCount,
                     totalQuestions: (test.questions ?? []).count,
                     masteryAchieved: attempt.masteryAchieved,

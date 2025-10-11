@@ -62,9 +62,14 @@ class TestEvaluationService {
         // Save changes
         try modelContext.save()
         
+        // Compute dynamic max score from the questions in this test
+        let dynamicMaxScore = (test.questions ?? []).reduce(0) { acc, q in
+            acc + q.difficulty.pointValue
+        }
+
         return TestEvaluationResult(
             totalScore: totalScore,
-            maxScore: 150,
+            maxScore: dynamicMaxScore,
             correctCount: correctCount,
             totalQuestions: (test.questions ?? []).count,
             masteryAchieved: attempt.masteryAchieved,

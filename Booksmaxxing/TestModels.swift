@@ -248,7 +248,7 @@ final class TestAttempt {
     var testId: UUID = UUID()
     var startedAt: Date = Date.now
     var completedAt: Date?
-    var score: Int = 0  // Out of 150
+    var score: Int = 0
     // Brain Calories burned in this attempt (session)
     var brainCalories: Int = 0
     // Accuracy snapshot for this attempt
