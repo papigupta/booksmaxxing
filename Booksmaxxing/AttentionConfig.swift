@@ -1,8 +1,10 @@
 import Foundation
 
 struct AttentionConfig {
-    var awayThresholdSeconds: TimeInterval = 15
-    var inactivityThresholdSeconds: TimeInterval = 45
+    // External distraction: app switched away duration threshold
+    var awayThresholdSeconds: TimeInterval = 10
+    // Internal distraction: no input inside app while testing
+    var inactivityThresholdSeconds: TimeInterval = 60
     // Pause -> percent mapping
     var scoreMap: [Int: Int] = [
         0: 100,
@@ -17,4 +19,3 @@ struct AttentionConfig {
         return pauses >= 3 ? 0 : 0
     }
 }
-

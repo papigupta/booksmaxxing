@@ -1,5 +1,11 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#endif
+#if os(macOS)
+import AppKit
+#endif
 
 // MARK: - Question Feedback Model
 
@@ -57,13 +63,16 @@ struct TestView: View {
     @State private var lastSelectedIndex: [UUID: Int?] = [:]
     @State private var checkedQuestions: Set<UUID> = []
     
-    // Attention tracking
-    @State private var sessionPauses: Int = 0
+    // Attention tracking ("distractions")
+    @State private var internalDistractions: Int = 0
+    @State private var externalDistractions: Int = 0
     @State private var lastActivityAt: Date = Date()
+    @State private var internalIdleActive: Bool = false
     @State private var lastInactiveAt: Date? = nil
+    @State private var lifecycleObservers: [Any] = []
     private let attentionConfig = AttentionConfig()
     private let activityTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    
+    private let awayStorageKey = "Attention.lastAwayAt"
     private var currentQuestion: Question? {
         test.orderedQuestions.indices.contains(currentQuestionIndex) ? test.orderedQuestions[currentQuestionIndex] : nil
     }
@@ -97,11 +106,15 @@ struct TestView: View {
                                 questionNumber: currentQuestionIndex + 1,
                                 response: binding(for: question),
                                 selectedOptions: bindingForOptions(question),
-                                isDisabled: showingFeedback
+                                isDisabled: showingFeedback,
+                                onActivity: { markActivity() }
                             )
                             .padding(DS.Spacing.lg)
                         }
                     }
+                    .simultaneousGesture(DragGesture(minimumDistance: 1).onChanged { _ in
+                        markActivity()
+                    })
                 }
                 
                 DSDivider()
@@ -208,30 +221,36 @@ struct TestView: View {
                 initializeAttempt()
                 streakManager.isTestingActive = true
                 startTrackingForCurrentQuestion()
+                lastActivityAt = Date()
+                registerLifecycleObservers()
             }
             .onDisappear {
                 streakManager.isTestingActive = false
                 pauseTrackingForCurrentQuestion()
+                unregisterLifecycleObservers()
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .inactive || phase == .background {
                     pauseTrackingForCurrentQuestion()
-                    lastInactiveAt = Date()
+                    recordAwayStart(context: "ScenePhase Inactive/Background")
                 } else if phase == .active {
-                    startTrackingForCurrentQuestion()
-                    if let away = lastInactiveAt {
-                        let delta = Date().timeIntervalSince(away)
-                        if delta >= attentionConfig.awayThresholdSeconds {
-                            sessionPauses += 1
-                        }
-                        lastInactiveAt = nil
-                    }
+                    handleReturnFromAway(context: "ScenePhase Active")
                 }
             }
             .onChange(of: currentQuestionIndex) { _, _ in
                 pauseTrackingForCurrentQuestion()
                 startTrackingForCurrentQuestion()
                 markActivity()
+            }
+            .onReceive(activityTicker) { _ in
+                // Internal distraction detection: count once per idle episode
+                let delta = Date().timeIntervalSince(lastActivityAt)
+                if delta >= attentionConfig.inactivityThresholdSeconds {
+                    if !internalIdleActive {
+                        internalDistractions += 1
+                        internalIdleActive = true
+                    }
+                }
             }
             .onChange(of: showingPrimer) { _, isPresented in
                 if isPresented, let q = currentQuestion, !checkedQuestions.contains(q.id) {
@@ -248,14 +267,6 @@ struct TestView: View {
                 }
                 lastSelectedIndex[q.id] = newIndex
                 markActivity()
-            }
-            .onReceive(activityTicker) { _ in
-                // In-app inactivity check
-                let delta = Date().timeIntervalSince(lastActivityAt)
-                if delta >= attentionConfig.inactivityThresholdSeconds {
-                    sessionPauses += 1
-                    lastActivityAt = Date() // reset window to avoid multiple increments per long stretch
-                }
             }
             .sheet(isPresented: Binding(
                 get: { shouldShowResults },
@@ -698,8 +709,8 @@ struct TestView: View {
                 // Persist Accuracy snapshot
                 attempt.accuracyTotal = (attempt.responses ?? []).count
                 attempt.accuracyCorrect = (attempt.responses ?? []).filter { $0.isCorrect }.count
-                // Persist Attention pauses
-                attempt.attentionPauses = sessionPauses
+                // Persist Distractions (store in existing attentionPauses field)
+                attempt.attentionPauses = internalDistractions + externalDistractions
                 
                 // Determine mastery
                 let allCorrect = correctCount == (test.questions ?? []).count
@@ -798,6 +809,92 @@ extension TestView {
 
     private func markActivity() {
         lastActivityAt = Date()
+        if internalIdleActive { internalIdleActive = false }
+    }
+
+    // MARK: - App Lifecycle Observers (extra safety for external distractions)
+    private func registerLifecycleObservers() {
+        let center = NotificationCenter.default
+        #if os(iOS)
+        let willResign = center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { _ in
+            self.pauseTrackingForCurrentQuestion()
+            self.recordAwayStart(context: "iOS willResignActive")
+        }
+        let didEnterBg = center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+            self.pauseTrackingForCurrentQuestion()
+            self.recordAwayStart(context: "iOS didEnterBackground")
+        }
+        let willEnterFg = center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { _ in
+            self.handleReturnFromAway(context: "iOS willEnterForeground")
+        }
+        let didBecomeActive = center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            self.handleReturnFromAway(context: "iOS didBecomeActive")
+        }
+        lifecycleObservers = [willResign, didEnterBg, willEnterFg, didBecomeActive]
+        #elseif os(macOS)
+        let willResign = center.addObserver(forName: NSApplication.willResignActiveNotification, object: nil, queue: .main) { _ in
+            self.pauseTrackingForCurrentQuestion()
+            if self.lastInactiveAt == nil { self.lastInactiveAt = Date() }
+            print("[Attention] macOS willResignActive at \(String(describing: self.lastInactiveAt))")
+        }
+        let didHide = center.addObserver(forName: NSApplication.didHideNotification, object: nil, queue: .main) { _ in
+            self.pauseTrackingForCurrentQuestion()
+            if self.lastInactiveAt == nil { self.lastInactiveAt = Date() }
+            print("[Attention] macOS didHide at \(String(describing: self.lastInactiveAt))")
+        }
+        let didBecomeActive = center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+            self.handleReturnFromAway(context: "macOS didBecomeActive")
+        }
+        lifecycleObservers = [willResign, didHide, didBecomeActive]
+        #endif
+    }
+
+    private func unregisterLifecycleObservers() {
+        let center = NotificationCenter.default
+        for token in lifecycleObservers { center.removeObserver(token) }
+        lifecycleObservers.removeAll()
+    }
+
+    private func handleReturnFromAway(context: String) {
+        self.startTrackingForCurrentQuestion()
+
+        var counted = false
+        if let away = self.lastInactiveAt {
+            let delta = Date().timeIntervalSince(away)
+            print("[Attention] \(context); away(memory)=\(delta)s (threshold=\(self.attentionConfig.awayThresholdSeconds))")
+            if delta > self.attentionConfig.awayThresholdSeconds {
+                self.externalDistractions += 1
+                counted = true
+                print("[Attention] External distraction counted from memory (+1). Total=\(self.externalDistractions)")
+            }
+            self.lastInactiveAt = nil
+        }
+
+        let ts = UserDefaults.standard.double(forKey: awayStorageKey)
+        if ts > 0 {
+            let started = Date(timeIntervalSince1970: ts)
+            let delta = Date().timeIntervalSince(started)
+            print("[Attention] \(context); away(persisted)=\(delta)s (threshold=\(self.attentionConfig.awayThresholdSeconds))")
+            if delta > self.attentionConfig.awayThresholdSeconds {
+                if !counted {
+                    self.externalDistractions += 1
+                    print("[Attention] External distraction counted from persisted (+1). Total=\(self.externalDistractions)")
+                } else {
+                    print("[Attention] Already counted from memory; skipping persisted")
+                }
+            }
+            UserDefaults.standard.removeObject(forKey: awayStorageKey)
+        }
+
+        self.markActivity()
+    }
+
+    private func recordAwayStart(context: String) {
+        if self.lastInactiveAt == nil { self.lastInactiveAt = Date() }
+        if UserDefaults.standard.object(forKey: awayStorageKey) == nil {
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: awayStorageKey)
+        }
+        print("[Attention] Record away start (\(context)) at \(String(describing: self.lastInactiveAt))")
     }
 }
 
@@ -809,6 +906,7 @@ struct QuestionView: View {
     @Binding var response: String
     @Binding var selectedOptions: Set<Int>
     let isDisabled: Bool
+    let onActivity: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.lg) {
@@ -850,7 +948,7 @@ struct QuestionView: View {
             case .msq:
                 MSQOptions(options: question.options ?? [], selectedOptions: $selectedOptions, isDisabled: isDisabled)
             case .openEnded:
-                OpenEndedInput(response: $response, isDisabled: isDisabled)
+                OpenEndedInput(response: $response, isDisabled: isDisabled, onActivity: onActivity)
             }
         }
     }
@@ -960,6 +1058,7 @@ struct MSQOptions: View {
 struct OpenEndedInput: View {
     @Binding var response: String
     let isDisabled: Bool
+    var onActivity: (() -> Void)? = nil
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
     
@@ -986,6 +1085,9 @@ struct OpenEndedInput: View {
                         )
                 )
                 .disabled(isDisabled)
+                .onChange(of: response) { _, _ in
+                    onActivity?()
+                }
         }
     }
 }

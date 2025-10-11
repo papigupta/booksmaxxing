@@ -119,7 +119,7 @@ struct BrainCaloriesView: View {
                             .font(DS.Typography.caption)
                             .foregroundColor(DS.Colors.secondaryText)
                         Spacer()
-                        Text("\(sessionPauses) pause\(sessionPauses == 1 ? "" : "s")")
+                        Text("\(sessionPauses) distraction\(sessionPauses == 1 ? "" : "s")")
                             .font(DS.Typography.bodyBold)
                             .foregroundColor(.green)
                     }
@@ -132,7 +132,7 @@ struct BrainCaloriesView: View {
                             .font(DS.Typography.caption)
                             .foregroundColor(DS.Colors.secondaryText)
                         Spacer()
-                        Text("\(todayPauses) pause\(todayPauses == 1 ? "" : "s") • \(todayAttentionPercent)%")
+                        Text("\(todayPauses) distraction\(todayPauses == 1 ? "" : "s") • \(todayAttentionPercent)%")
                             .font(DS.Typography.bodyBold)
                             .foregroundColor(.green)
                     }
