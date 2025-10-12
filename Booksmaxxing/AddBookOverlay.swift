@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Cmd+K-style overlay for quickly adding a book.
 /// - Presents a focused search field with a blurred, dimmed background.
@@ -26,6 +29,8 @@ struct AddBookOverlay: View {
     @State private var dockedToTop: Bool = false
     @State private var searchBarHeight: CGFloat = 48
     private let dockAdditionalOffset: CGFloat = 40 // fine‑tune docked position under notch
+    @State private var keyboardHeight: CGFloat = 0
+    private let bottomGapAboveKeyboard: CGFloat = 2 // tweakable gap between last result and keyboard
 
     private let googleBooks = GoogleBooksService.shared
 
@@ -109,6 +114,17 @@ struct AddBookOverlay: View {
         }
         .onDisappear { searchTask?.cancel() }
         .transition(.opacity)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { notif in
+            #if canImport(UIKit)
+            guard let info = notif.userInfo,
+                  let endFrame = info[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+                  let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.keyWindow
+            else { return }
+            let screenHeight = window.bounds.height
+            let overlap = max(0, screenHeight - endFrame.origin.y)
+            keyboardHeight = overlap
+            #endif
+        }
     }
 
     private var searchBar: some View {
@@ -212,64 +228,83 @@ struct AddBookOverlay: View {
     }
 
     private var resultsList: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if isLoading { ProgressView().padding(.top, 24) }
-            if let errorMessage { Text(errorMessage).font(DS.Typography.caption).foregroundColor(DS.Colors.destructive) }
+        let palette = themeManager.activeRoles
+        let stroke = palette.color(role: .primary, tone: 80) ?? DS.Colors.gray300
+        let fill = Color.white.opacity(0.58)
 
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(results.prefix(maxResults)) { book in
-                        Button { onSelectAndDismiss(book) } label: {
-                            HStack(alignment: .top, spacing: 16) {
-                                AsyncImage(url: URL(string: book.thumbnailUrl ?? book.coverImageUrl ?? "")) { phase in
-                                    switch phase {
-                                    case .empty:
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(DS.Colors.secondaryBackground)
-                                            .frame(width: 56, height: 84)
-                                            .overlay { ProgressView() }
-                                    case .success(let image):
-                                        image.resizable().scaledToFill().frame(width: 56, height: 84).clipped().cornerRadius(8)
-                                    case .failure:
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(DS.Colors.secondaryBackground)
-                                            .frame(width: 56, height: 84)
-                                            .overlay { Image(systemName: "book").foregroundColor(DS.Colors.secondaryText) }
-                                    @unknown default: EmptyView()
+        return Group {
+            if isLoading && results.isEmpty {
+                VStack { ProgressView().scaleEffect(1.1) }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 36)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if let errorMessage { Text(errorMessage).font(DS.Typography.caption).foregroundColor(DS.Colors.destructive) }
+
+                        ForEach(results.prefix(maxResults)) { book in
+                            Button { onSelectAndDismiss(book) } label: {
+                                HStack(alignment: .top, spacing: 16) {
+                                    AsyncImage(url: URL(string: book.thumbnailUrl ?? book.coverImageUrl ?? "")) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(DS.Colors.secondaryBackground)
+                                                .frame(width: 56, height: 84)
+                                                .overlay { ProgressView() }
+                                        case .success(let image):
+                                            image.resizable().scaledToFill().frame(width: 56, height: 84).clipped().cornerRadius(8)
+                                        case .failure:
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(DS.Colors.secondaryBackground)
+                                                .frame(width: 56, height: 84)
+                                                .overlay { Image(systemName: "book").foregroundColor(DS.Colors.secondaryText) }
+                                        @unknown default: EmptyView()
+                                        }
                                     }
-                                }
 
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(book.title)
-                                        .font(DS.Typography.bodyBold)
-                                        .foregroundColor(DS.Colors.primaryText)
-                                        .lineLimit(2)
-                                    if !book.authors.isEmpty {
-                                        Text(book.authors.joined(separator: ", "))
-                                            .font(DS.Typography.caption)
-                                            .foregroundColor(DS.Colors.secondaryText)
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(book.title)
+                                            .font(DS.Typography.bodyBold)
+                                            .foregroundColor(DS.Colors.primaryText)
                                             .lineLimit(2)
+                                        if !book.authors.isEmpty {
+                                            Text(book.authors.joined(separator: ", "))
+                                                .font(DS.Typography.caption)
+                                                .foregroundColor(DS.Colors.secondaryText)
+                                                .lineLimit(2)
+                                        }
+                                        if let subtitle = book.subtitle, !subtitle.isEmpty {
+                                            Text(subtitle)
+                                                .font(DS.Typography.caption)
+                                                .foregroundColor(DS.Colors.tertiaryText)
+                                                .lineLimit(2)
+                                        }
                                     }
-                                    if let subtitle = book.subtitle, !subtitle.isEmpty {
-                                        Text(subtitle)
-                                            .font(DS.Typography.caption)
-                                            .foregroundColor(DS.Colors.tertiaryText)
-                                            .lineLimit(2)
-                                    }
-                                }
 
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(DS.Colors.secondaryText)
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(DS.Colors.secondaryText)
+                                }
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(fill)
+                                        .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 6)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .stroke(stroke.opacity(0.9), lineWidth: 1.2)
+                                )
                             }
-                            .padding()
-                            .dsCard()
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .buttonStyle(PlainButtonStyle())
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, keyboardHeight + bottomGapAboveKeyboard)
                 }
-                .padding(.bottom, 24)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             }
         }
     }
