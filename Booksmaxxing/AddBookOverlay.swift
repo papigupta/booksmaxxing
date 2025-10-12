@@ -23,35 +23,89 @@ struct AddBookOverlay: View {
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isFocused: Bool
     @State private var guidelinesVisible: Bool = false
+    @State private var dockedToTop: Bool = false
+    @State private var searchBarHeight: CGFloat = 48
+    private let dockAdditionalOffset: CGFloat = 40 // fine‑tune docked position under notch
 
     private let googleBooks = GoogleBooksService.shared
 
-    var body: some View {
-        ZStack {
-            // Backdrop blur + dim
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
-                .overlay(Color.black.opacity(0.18))
-                .onTapGesture { dismiss() }
+    // Fallback top safe-area using UIKit in case SwiftUI reports 0 insets in certain overlays
+    private var uiTopSafeInset: CGFloat {
+        #if canImport(UIKit)
+        let scenes = UIApplication.shared.connectedScenes
+        for scene in scenes {
+            if let winScene = scene as? UIWindowScene {
+                if let key = winScene.windows.first(where: { $0.isKeyWindow }) {
+                    let top = key.safeAreaInsets.top
+                    if top > 0 { return top }
+                }
+                // Take max as a fallback across windows
+                let top = winScene.windows.map { $0.safeAreaInsets.top }.max() ?? 0
+                if top > 0 { return top }
+            }
+        }
+        return 44 // sensible default for notched iPhones
+        #else
+        return 0
+        #endif
+    }
 
-            VStack(spacing: 16) {
-                // Search bar (morph target)
+    var body: some View {
+        GeometryReader { proxy in
+            let safeTop = proxy.safeAreaInsets.top
+            let size = proxy.size
+            let dockTop: CGFloat = max(safeTop, uiTopSafeInset) + 12 + dockAdditionalOffset
+            let centerTop: CGFloat = max((size.height - searchBarHeight) / 2, dockTop)
+            let top: CGFloat = dockedToTop ? dockTop : centerTop
+
+            ZStack(alignment: .topLeading) {
+                // Backdrop blur + dim (covers whole screen)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .ignoresSafeArea()
+                    .overlay(Color.black.opacity(0.18))
+                    .onTapGesture { dismiss() }
+
+                // Single persistent search bar – moved via position (keeps identity and focus)
                 searchBar
                     .padding(.horizontal, 24)
+                    .frame(width: size.width)
+                    .position(x: size.width / 2, y: top + searchBarHeight / 2)
 
-                contentArea
+                // Content below the bar: guidelines or results, anchored beneath it
+                if query.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 {
+                    copyGuidelines
+                        .padding(.horizontal, 24)
+                        .opacity(guidelinesVisible ? 1.0 : 0.0)
+                        .offset(y: guidelinesVisible ? 0 : 8)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .position(x: size.width / 2, y: top + searchBarHeight + 8 + 60)
+                } else {
+                    VStack { contentArea }
+                        .padding(.top, top + searchBarHeight + 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                }
             }
-            .padding(.top, 32)
-            .ignoresSafeArea(.keyboard, edges: .bottom)
+            // Allow keyboard to adjust layout so the centered field nudges upward slightly
         }
         .onAppear {
+            // Hard reset to guarantee initial centered state
+            query = ""
+            results = []
+            errorMessage = nil
+            dockedToTop = false
+            guidelinesVisible = false
             // Delay keyboard to let the overlay settle visually
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 250_000_000)
+                // Wait for morph + helper fade to complete before focusing to show keyboard
+                try? await Task.sleep(nanoseconds: 460_000_000)
                 withAnimation(.easeIn(duration: 0.15)) { isFocused = true }
             }
-            withAnimation(.easeOut(duration: 0.35)) { guidelinesVisible = true }
+            // Stagger guidelines after the search bar morph completes
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 280_000_000)
+                withAnimation(.easeOut(duration: 0.28)) { guidelinesVisible = true }
+            }
         }
         .onDisappear { searchTask?.cancel() }
         .transition(.opacity)
@@ -71,7 +125,18 @@ struct AddBookOverlay: View {
                 .textInputAutocapitalization(.words)
                 .disableAutocorrection(true)
                 .font(DS.Typography.fraunces(size: 16, weight: .regular))
-                .onChange(of: query) { _, new in scheduleSearch(for: new) }
+                .onChange(of: query) { _, new in
+                    scheduleSearch(for: new)
+                    // One-way docking: once user starts typing, dock under notch and keep it there
+                    if !dockedToTop {
+                        let hasTyped = !new.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        if hasTyped {
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.9)) {
+                                dockedToTop = true
+                            }
+                        }
+                    }
+                }
 
             if !query.isEmpty {
                 Button(action: { query = "" }) {
@@ -92,6 +157,13 @@ struct AddBookOverlay: View {
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(stroke.opacity(0.9), lineWidth: 1.6)
+        )
+        .overlay(
+            GeometryReader { g in
+                Color.clear
+                    .onAppear { searchBarHeight = g.size.height }
+                    .onChange(of: g.size.height) { _, new in searchBarHeight = new }
+            }
         )
         .matchedGeometryEffect(id: matchedId, in: namespace)
     }
@@ -125,7 +197,7 @@ struct AddBookOverlay: View {
             }
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "xmark")
-                    .foregroundColor(DS.Colors.destructive)
+                    .foregroundColor(DS.Colors.primaryText)
                     .font(.system(size: 14, weight: .semibold))
                 (
                     Text("Avoid books that are story‑driven — fiction, biographies, memoirs. ")
@@ -136,11 +208,6 @@ struct AddBookOverlay: View {
                         .foregroundColor(DS.Colors.primaryText)
                 )
             }
-
-            Text("Type at least 3 characters to see suggestions.")
-                .font(DS.Typography.caption)
-                .foregroundColor(DS.Colors.secondaryText)
-                .padding(.top, 8)
         }
     }
 
@@ -202,7 +269,6 @@ struct AddBookOverlay: View {
                         .buttonStyle(PlainButtonStyle())
                     }
                 }
-                .padding(.horizontal, 24)
                 .padding(.bottom, 24)
             }
         }

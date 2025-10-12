@@ -114,7 +114,6 @@ struct BookSelectionView: View {
                     namespace: addOverlayNamespace
                 )
                 .environmentObject(themeManager)
-                .ignoresSafeArea()
                 .transition(.opacity)
                 .zIndex(1000)
             }
