@@ -19,7 +19,9 @@ struct BookSelectionView: View {
     @State private var selectionStatus: String?
     @State private var selectionError: String?
     @State private var animateIn = false
-    @State private var showSearchSheet = false
+    @State private var showSearchSheet = false // legacy sheet; replaced by overlay
+    @State private var isAddOverlayActive = false
+    @Namespace private var addOverlayNamespace
     @GestureState private var dragX: CGFloat = 0
     @State private var themeUpdateTask: Task<Void, Never>? = nil
     @State private var isTransitioning: Bool = false
@@ -88,22 +90,33 @@ struct BookSelectionView: View {
             }
         }
         .ignoresSafeArea()
-        .overlay(alignment: .bottom) {
-            GeometryReader { proxy in
-                let safeBottom = proxy.safeAreaInsets.bottom + 0
-                ZStack {
-                    // Centered primary CTA (shadow handled inside style)
-                    selectButtonControl
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, safeBottom)
+        .safeAreaInset(edge: .bottom) {
+            ZStack {
+                // Centered primary CTA
+                selectButtonControl
+                    .padding(.horizontal, 24)
 
-                    // Trailing plus FAB
-                    HStack { Spacer(); addBookButton }
-                        .padding(.trailing, 32)
-                        .padding(.bottom, safeBottom)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                }
+                // Floating add button on the right
+                HStack { Spacer(); addBookButton }
+                    .padding(.horizontal, 24)
+            }
+            .padding(.vertical, 8)
+            .background(Color.clear)
+        }
+        // Present Cmd+K overlay inline so it always shows
+        .overlay {
+            if isAddOverlayActive {
+                AddBookOverlay(
+                    isPresented: $isAddOverlayActive,
+                    maxResults: 7,
+                    onSelect: handleBookSelection,
+                    matchedId: "addControl",
+                    namespace: addOverlayNamespace
+                )
+                .environmentObject(themeManager)
                 .ignoresSafeArea()
+                .transition(.opacity)
+                .zIndex(1000)
             }
         }
         .overlay(alignment: .top) {
@@ -115,11 +128,6 @@ struct BookSelectionView: View {
         .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
         .onChange(of: selectedIndex) { _, newValue in handleSelectionChange(newValue) }
         .onDisappear { themeUpdateTask?.cancel() }
-        .sheet(isPresented: $showSearchSheet) {
-            NavigationStack {
-                bookSearchSheet
-            }
-        }
     }
 
     private var backgroundGradient: some View {
@@ -292,11 +300,18 @@ struct BookSelectionView: View {
     }
 
     private var addBookButton: some View {
-        Button(action: { if !isProcessingSelection { showSearchSheet = true } }) {
+        Button(action: {
+            guard !isProcessingSelection else { return }
+            withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
+                isAddOverlayActive = true
+            }
+        }) {
             Image(systemName: "plus")
                 .font(.system(size: 16, weight: .regular))
         }
+        .matchedGeometryEffect(id: "addControl", in: addOverlayNamespace)
         .dsPaletteIconButton(diameter: addButtonDiameter)
+        .accessibilityIdentifier("BookSelectionAddButton")
         .disabled(isProcessingSelection)
     }
 
@@ -642,6 +657,7 @@ struct BookSelectionView: View {
                 minimumCharacters: 3,
                 selectionHint: "Tap to add",
                 clearOnSelect: true,
+                maxResults: 12,
                 onSelect: handleBookSelection
             )
 
@@ -703,6 +719,7 @@ struct BookSelectionView: View {
                 selectionStatus = nil
                 isProcessingSelection = false
                 showSearchSheet = false
+                isAddOverlayActive = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     if let index = carouselBooks.firstIndex(where: { $0.id == book.id }) {
                         selectedIndex = index

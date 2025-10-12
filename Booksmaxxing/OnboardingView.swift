@@ -99,6 +99,7 @@ struct OnboardingView: View {
                 minimumCharacters: 3,
                 selectionHint: "Tap a result to begin extracting ideas.",
                 clearOnSelect: true,
+                maxResults: nil,
                 onSelect: handleBookSelection
             )
             .disabled(isProcessingSelection)

@@ -32,7 +32,8 @@ struct ThemeLabView: View {
                             placeholder: "Start typing a title…",
                             minimumCharacters: 3,
                             selectionHint: "Tap a result to simulate filling the Add Book form.",
-                            clearOnSelect: false
+                            clearOnSelect: false,
+                            maxResults: nil
                         ) { metadata in
                             lastSelectedTitle = metadata.title
                             print("DEBUG: Experiments selection → \(metadata.title) by \(metadata.authors.first ?? "Unknown")")

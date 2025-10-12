@@ -8,6 +8,8 @@ struct BookSearchView: View {
     let minimumCharacters: Int
     let selectionHint: String?
     let clearOnSelect: Bool
+    // Optional cap for results; defaults to existing behavior elsewhere
+    let maxResults: Int?
     let onSelect: (BookMetadata) -> Void
 
     @State private var searchText: String = ""
@@ -177,7 +179,10 @@ struct BookSearchView: View {
             }
 
             do {
-                let response = try await googleBooksService.searchBooks(query: trimmed, maxResults: 12)
+                let response = try await googleBooksService.searchBooks(
+                    query: trimmed,
+                    maxResults: maxResults ?? 12
+                )
                 if Task.isCancelled { return }
 
                 await MainActor.run {

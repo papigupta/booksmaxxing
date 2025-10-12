@@ -51,7 +51,7 @@ struct BookSelectionDevToolsView: View {
                 }
             }
         }
-        .sheet(isPresented: $showSelectionPreview) {
+        .fullScreenCover(isPresented: $showSelectionPreview) {
             BookSelectionView(openAIService: openAIService)
                 .environmentObject(navigationState)
                 .environmentObject(themeManager)
@@ -92,6 +92,7 @@ struct BookSelectionDevToolsView: View {
                 minimumCharacters: 3,
                 selectionHint: "Tap a result to add it to the carousel",
                 clearOnSelect: true,
+                maxResults: nil,
                 onSelect: addBookFromMetadata
             )
             .disabled(isProcessingSelection || bookCapReached)

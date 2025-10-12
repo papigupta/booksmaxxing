@@ -155,11 +155,7 @@ private struct StyledContent: View {
                     triggerBounceSequence()
                 }
             }
-            .onTapGesture {
-                triggerBounceSequence()
-                addRipple(at: CGPoint(x: effectiveSize.width / 2, y: effectiveSize.height / 2))
-                triggerSoftHaptic()
-            }
+            // Don't add a tap gesture here; it can consume the Button's action.
     }
 
     private var effectiveSize: CGSize {
