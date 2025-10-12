@@ -31,6 +31,9 @@ struct BookSelectionView: View {
     @State private var detailBaseOpacity: Double = 1.0
     @State private var detailDragOpacityFreeze: Double? = nil
     @State private var detailsTransitionInFlight: Bool = false
+    // Tap bounce animation state
+    @State private var tappedCardIndex: Int? = nil
+    @State private var tapScale: CGFloat = 1.0
 
     private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
@@ -154,16 +157,41 @@ struct BookSelectionView: View {
                         geometry: geometry
                     )
                     .frame(width: 320, height: 320)
-                    .scaleEffect(geometry.scale)
+                    .scaleEffect(geometry.scale * (tappedCardIndex == index ? tapScale : 1.0))
                     .rotationEffect(.degrees(geometry.rotation))
                     .offset(animateIn ? geometry.finalOffset : geometry.initialOffset)
                     .opacity(geometry.opacity)
                     .zIndex(geometry.zIndex)
                     .onTapGesture {
-                        guard abs(currentDragProgress) < 0.02, !isTransitioning else { return }
-                        isTransitioning = true
-                        withAnimation(selectionSpring) { selectedIndex = index }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { isTransitioning = false }
+                        guard abs(currentDragProgress) < 0.02, !isTransitioning, !isProcessingSelection else { return }
+                        // Subtle bounce on tap for organic feel
+                        tappedCardIndex = index
+                        withAnimation(.spring(response: 0.12, dampingFraction: 0.68)) { tapScale = 0.92 }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                            withAnimation(.spring(response: 0.34, dampingFraction: 0.76)) { tapScale = 1.0 }
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.60) {
+                            if tappedCardIndex == index { tappedCardIndex = nil }
+                        }
+
+                        // If tapping the active card, confirm immediately. Otherwise, focus it then confirm.
+                        if index == selectedIndex {
+                            // Let the bounce be visible before navigating
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+                                confirmSelection()
+                            }
+                        } else {
+                            // Stagger: finish bounce-in before shifting focus
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) {
+                                isTransitioning = true
+                                withAnimation(selectionSpring) { selectedIndex = index }
+                                // Allow the focus animation to complete before navigating
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+                                    isTransitioning = false
+                                    confirmSelection()
+                                }
+                            }
+                        }
                     }
                 }
             }
