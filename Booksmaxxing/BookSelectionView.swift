@@ -140,10 +140,12 @@ struct BookSelectionView: View {
 
     private var backgroundGradient: some View {
         let tokens = themeManager.currentTokens(for: colorScheme)
-        return LinearGradient(
-            colors: [tokens.background, tokens.primary.opacity(0.08)],
-            startPoint: .top,
-            endPoint: .bottom
+        let key = activeBook?.id.uuidString ?? "none"
+        return AnimatedBackgroundGradient(
+            start: tokens.background,
+            end: tokens.primary.opacity(0.08),
+            key: key,
+            duration: 0.6
         )
     }
 
@@ -262,8 +264,8 @@ struct BookSelectionView: View {
                         HStack(alignment: .top, spacing: 24) {
                             if let description = book.bookDescription, !description.isEmpty {
                                 Text(description)
-                                    .font(DS.Typography.fraunces(size: 11, weight: .regular))
-                                    .tracking(DS.Typography.tightTracking(for: 11))
+                                    .font(DS.Typography.fraunces(size: 12, weight: .regular))
+                                    .tracking(DS.Typography.tightTracking(for: 12))
                                     .foregroundColor(
                                         themeManager.activeRoles.color(role: .primary, tone: 40)
                                         ?? DS.Colors.primaryText
@@ -884,14 +886,14 @@ private struct BookStatsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             summaryText
-                .font(DS.Typography.fraunces(size: 11, weight: .regular))
-                .tracking(DS.Typography.tightTracking(for: 11))
+                .font(DS.Typography.fraunces(size: 12, weight: .regular))
+                .tracking(DS.Typography.tightTracking(for: 12))
                 .foregroundColor(
                     themeColorT40
                 )
             statsText
-                .font(DS.Typography.fraunces(size: 11, weight: .regular))
-                .tracking(DS.Typography.tightTracking(for: 11))
+                .font(DS.Typography.fraunces(size: 12, weight: .regular))
+                .tracking(DS.Typography.tightTracking(for: 12))
                 .foregroundColor(
                     themeColorT40
                 )
