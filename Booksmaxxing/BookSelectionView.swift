@@ -42,8 +42,8 @@ struct BookSelectionView: View {
     private let detailsFixedHeight: CGFloat = 140 // description + stats area
     // Dots positioning and carousel offset to avoid overlap
     private let dotsTop: CGFloat = 40
-    private let dotRowHeight: CGFloat = 12
-    private let dotSpacing: CGFloat = 20
+    private let dotRowHeight: CGFloat = 10
+    private let dotSpacing: CGFloat = 14
     private let dotCarouselGap: CGFloat = 0
     private var carouselTopOffset: CGFloat { dotsTop + dotRowHeight + dotCarouselGap }
 
@@ -222,7 +222,7 @@ struct BookSelectionView: View {
                     size: size
                 )
                 .opacity(dotOpacity(forRelative: absRel))
-                .offset(x: dotSpacing * (CGFloat(index - selectedIndex) - CGFloat(currentDragProgress)))
+                .offset(x: offsetForDot(index))
             }
         }
         .frame(maxWidth: .infinity, minHeight: dotRowHeight, maxHeight: dotRowHeight, alignment: .center)
@@ -556,9 +556,9 @@ struct BookSelectionView: View {
     }
 
     private func dotSize(forRelative d: Double) -> CGFloat {
-        // Sizes at integer distances: 0 -> 12, 1 -> 10, 2 -> 8, 3+ -> 6
+        // Reduced sizes at integer distances: 0 -> 10, 1 -> 8, 2 -> 6, 3+ -> 4
         let keys = [0.0, 1.0, 2.0, 3.0]
-        let vals: [Double: Double] = [0:12, 1:10, 2:8, 3:6]
+        let vals: [Double: Double] = [0:10, 1:8, 2:6, 3:4]
         return CGFloat(lerpTable(d: d, keys: keys, vals: vals))
     }
 
@@ -586,6 +586,33 @@ struct BookSelectionView: View {
         let b = vals[upperKey] ?? a
         let t = (clamped - lowerKey) / (upperKey - lowerKey)
         return a + (b - a) * t
+    }
+
+    // Variable-gap spacing for dots: closer near the center, tighter further out
+    private func gapForStep(distance: Int) -> CGFloat {
+        switch distance {
+        case 1: return 16
+        case 2: return 14
+        default: return 12
+        }
+    }
+
+    private func offsetForDot(_ index: Int) -> CGFloat {
+        guard !carouselBooks.isEmpty else { return 0 }
+        let rel = Double(index - selectedIndex) - currentDragProgress
+        if rel == 0 { return 0 }
+        let sign: CGFloat = rel > 0 ? 1 : -1
+        let absRel = abs(rel)
+        let whole = Int(floor(absRel))
+        let frac = absRel - Double(whole)
+
+        var sum: CGFloat = 0
+        if whole > 0 {
+            for d in 1...whole { sum += gapForStep(distance: d) }
+        }
+        let nextGap = gapForStep(distance: whole + 1)
+        let total = sum + CGFloat(frac) * nextGap
+        return sign * total
     }
 
     private func geometry(for index: Int, dragProgress: Double) -> CarouselGeometry? {
