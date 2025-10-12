@@ -123,6 +123,7 @@ struct BookSelectionView: View {
             dotsSection
                 .padding(.top, dotsTop)
                 .allowsHitTesting(false)
+                .opacity(isAddOverlayActive ? 0 : 1)
         }
         .onAppear { handleInitialAppear() }
         .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
@@ -302,6 +303,7 @@ struct BookSelectionView: View {
     private var addBookButton: some View {
         Button(action: {
             guard !isProcessingSelection else { return }
+            triggerAddButtonHaptic()
             withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
                 isAddOverlayActive = true
             }
@@ -409,6 +411,14 @@ struct BookSelectionView: View {
             let generator = UIImpactFeedbackGenerator(style: .light)
             generator.impactOccurred()
         }
+        #endif
+    }
+
+    private func triggerAddButtonHaptic() {
+        #if canImport(UIKit)
+        // Subtle tap to reinforce opening the overlay
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.impactOccurred(intensity: 0.75)
         #endif
     }
 

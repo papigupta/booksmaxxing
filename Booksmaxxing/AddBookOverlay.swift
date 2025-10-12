@@ -22,6 +22,7 @@ struct AddBookOverlay: View {
     @State private var errorMessage: String?
     @State private var searchTask: Task<Void, Never>?
     @FocusState private var isFocused: Bool
+    @State private var guidelinesVisible: Bool = false
 
     private let googleBooks = GoogleBooksService.shared
 
@@ -44,7 +45,14 @@ struct AddBookOverlay: View {
             .padding(.top, 32)
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
-        .onAppear { isFocused = true }
+        .onAppear {
+            // Delay keyboard to let the overlay settle visually
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                withAnimation(.easeIn(duration: 0.15)) { isFocused = true }
+            }
+            withAnimation(.easeOut(duration: 0.35)) { guidelinesVisible = true }
+        }
         .onDisappear { searchTask?.cancel() }
         .transition(.opacity)
     }
@@ -93,6 +101,8 @@ struct AddBookOverlay: View {
         if query.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 {
             copyGuidelines
                 .padding(.horizontal, 32)
+                .opacity(guidelinesVisible ? 1.0 : 0.0)
+                .offset(y: guidelinesVisible ? 0 : 8)
         } else {
             resultsList
         }
@@ -104,23 +114,27 @@ struct AddBookOverlay: View {
                 Image(systemName: "checkmark")
                     .foregroundColor(themeManager.activeRoles.color(role: .primary, tone: 40) ?? DS.Colors.primaryText)
                     .font(.system(size: 14, weight: .semibold))
-                Text("Works best with big‑idea non‑fiction books. ")
-                    .font(DS.Typography.fraunces(size: 14, weight: .regular))
-                    .foregroundColor(DS.Colors.primaryText)
-                + Text("Black Swan, Atomic Habits, Sapiens.")
-                    .italic()
-                    .foregroundColor(DS.Colors.primaryText)
+                (
+                    Text("Works best with big‑idea non‑fiction books. ")
+                        .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                        .foregroundColor(DS.Colors.primaryText)
+                    + Text("Black Swan, Atomic Habits, Sapiens.")
+                        .font(DS.Typography.frauncesItalic(size: 14, weight: .regular))
+                        .foregroundColor(DS.Colors.primaryText)
+                )
             }
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "xmark")
                     .foregroundColor(DS.Colors.destructive)
                     .font(.system(size: 14, weight: .semibold))
-                Text("Avoid books that are story‑driven — fiction, biographies, memoirs. ")
-                    .font(DS.Typography.fraunces(size: 14, weight: .regular))
-                    .foregroundColor(DS.Colors.primaryText)
-                + Text("The Great Gatsby, Steve Jobs, Shoe Dog")
-                    .italic()
-                    .foregroundColor(DS.Colors.primaryText)
+                (
+                    Text("Avoid books that are story‑driven — fiction, biographies, memoirs. ")
+                        .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                        .foregroundColor(DS.Colors.primaryText)
+                    + Text("The Great Gatsby, Steve Jobs, Shoe Dog")
+                        .font(DS.Typography.frauncesItalic(size: 14, weight: .regular))
+                        .foregroundColor(DS.Colors.primaryText)
+                )
             }
 
             Text("Type at least 3 characters to see suggestions.")
@@ -195,7 +209,20 @@ struct AddBookOverlay: View {
     }
 
     // MARK: - Actions
-    private func dismiss() { withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) { isPresented = false } }
+    private func dismiss() {
+        // Close keyboard first, then animate overlay dismissal
+        Task { @MainActor in
+            let hadFocus = isFocused
+            if hadFocus {
+                isFocused = false
+                // Give the keyboard time to retract before overlay animates away
+                try? await Task.sleep(nanoseconds: 220_000_000)
+            }
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
+                isPresented = false
+            }
+        }
+    }
 
     private func onSelectAndDismiss(_ metadata: BookMetadata) {
         onSelect(metadata)
