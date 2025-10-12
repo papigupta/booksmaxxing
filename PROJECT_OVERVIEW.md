@@ -140,9 +140,10 @@ struct AuthorFeedback {
 ## 💫 User Experience Design
 
 ### Onboarding Flow (`OnboardingView.swift`)
-- Clean, modern interface with book input
-- Shows saved books with last accessed timestamps
-- Seamless navigation to book exploration
+- Hosts the full `BookSelectionView` experience: animated carousel of saved books and a floating `+` Add overlay.
+- Carousel supports unlimited saved books; dot indicators show a window of up to seven around the current selection for clarity.
+- Adding a book via the `+` overlay triggers idea extraction first; navigation to `BookOverviewView` happens after extraction completes.
+- Selecting an existing saved book navigates immediately to its `BookOverviewView` and activates its theme.
 
 ### Book Overview (`BookOverviewView.swift`)
 - **Active/Inactive Cards**: Visual distinction between current and completed ideas

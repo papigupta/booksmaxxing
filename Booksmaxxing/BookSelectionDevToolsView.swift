@@ -27,9 +27,7 @@ struct BookSelectionDevToolsView: View {
         self.openAIService = openAIService
     }
 
-    private var bookCapReached: Bool {
-        allBooks.count >= 7
-    }
+    // No cap in production; allow unlimited in dev tools as well
 
     var body: some View {
         NavigationStack {
@@ -60,7 +58,7 @@ struct BookSelectionDevToolsView: View {
 
     private var introSection: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            Text("Seed up to seven books to test the onboarding carousel.")
+            Text("Seed some books to test the onboarding carousel.")
                 .font(DS.Typography.body)
                 .foregroundColor(DS.Colors.primaryText)
 
@@ -79,12 +77,6 @@ struct BookSelectionDevToolsView: View {
             }
             .foregroundColor(DS.Colors.primaryText)
 
-            if bookCapReached {
-                Text("You’ve reached the temporary limit of seven books. Delete one below to add another.")
-                    .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.destructive)
-            }
-
             BookSearchView(
                 title: "Search catalog",
                 description: "Pick the exact edition so the cover art matches.",
@@ -95,7 +87,7 @@ struct BookSelectionDevToolsView: View {
                 maxResults: nil,
                 onSelect: addBookFromMetadata
             )
-            .disabled(isProcessingSelection || bookCapReached)
+            .disabled(isProcessingSelection)
 
             if isProcessingSelection {
                 HStack(spacing: DS.Spacing.sm) {
@@ -131,7 +123,7 @@ struct BookSelectionDevToolsView: View {
                     .foregroundColor(DS.Colors.secondaryText)
             }
 
-            ForEach(allBooks.prefix(7)) { book in
+            ForEach(allBooks) { book in
                 HStack(spacing: DS.Spacing.md) {
                     VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                         Text(book.title)
@@ -170,7 +162,7 @@ struct BookSelectionDevToolsView: View {
             }
 
             if allBooks.isEmpty {
-                Text("No books yet. Add six to mirror the production onboarding experience.")
+                Text("No books yet. Add a few to try it out.")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
             }
@@ -204,7 +196,6 @@ struct BookSelectionDevToolsView: View {
     }
 
     private func addBookFromMetadata(_ metadata: BookMetadata) {
-        guard !bookCapReached else { return }
         errorMessage = nil
         statusMessage = nil
 

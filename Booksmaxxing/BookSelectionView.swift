@@ -24,6 +24,7 @@ struct BookSelectionView: View {
     @Namespace private var addOverlayNamespace
     @GestureState private var dragX: CGFloat = 0
     @State private var themeUpdateTask: Task<Void, Never>? = nil
+    @State private var extractionTask: Task<Void, Never>? = nil
     @State private var isTransitioning: Bool = false
     // Details text transition state
     @State private var detailDisplayedIndex: Int = 0
@@ -57,7 +58,8 @@ struct BookSelectionView: View {
     }
 
     private var carouselBooks: [Book] {
-        Array(allBooks.prefix(6))
+        // Unlimited carousel; rendering already windows visible neighbors
+        allBooks
     }
 
     private var activeBook: Book? {
@@ -127,7 +129,10 @@ struct BookSelectionView: View {
         .onAppear { handleInitialAppear() }
         .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
         .onChange(of: selectedIndex) { _, newValue in handleSelectionChange(newValue) }
-        .onDisappear { themeUpdateTask?.cancel() }
+        .onDisappear {
+            themeUpdateTask?.cancel()
+            extractionTask?.cancel()
+        }
     }
 
     private var backgroundGradient: some View {
@@ -699,6 +704,7 @@ struct BookSelectionView: View {
         selectionError = nil
         selectionStatus = nil
 
+        // Begin selection flow and extract ideas before navigating to overview.
         Task { @MainActor in
             isProcessingSelection = true
             selectionStatus = "Adding \(metadata.title)…"
@@ -716,24 +722,30 @@ struct BookSelectionView: View {
 
                 Task { await themeManager.activateTheme(for: book) }
 
-                // Kick off idea extraction in background just like onboarding
+                selectionStatus = "Extracting ideas…"
+                showSearchSheet = false
+                isAddOverlayActive = false
+
                 let extractionViewModel = IdeaExtractionViewModel(
                     openAIService: openAIService,
                     bookService: bookService
                 )
-                Task.detached(priority: .background) {
+
+                // Run extraction off the main-actor; navigate when done.
+                extractionTask?.cancel()
+                extractionTask = Task(priority: .userInitiated) {
                     await extractionViewModel.loadOrExtractIdeas(from: metadata.title, metadata: metadata)
+                    await MainActor.run {
+                        navigationState.navigateToBook(title: book.title)
+                        selectionStatus = nil
+                        isProcessingSelection = false
+                    }
                 }
 
-                selectionStatus = nil
-                isProcessingSelection = false
-                showSearchSheet = false
-                isAddOverlayActive = false
+                // Optionally adjust selection index for visual continuity if user returns.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     if let index = carouselBooks.firstIndex(where: { $0.id == book.id }) {
                         selectedIndex = index
-                    } else {
-                        selectedIndex = 0
                     }
                 }
             } catch {

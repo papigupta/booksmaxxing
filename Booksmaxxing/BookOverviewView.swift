@@ -14,6 +14,8 @@ struct BookOverviewView: View {
     @State private var showingDeleteAlert = false
     @State private var showDeletionToast = false
     @State private var showingBookSelectionLab = false
+    @State private var showingExperiments = false
+    @State private var experimentsPreset: ThemePreset = .system
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var streakManager: StreakManager
@@ -188,6 +190,10 @@ struct BookOverviewView: View {
         .sheet(isPresented: $showingBookSelectionLab) {
             BookSelectionDevToolsView(openAIService: openAIService)
         }
+        .sheet(isPresented: $showingExperiments) {
+            ThemeLabView(preset: $experimentsPreset)
+                .environmentObject(themeManager)
+        }
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $navigateToOnboarding) {
             OnboardingView(openAIService: openAIService)
@@ -349,6 +355,11 @@ struct BookOverviewView: View {
                                 showingBookSelectionLab = true
                             }) {
                                 Label("Book Selection Lab", systemImage: "sparkles.rectangle.stack")
+                            }
+                            if DebugFlags.enableThemeLab {
+                                Button(action: { showingExperiments = true }) {
+                                    Label("Experiments", systemImage: "sparkles")
+                                }
                             }
                         }
                         Divider()

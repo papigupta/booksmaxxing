@@ -29,9 +29,8 @@ struct BooksmaxxingApp: App {
     @State private var shouldEnableCloudKit = false
     @State private var cloudKitContainer: ModelContainer?
     @State private var persistentContainer: ModelContainer?
-    // Theme Lab
+    // Theme preset for global visual filter
     @State private var themePreset: ThemePreset = .system // treat as System Light by default
-    @State private var showThemeLab: Bool = false
     
     var sharedModelContainer: ModelContainer = {
         do {
@@ -135,34 +134,7 @@ struct BooksmaxxingApp: App {
                 }
                 // Storage already initialized via sharedModelContainer
             }
-            // Debug-only floating entry to Theme Lab
-            .overlay(alignment: .bottomTrailing) {
-                if DebugFlags.enableDevControls && DebugFlags.enableThemeLab {
-                    Button {
-                        showThemeLab = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "paintpalette")
-                            Text("Experiments")
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.8))
-                        )
-                        .foregroundStyle(Color.white)
-                        .shadow(radius: 4)
-                        .padding(12)
-                    }
-                    .accessibilityLabel("Open Experiments")
-                    .sheet(isPresented: $showThemeLab) {
-                        ThemeLabView(preset: $themePreset)
-                            .environmentObject(themeManager)
-                    }
-                }
-            }
+            // Removed global Experiments FAB overlay; access Experiments from kebab menu in BookOverviewView.
         }
         .modelContainer(sharedModelContainer)
     }
