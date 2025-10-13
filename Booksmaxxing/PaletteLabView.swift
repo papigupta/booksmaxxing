@@ -108,6 +108,13 @@ struct PaletteLabView: View {
                 }
                 .padding(.top, 16)
 
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Palette-aware Secondary Button Preview")
+                        .font(DS.Typography.captionEmphasized)
+                    PaletteSecondaryButtonSample()
+                }
+                .padding(.top, 8)
+
                 if !monochromeRoles.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
