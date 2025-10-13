@@ -26,6 +26,10 @@ struct BookSelectionView: View {
     @State private var themeUpdateTask: Task<Void, Never>? = nil
     @State private var extractionTask: Task<Void, Never>? = nil
     @State private var isTransitioning: Bool = false
+    // Full-screen extraction loader state
+    @State private var showExtractionLoader: Bool = false
+    @State private var loaderThumbnailUrl: String? = nil
+    @State private var loaderCoverUrl: String? = nil
     // Details text transition state
     @State private var detailDisplayedIndex: Int = 0
     @State private var detailBaseOpacity: Double = 1.0
@@ -128,6 +132,18 @@ struct BookSelectionView: View {
                 .padding(.top, dotsTop)
                 .allowsHitTesting(false)
                 .opacity(isAddOverlayActive ? 0 : 1)
+        }
+        .overlay {
+            if showExtractionLoader {
+                IdeaExtractionLoaderView(
+                    isPresented: $showExtractionLoader,
+                    thumbnailUrl: loaderThumbnailUrl,
+                    coverUrl: loaderCoverUrl
+                )
+                .environmentObject(themeManager)
+                .transition(.opacity)
+                .zIndex(3000)
+            }
         }
         .onAppear { handleInitialAppear() }
         .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
@@ -783,6 +799,11 @@ struct BookSelectionView: View {
                 showSearchSheet = false
                 isAddOverlayActive = false
 
+                // Prepare and show full-screen extraction loader
+                loaderThumbnailUrl = metadata.thumbnailUrl ?? metadata.coverImageUrl
+                loaderCoverUrl = metadata.coverImageUrl ?? metadata.thumbnailUrl
+                withAnimation(.easeIn(duration: 0.18)) { showExtractionLoader = true }
+
                 let extractionViewModel = IdeaExtractionViewModel(
                     openAIService: openAIService,
                     bookService: bookService
@@ -796,6 +817,7 @@ struct BookSelectionView: View {
                         navigationState.navigateToBook(title: book.title)
                         selectionStatus = nil
                         isProcessingSelection = false
+                        withAnimation(.easeOut(duration: 0.20)) { showExtractionLoader = false }
                     }
                 }
 
@@ -809,6 +831,7 @@ struct BookSelectionView: View {
                 selectionStatus = nil
                 selectionError = error.localizedDescription
                 isProcessingSelection = false
+                withAnimation(.easeOut(duration: 0.20)) { showExtractionLoader = false }
             }
         }
     }
