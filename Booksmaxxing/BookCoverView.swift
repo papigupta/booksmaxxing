@@ -27,6 +27,12 @@ struct BookCoverView: View {
     @State private var lowResImage: PlatformImage? = nil
     @State private var highResImage: PlatformImage? = nil
     @State private var isLoading = false
+    // Average color extracted from the currently displayed image
+    @State private var averageColor: Color? = nil
+
+    // Rectangle overlay sizing ratios (relative to cover size)
+    private let overlayWidthRatio: CGFloat = 0.17
+    private let overlayHeightRatio: CGFloat = 0.17
 
     init(
         thumbnailUrl: String? = nil,
@@ -107,6 +113,17 @@ struct BookCoverView: View {
                     )
             }
         }
+        // Add the bottom-right rectangle overlay sized proportionally to the cover
+        .overlay {
+            GeometryReader { proxy in
+                let w = proxy.size.width * overlayWidthRatio
+                let h = proxy.size.height * overlayHeightRatio
+                Rectangle()
+                    .fill(averageColor ?? Color.gray.opacity(0.2))
+                    .frame(width: w, height: h)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+        }
         .clipShape(
             cornerRadius != nil
                 ? AnyShape(RoundedRectangle(cornerRadius: cornerRadius!, style: .continuous))
@@ -114,6 +131,13 @@ struct BookCoverView: View {
         )
         .onAppear {
             loadImagesProgressively(target: size)
+        }
+        // Recompute overlay color when the displayed image changes
+        .onChange(of: lowResImage) { _, newValue in
+            if let img = newValue { averageColor = computeAverageColor(from: img) }
+        }
+        .onChange(of: highResImage) { _, newValue in
+            if let img = newValue { averageColor = computeAverageColor(from: img) }
         }
     }
     
@@ -140,6 +164,7 @@ struct BookCoverView: View {
                         if let img = downsampledImage(data: data, to: target, scale: scale) {
                             await MainActor.run {
                                 self.lowResImage = img
+                                self.averageColor = self.computeAverageColor(from: img)
                                 self.isLoading = false
                                 ImageCache.shared.setImage(img, for: thumbStr)
                             }
@@ -166,6 +191,7 @@ struct BookCoverView: View {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     self.highResImage = img
                                 }
+                                self.averageColor = self.computeAverageColor(from: img)
                                 self.isLoading = false
                                 ImageCache.shared.setImage(img, for: coverStr)
                             }
@@ -186,6 +212,39 @@ struct BookCoverView: View {
         #else
         return 2.0
         #endif
+    }
+}
+
+// MARK: - Average color sampling
+extension BookCoverView {
+    /// Computes a quick average color from a downsampled version of the image.
+    /// Ignores fully transparent pixels.
+    fileprivate func computeAverageColor(from image: PlatformImage) -> Color? {
+        // Keep this small for performance; we just need an approximate tone.
+        let maxDim = 40
+        guard let cg = ImageSampler.downsampleToCGImage(image, maxDimension: maxDim) else { return nil }
+        let pixels = ImageSampler.extractRGBAPixels(cg)
+        if pixels.isEmpty { return nil }
+        var rTotal: Double = 0
+        var gTotal: Double = 0
+        var bTotal: Double = 0
+        var count: Double = 0
+        var i = 0
+        while i < pixels.count {
+            let a = pixels[i+3]
+            if a > 8 { // exclude near-transparent
+                rTotal += Double(pixels[i])
+                gTotal += Double(pixels[i+1])
+                bTotal += Double(pixels[i+2])
+                count += 1
+            }
+            i += 4
+        }
+        guard count > 0 else { return nil }
+        let r = rTotal / (255.0 * count)
+        let g = gTotal / (255.0 * count)
+        let b = bTotal / (255.0 * count)
+        return Color(red: r, green: g, blue: b)
     }
 }
 
