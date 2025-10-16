@@ -103,10 +103,6 @@ struct BookSelectionView: View {
         .ignoresSafeArea()
         .safeAreaInset(edge: .bottom) {
             ZStack {
-                // Centered primary CTA
-                selectButtonControl
-                    .padding(.horizontal, 24)
-
                 // Floating add button on the right
                 HStack { Spacer(); addBookButton }
                     .padding(.horizontal, 24)
@@ -324,8 +320,6 @@ struct BookSelectionView: View {
 
                 HStack {
                     Spacer()
-                    selectButtonControl
-                    Spacer()
                 }
                 .overlay(alignment: .trailing) {
                     addBookButton
@@ -346,14 +340,7 @@ struct BookSelectionView: View {
         .frame(height: 100, alignment: .top)
     }
 
-    private var selectButtonControl: some View {
-        Button(action: confirmSelection) {
-            Text(isProcessingSelection ? (selectionStatus ?? "Choosing…") : "Select this book")
-                .font(DS.Typography.bodyBold)
-        }
-        .dsPalettePrimaryButton()
-        .disabled(activeBook == nil || isProcessingSelection)
-    }
+    // Primary selection button removed in favor of tap-to-select on cards.
 
     private var addBookButton: some View {
         Button(action: {
