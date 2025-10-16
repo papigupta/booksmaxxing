@@ -935,15 +935,15 @@ private struct BookStatsView: View {
         if totalIdeas == 0 {
             return Text("We haven’t extracted ideas from this book yet.")
         } else {
-            return Text("The ")
-                + Text("\(book.title)")
-                + Text(" has ")
-                + Text("\(totalIdeas)").italic()
-                + Text(" unique ideas.")
+            // "[Book Name] has [N] unique ideas." with underline on "[N] unique ideas"
+            return Text("\(book.title) has ")
+                + Text("\(totalIdeas) unique ideas").underline()
+                + Text(".")
         }
     }
 
     private var statsText: Text {
+        // Accuracy from coverage
         let bookIdentifier = book.id.uuidString
         let descriptor = FetchDescriptor<IdeaCoverage>(
             predicate: #Predicate { $0.bookId == bookIdentifier }
@@ -952,20 +952,39 @@ private struct BookStatsView: View {
         let totalQuestions = coverages.reduce(0) { $0 + $1.totalQuestionsSeen }
         let totalCorrect = coverages.reduce(0) { $0 + $1.totalQuestionsCorrect }
         let accuracyPercent = totalQuestions > 0 ? (Double(totalCorrect) / Double(totalQuestions)) * 100.0 : 0.0
-        let ideaCount = book.ideas?.count ?? 0
-
-        let coveredIdeas = coverages.filter { $0.isFullyCovered }.count
-        let masteredIdeas = book.ideas?.filter { $0.masteryLevel >= 3 }.count ?? 0
         let accuracyRounded = Int(accuracyPercent.rounded())
 
-        return Text("You’ve covered ")
-            + Text("\(coveredIdeas)/\(ideaCount)").italic()
-            + Text(".\n")
-            + Text("You’ve mastered ")
-            + Text("\(masteredIdeas)/\(ideaCount)").italic()
-            + Text(".\n")
-            + Text("Your average accuracy is ")
-            + Text("\(accuracyRounded)%").italic()
+        // Mastered ideas
+        let ideaCount = book.ideas?.count ?? 0
+        let masteredIdeas = book.ideas?.filter { $0.masteryLevel >= 3 }.count ?? 0
+
+        // Aggregate Brain Calories and distractions from attempts tied to this book
+        let testsForBook: [Test] = (book.ideas ?? []).flatMap { $0.tests ?? [] }
+        var totalBCal: Int = 0
+        var totalPauses: Int = 0
+        for test in testsForBook {
+            for attempt in (test.attempts ?? []) {
+                totalBCal += max(0, attempt.brainCalories)
+                totalPauses += max(0, attempt.attentionPauses)
+            }
+        }
+
+        // New copy with underlines matching the screenshot
+        // - underline: "mastered X"
+        // - underline: "BCal Brain Calories"
+        // - underline: "accuracy is Y%"
+        // - underline: "distracted Z times"
+        return Text("Out of which you have ")
+            + Text("mastered \(masteredIdeas)").underline()
+            + Text(" so far.\n")
+            + Text("Your have burned ")
+            + Text("\(totalBCal) Brain Calories").underline()
+            + Text(" using this book. ")
+            + Text("Your ")
+            + Text("accuracy is \(accuracyRounded)%").underline()
+            + Text(". ")
+            + Text("And you have been ")
+            + Text("distracted \(totalPauses) times").underline()
             + Text(".")
     }
 }
