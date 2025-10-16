@@ -11,6 +11,9 @@ struct IdeaExtractionLoaderView: View {
     @Binding var isPresented: Bool
     let thumbnailUrl: String?
     let coverUrl: String?
+    // Matched-geometry configuration to morph from search result cover → loader cover
+    let matchedNamespace: Namespace.ID
+    let matchedCoverId: String?
 
     @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
@@ -24,6 +27,8 @@ struct IdeaExtractionLoaderView: View {
     @State private var ellipsisWidth: CGFloat = 0
     @State private var maxWordWidth: CGFloat = 0
     @State private var animationStartDate: Date = Date()
+    // Loader chrome (background, halo, handles, scanner, text) fades in slightly after cover morph starts
+    @State private var chromeVisible: Bool = false
 
     private let coverSize = CGSize(width: 240, height: 320)
     private let coverCornerRadius: CGFloat = 16
@@ -41,33 +46,55 @@ struct IdeaExtractionLoaderView: View {
                 ZStack {
                     // Pulsing halo behind the cover (Primary T95 @ 100% opacity)
                     pulseHalo
+                        .opacity(chromeVisible ? 1.0 : 0.0)
 
                     // Corner handles frame
                     cornerHandles
                         .frame(width: coverSize.width + 80, height: coverSize.height + 80)
                         .allowsHitTesting(false)
+                        .opacity(chromeVisible ? 1.0 : 0.0)
 
                     // Book cover
-                    BookCoverView(
-                        thumbnailUrl: thumbnailUrl,
-                        coverUrl: coverUrl,
-                        isLargeView: true,
-                        cornerRadius: coverCornerRadius
-                    )
+                    Group {
+                        if let coverMatchId = matchedCoverId {
+                            BookCoverView(
+                                thumbnailUrl: thumbnailUrl,
+                                coverUrl: coverUrl,
+                                isLargeView: true,
+                                cornerRadius: coverCornerRadius
+                            )
+                            .matchedGeometryEffect(id: coverMatchId, in: matchedNamespace)
+                        } else {
+                            BookCoverView(
+                                thumbnailUrl: thumbnailUrl,
+                                coverUrl: coverUrl,
+                                isLargeView: true,
+                                cornerRadius: coverCornerRadius
+                            )
+                        }
+                    }
                     .frame(width: coverSize.width, height: coverSize.height)
                     .shadow(color: Color.black.opacity(0.22), radius: 18, x: 0, y: 14)
-                    .overlay(alignment: .topLeading) { scannerOverlay }
+                    .overlay(alignment: .topLeading) {
+                        if chromeVisible { scannerOverlay.transition(.opacity) }
+                    }
                 }
                 // Fix the container size so pulsing halo does not shift layout
                 .frame(width: 468, height: 468, alignment: .center)
 
                 loadingCopy
+                    .opacity(chromeVisible ? 1.0 : 0.0)
             }
             .padding(.horizontal, 32)
         }
         .ignoresSafeArea()
         .onAppear {
             startAnimations()
+            // Stagger chrome reveal to let cover morph remain visually clear
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 160_000_000)
+                withAnimation(.easeIn(duration: 0.22)) { chromeVisible = true }
+            }
         }
         .onDisappear {
             // no-op; animations stop naturally with view removal
@@ -84,6 +111,7 @@ struct IdeaExtractionLoaderView: View {
             .fill(.ultraThinMaterial)
             .ignoresSafeArea()
             .overlay(Color.black.opacity(0.18))
+            .opacity(chromeVisible ? 1.0 : 0.0)
     }
 
     // MARK: - Colors

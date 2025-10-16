@@ -11,6 +11,9 @@ struct AddBookOverlay: View {
     @Binding var isPresented: Bool
     let maxResults: Int
     let onSelect: (BookMetadata) -> Void
+    // If true, the overlay dismisses immediately on selection.
+    // For shared-element transitions to a loader, pass false and let the host dismiss after the morph.
+    let dismissOnSelect: Bool
 
     // Matched geometry to morph from the host “+” button
     let matchedId: String
@@ -243,7 +246,7 @@ struct AddBookOverlay: View {
                         if let errorMessage { Text(errorMessage).font(DS.Typography.caption).foregroundColor(DS.Colors.destructive) }
 
                         ForEach(results.prefix(maxResults)) { book in
-                            Button { onSelectAndDismiss(book) } label: {
+                            Button { onSelectAndMaybeDismiss(book) } label: {
                                 HStack(alignment: .top, spacing: 16) {
                                     BookCoverView(
                                         thumbnailUrl: book.thumbnailUrl,
@@ -252,6 +255,8 @@ struct AddBookOverlay: View {
                                         cornerRadius: 8,
                                         targetSize: CGSize(width: 56, height: 84)
                                     )
+                                    // Shared element for morphing into loader's large cover
+                                    .matchedGeometryEffect(id: "book-cover-\(book.id)", in: namespace)
 
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(book.title)
@@ -315,9 +320,11 @@ struct AddBookOverlay: View {
         }
     }
 
-    private func onSelectAndDismiss(_ metadata: BookMetadata) {
+    private func onSelectAndMaybeDismiss(_ metadata: BookMetadata) {
         onSelect(metadata)
-        dismiss()
+        if dismissOnSelect {
+            dismiss()
+        }
     }
 
     private func scheduleSearch(for raw: String) {

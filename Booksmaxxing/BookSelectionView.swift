@@ -30,6 +30,8 @@ struct BookSelectionView: View {
     @State private var showExtractionLoader: Bool = false
     @State private var loaderThumbnailUrl: String? = nil
     @State private var loaderCoverUrl: String? = nil
+    // Matched-geometry state for morphing search result cover → loader cover
+    @State private var transitioningCoverId: String? = nil
     // Details text transition state
     @State private var detailDisplayedIndex: Int = 0
     @State private var detailBaseOpacity: Double = 1.0
@@ -119,6 +121,7 @@ struct BookSelectionView: View {
                     isPresented: $isAddOverlayActive,
                     maxResults: 7,
                     onSelect: handleBookSelection,
+                    dismissOnSelect: false,
                     matchedId: "addControl",
                     namespace: addOverlayNamespace
                 )
@@ -138,7 +141,9 @@ struct BookSelectionView: View {
                 IdeaExtractionLoaderView(
                     isPresented: $showExtractionLoader,
                     thumbnailUrl: loaderThumbnailUrl,
-                    coverUrl: loaderCoverUrl
+                    coverUrl: loaderCoverUrl,
+                    matchedNamespace: addOverlayNamespace,
+                    matchedCoverId: transitioningCoverId
                 )
                 .environmentObject(themeManager)
                 .transition(.opacity)
@@ -797,12 +802,20 @@ struct BookSelectionView: View {
 
                 selectionStatus = "Extracting ideas…"
                 showSearchSheet = false
-                isAddOverlayActive = false
 
-                // Prepare and show full-screen extraction loader
+                // Prepare and show full-screen extraction loader with a shared-element morph
                 loaderThumbnailUrl = metadata.thumbnailUrl ?? metadata.coverImageUrl
                 loaderCoverUrl = metadata.coverImageUrl ?? metadata.thumbnailUrl
-                withAnimation(.easeIn(duration: 0.18)) { showExtractionLoader = true }
+                transitioningCoverId = "book-cover-\(metadata.id)"
+                withAnimation(.spring(response: 0.44, dampingFraction: 0.86)) {
+                    showExtractionLoader = true
+                }
+                // Keep the search overlay alive briefly so the morph can complete under it
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
+                    withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
+                        isAddOverlayActive = false
+                    }
+                }
 
                 let extractionViewModel = IdeaExtractionViewModel(
                     openAIService: openAIService,
@@ -818,6 +831,7 @@ struct BookSelectionView: View {
                         selectionStatus = nil
                         isProcessingSelection = false
                         withAnimation(.easeOut(duration: 0.20)) { showExtractionLoader = false }
+                        transitioningCoverId = nil
                     }
                 }
 
@@ -832,6 +846,7 @@ struct BookSelectionView: View {
                 selectionError = error.localizedDescription
                 isProcessingSelection = false
                 withAnimation(.easeOut(duration: 0.20)) { showExtractionLoader = false }
+                transitioningCoverId = nil
             }
         }
     }
