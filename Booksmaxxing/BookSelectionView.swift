@@ -863,13 +863,13 @@ private struct BookCarouselCard: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [glowColor.opacity(0.28), glowColor.opacity(0.0)],
+                            colors: [glowColor.opacity(0.9), glowColor.opacity(0.0)],
                             center: .center,
-                            startRadius: 12,
-                            endRadius: 240
+                            startRadius: 0,
+                            endRadius: 440
                         )
                     )
-                    .frame(width: 420, height: 420)
+                    .frame(width: 800, height: 800)
                     .allowsHitTesting(false)
             }
 
