@@ -20,43 +20,86 @@ struct BookCoverView: View {
     let coverUrl: String?
     let isLargeView: Bool
     let cornerRadius: CGFloat?
-    
-    @State private var image: PlatformImage? = nil
+    // Optional explicit target size to match container (e.g., 56x84)
+    let targetSize: CGSize?
+
+    // Progressive images: show low-res while high-res loads
+    @State private var lowResImage: PlatformImage? = nil
+    @State private var highResImage: PlatformImage? = nil
     @State private var isLoading = false
-    
-    init(thumbnailUrl: String? = nil, coverUrl: String? = nil, isLargeView: Bool = false, cornerRadius: CGFloat? = nil) {
+
+    init(
+        thumbnailUrl: String? = nil,
+        coverUrl: String? = nil,
+        isLargeView: Bool = false,
+        cornerRadius: CGFloat? = nil,
+        targetSize: CGSize? = nil
+    ) {
         self.thumbnailUrl = thumbnailUrl
         self.coverUrl = coverUrl
         self.isLargeView = isLargeView
         self.cornerRadius = cornerRadius
+        self.targetSize = targetSize
     }
     
     var body: some View {
+        let size = targetSize ?? (isLargeView ? CGSize(width: 240, height: 320) : CGSize(width: 60, height: 90))
+        let useFillMode = (targetSize != nil) // lists/grids want exact thumbnail fill; large views should preserve aspect
         Group {
-            if let image = image {
+            if let image = (highResImage ?? lowResImage) {
                 #if canImport(UIKit)
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                Group {
+                    if useFillMode {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: size.width, height: size.height)
+                            .clipped()
+                    } else {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    }
+                }
                 #elseif canImport(AppKit)
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                Group {
+                    if useFillMode {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: size.width, height: size.height)
+                            .clipped()
+                    } else {
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    }
+                }
                 #else
-                Image(systemName: "photo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                Group {
+                    if useFillMode {
+                        Image(systemName: "photo")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: size.width, height: size.height)
+                            .clipped()
+                    } else {
+                        Image(systemName: "photo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    }
+                }
                 #endif
             } else if isLoading {
                 ProgressView()
-                    .frame(width: isLargeView ? 240 : 60, height: isLargeView ? 320 : 90)
+                    .frame(width: useFillMode ? size.width : nil, height: useFillMode ? size.height : nil)
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(cornerRadius ?? 8)
             } else {
                 // Placeholder when no image
                 RoundedRectangle(cornerRadius: cornerRadius ?? 8)
                     .fill(Color.gray.opacity(0.2))
-                    .frame(width: isLargeView ? 240 : 60, height: isLargeView ? 320 : 90)
+                    .frame(width: useFillMode ? size.width : nil, height: useFillMode ? size.height : nil)
                     .overlay(
                         Image(systemName: "book.closed")
                             .font(.system(size: isLargeView ? 42 : 20))
@@ -70,59 +113,79 @@ struct BookCoverView: View {
                 : AnyShape(Rectangle())
         )
         .onAppear {
-            loadImage()
+            loadImagesProgressively(target: size)
         }
     }
     
-    private func loadImage() {
-        // Select appropriate URL based on view size
-        let urlString = isLargeView ? (coverUrl ?? thumbnailUrl) : thumbnailUrl
-        
-        guard let urlString = urlString,
-              let url = URL(string: urlString) else {
-            return
-        }
-        
-        isLoading = true
-        
-        // Check cache first
-        if let cachedImage = ImageCache.shared.getImage(for: urlString) {
-            self.image = cachedImage
-            self.isLoading = false
-            return
-        }
-        
-        // Download image
-        Task {
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                // Downsample to target view size to reduce memory and upload cost
-                let targetSize = isLargeView ? CGSize(width: 240, height: 320) : CGSize(width: 60, height: 90)
-                let scale: CGFloat = {
-                    #if canImport(UIKit)
-                    return UIScreen.main.scale
-                    #elseif canImport(AppKit)
-                    return NSScreen.main?.backingScaleFactor ?? 2.0
-                    #else
-                    return 2.0
-                    #endif
-                }()
+    private func loadImagesProgressively(target: CGSize) {
+        // Determine URLs
+        let thumb = thumbnailUrl
+        let cover = isLargeView ? (coverUrl ?? thumbnailUrl) : nil // only upgrade to hi-res in large contexts
 
-                if let downloadedImage = downsampledImage(data: data, to: targetSize, scale: scale) {
-                    await MainActor.run {
-                        self.image = downloadedImage
-                        self.isLoading = false
-                        // Cache the image
-                        ImageCache.shared.setImage(downloadedImage, for: urlString)
+        // Nothing to load
+        if thumb == nil && cover == nil { return }
+
+        isLoading = true
+
+        // Load thumbnail first
+        if let thumbStr = thumb {
+            if let cached = ImageCache.shared.getImage(for: thumbStr) {
+                self.lowResImage = cached
+                self.isLoading = false
+            } else if let url = URL(string: thumbStr) {
+                Task {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let scale = currentScale()
+                        if let img = downsampledImage(data: data, to: target, scale: scale) {
+                            await MainActor.run {
+                                self.lowResImage = img
+                                self.isLoading = false
+                                ImageCache.shared.setImage(img, for: thumbStr)
+                            }
+                        }
+                    } catch {
+                        await MainActor.run { self.isLoading = cover == nil }
                     }
-                }
-            } catch {
-                print("Error loading book cover: \(error)")
-                await MainActor.run {
-                    self.isLoading = false
                 }
             }
         }
+
+        // Load high-res cover in background (if provided)
+        if let coverStr = cover, let url = URL(string: coverStr) {
+            if let cached = ImageCache.shared.getImage(for: coverStr) {
+                self.highResImage = cached
+                self.isLoading = false
+            } else {
+                Task {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let scale = currentScale()
+                        if let img = downsampledImage(data: data, to: target, scale: scale) {
+                            await MainActor.run {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    self.highResImage = img
+                                }
+                                self.isLoading = false
+                                ImageCache.shared.setImage(img, for: coverStr)
+                            }
+                        }
+                    } catch {
+                        // Keep low-res visible; don't flip back to spinner
+                    }
+                }
+            }
+        }
+    }
+
+    private func currentScale() -> CGFloat {
+        #if canImport(UIKit)
+        return UIScreen.main.scale
+        #elseif canImport(AppKit)
+        return NSScreen.main?.backingScaleFactor ?? 2.0
+        #else
+        return 2.0
+        #endif
     }
 }
 

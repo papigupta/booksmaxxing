@@ -245,23 +245,13 @@ struct AddBookOverlay: View {
                         ForEach(results.prefix(maxResults)) { book in
                             Button { onSelectAndDismiss(book) } label: {
                                 HStack(alignment: .top, spacing: 16) {
-                                    AsyncImage(url: URL(string: book.thumbnailUrl ?? book.coverImageUrl ?? "")) { phase in
-                                        switch phase {
-                                        case .empty:
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(DS.Colors.secondaryBackground)
-                                                .frame(width: 56, height: 84)
-                                                .overlay { ProgressView() }
-                                        case .success(let image):
-                                            image.resizable().scaledToFill().frame(width: 56, height: 84).clipped().cornerRadius(8)
-                                        case .failure:
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(DS.Colors.secondaryBackground)
-                                                .frame(width: 56, height: 84)
-                                                .overlay { Image(systemName: "book").foregroundColor(DS.Colors.secondaryText) }
-                                        @unknown default: EmptyView()
-                                        }
-                                    }
+                                    BookCoverView(
+                                        thumbnailUrl: book.thumbnailUrl,
+                                        coverUrl: book.coverImageUrl,
+                                        isLargeView: false,
+                                        cornerRadius: 8,
+                                        targetSize: CGSize(width: 56, height: 84)
+                                    )
 
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(book.title)
@@ -346,7 +336,20 @@ struct AddBookOverlay: View {
             do {
                 let response = try await googleBooks.searchBooks(query: trimmed, maxResults: maxResults)
                 if Task.isCancelled { return }
-                await MainActor.run { results = response; isLoading = false; if response.isEmpty { errorMessage = "No books found. Try another query." } }
+                await MainActor.run {
+                    results = response
+                    isLoading = false
+                    if response.isEmpty {
+                        errorMessage = "No books found. Try another query."
+                    } else {
+                        // Prefetch thumbnails for snappier UI
+                        for b in response {
+                            if let t = b.thumbnailUrl {
+                                ImageCache.shared.prefetch(urlString: t, targetSize: CGSize(width: 56, height: 84))
+                            }
+                        }
+                    }
+                }
             } catch {
                 if Task.isCancelled { return }
                 await MainActor.run { results = []; isLoading = false; errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
