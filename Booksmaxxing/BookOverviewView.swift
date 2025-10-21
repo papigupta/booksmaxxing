@@ -89,20 +89,16 @@ struct BookOverviewView: View {
                     .padding(.top, DS.Spacing.xs)
                 }
                 
-                // Fixed Footer Button
+                // Fixed Footer Button (Palette-aware Primary 3D button)
                 if !viewModel.extractedIdeas.isEmpty {
                     Button(action: {
                         print("DEBUG: Start Practicing button tapped")
                         showingDailyPractice = true
                     }) {
                         Text("Start Practicing")
-                            .font(DS.Typography.bodyBold)
-                            .foregroundColor(theme.onPrimary)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, DS.Spacing.lg)
-                            .background(theme.primary)
-                            .cornerRadius(8)
                     }
+                    .dsPalettePrimaryButton()
                     .padding(.horizontal, DS.Spacing.lg)
                     .padding(.bottom, DS.Spacing.lg)
                 }
