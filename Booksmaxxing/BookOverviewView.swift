@@ -15,6 +15,7 @@ struct BookOverviewView: View {
     @State private var showDeletionToast = false
     @State private var showingBookSelectionLab = false
     @State private var showingExperiments = false
+    @State private var showingOverflow = false
     @State private var experimentsPreset: ThemePreset = .system
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
@@ -306,86 +307,27 @@ struct BookOverviewView: View {
         VStack(spacing: 0) {
             // Top row with home button, streak, and overflow menu
             HStack {
-                // Home Button
+                // Home Button - now palette secondary icon-only with book icon
                 Button(action: {
                     // Use NavigationState to navigate back to book selection
                     navigationState.navigateToBookSelection()
                 }) {
-                    HStack(spacing: DS.Spacing.xs) {
-                        DSIcon("house.fill", size: 16)
-                        Text("Select Another Book")
-                            .font(DS.Typography.caption)
-                    }
+                    DSIcon("book.closed.fill", size: 14)
                 }
-                .dsSmallButton()
+                .dsPaletteSecondaryIconButton(diameter: 38)
+                .accessibilityLabel("Select another book")
                 
                 Spacer()
 
                 // Streak indicator
                 StreakIndicatorView()
 
-                // Overflow menu with Review Practice and Debug actions
-                Menu {
-                    if let book = viewModel.currentBook {
-                        let bookId = book.id.uuidString
-                        let rq = ReviewQueueManager(modelContext: modelContext)
-                        let stats = rq.getQueueStatistics(bookId: bookId)
-                        let count = stats.totalMCQs + stats.totalOpenEnded
-                        if count > 0 {
-                            Button(action: {
-                                // Open Daily Practice, user can jump to review from there
-                                showingDailyPractice = true
-                            }) {
-                                Label("Review Practice (\(count))", systemImage: "clock.arrow.circlepath")
-                            }
-                        }
-                        if DebugFlags.enableDevControls {
-                            Button(action: {
-                                CloudSyncRefresh(modelContext: modelContext).warmFetches()
-                            }) {
-                                Label("Refresh from Cloud", systemImage: "arrow.clockwise")
-                            }
-                            Button(action: {
-                                let service = CurveballService(modelContext: modelContext)
-                                service.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
-                            }) {
-                                Label("Force Curveball Due", systemImage: "bolt.fill")
-                            }
-                            Button(action: {
-                                showingBookSelectionLab = true
-                            }) {
-                                Label("Book Selection Lab", systemImage: "sparkles.rectangle.stack")
-                            }
-                            if DebugFlags.enableThemeLab {
-                                Button(action: { showingExperiments = true }) {
-                                    Label("Experiments", systemImage: "sparkles")
-                                }
-                            }
-                        }
-                        Divider()
-                        Button(role: .destructive) {
-                            showingDeleteAlert = true
-                        } label: {
-                            Label("Delete this book", systemImage: "trash")
-                        }
-                    }
-                    Button("Profile") { showingProfile = true }
-                    Button("Debug Info") { showingDebugInfo = true }
-                    Divider()
-                    Button(role: .destructive) {
-                        authManager.signOut()
-                        // Toggle app back to auth screen immediately
-                        navigationState.shouldShowBookSelection = false
-                    } label: {
-                        Label("Log out", systemImage: "rectangle.portrait.and.arrow.right")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
-                        .padding(.leading, DS.Spacing.sm)
+                // Overflow actions as a confirmation dialog, triggered by a palette secondary icon button
+                Button(action: { showingOverflow = true }) {
+                    DSIcon("ellipsis", size: 14)
                 }
-                .contentShape(Rectangle())
+                .dsPaletteSecondaryIconButton(diameter: 38)
+                .accessibilityLabel("More options")
             }
             .padding(.horizontal, DS.Spacing.xxs)
             .padding(.bottom, DS.Spacing.md)
@@ -449,6 +391,34 @@ struct BookOverviewView: View {
             }
         }
         .background(themeManager.currentTokens(for: colorScheme).surface)
+        // Overflow actions dialog (replaces previous Menu)
+        .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
+            if let book = viewModel.currentBook {
+                let bookId = book.id.uuidString
+                let rq = ReviewQueueManager(modelContext: modelContext)
+                let stats = rq.getQueueStatistics(bookId: bookId)
+                let count = stats.totalMCQs + stats.totalOpenEnded
+                if count > 0 {
+                    Button("Review Practice (\(count))") { showingDailyPractice = true }
+                }
+                if DebugFlags.enableDevControls {
+                    Button("Refresh from Cloud") { CloudSyncRefresh(modelContext: modelContext).warmFetches() }
+                    Button("Force Curveball Due") {
+                        let service = CurveballService(modelContext: modelContext)
+                        service.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                    }
+                    Button("Book Selection Lab") { showingBookSelectionLab = true }
+                    if DebugFlags.enableThemeLab { Button("Experiments") { showingExperiments = true } }
+                }
+                Button("Delete this book", role: .destructive) { showingDeleteAlert = true }
+            }
+            Button("Profile") { showingProfile = true }
+            Button("Debug Info") { showingDebugInfo = true }
+            Button("Log out", role: .destructive) {
+                authManager.signOut()
+                navigationState.shouldShowBookSelection = false
+            }
+        }
     }
 }
 
