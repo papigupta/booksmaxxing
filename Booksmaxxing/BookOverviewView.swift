@@ -345,19 +345,34 @@ struct BookOverviewView: View {
                 // Book title and author
                 VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                     Text(viewModel.bookInfo?.title ?? bookTitle)
-                        .font(DS.Typography.largeTitle)
-                        .tracking(-0.03)
-                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
+                        .font(DS.Typography.title2)
+                        .tracking(DS.Typography.tightTracking(for: 20))
+                        .foregroundColor(
+                            themeManager.activeRoles.color(role: .primary, tone: 30)
+                            ?? DS.Colors.primaryText
+                        )
                         .lineLimit(2)
                     
                     if let author = viewModel.bookInfo?.author {
                         Text("by \(author)")
-                            .font(DS.Typography.body)
-                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
+                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                            .tracking(DS.Typography.tightTracking(for: 14))
+                            .padding(.top, 4)
+                            .lineLimit(1)
+                            .foregroundColor(
+                                themeManager.activeRoles.color(role: .primary, tone: 40)
+                                ?? DS.Colors.primaryText
+                            )
                     } else {
                         Text("Author not specified")
-                            .font(DS.Typography.body)
-                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.6))
+                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                            .tracking(DS.Typography.tightTracking(for: 14))
+                            .padding(.top, 4)
+                            .lineLimit(1)
+                            .foregroundColor(
+                                themeManager.activeRoles.color(role: .primary, tone: 40)
+                                ?? DS.Colors.primaryText
+                            )
                     }
                     
                     // Show rating if available
