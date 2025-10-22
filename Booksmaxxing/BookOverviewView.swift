@@ -99,7 +99,7 @@ struct BookOverviewView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .dsPalettePrimaryButton()
-                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.horizontal, 0)
                     .padding(.bottom, DS.Spacing.lg)
                 }
             }
