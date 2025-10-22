@@ -104,7 +104,7 @@ struct BookOverviewView: View {
                 }
             }
         }
-        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.horizontal, DS.Spacing.xxl)
         .padding(.top, DS.Spacing.xs)
         .background(theme.background)
         .overlay(alignment: .bottom) {
