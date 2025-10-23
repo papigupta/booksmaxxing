@@ -375,6 +375,19 @@ struct BookOverviewView: View {
                             )
                     }
                     
+                    // Book description (match BookSelectionView text properties)
+                    if let description = viewModel.currentBook?.bookDescription, !description.isEmpty {
+                        Text(description)
+                            .font(DS.Typography.fraunces(size: 12, weight: .regular))
+                            .tracking(DS.Typography.tightTracking(for: 12))
+                            .foregroundColor(
+                                themeManager.activeRoles.color(role: .primary, tone: 40)
+                                ?? DS.Colors.primaryText
+                            )
+                            .lineLimit(4)
+                            .padding(.top, DS.Spacing.xs)
+                    }
+                    
                     // Show rating if available
                     if let rating = viewModel.currentBook?.averageRating,
                        let ratingsCount = viewModel.currentBook?.ratingsCount {
