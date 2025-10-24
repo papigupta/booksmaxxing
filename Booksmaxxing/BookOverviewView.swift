@@ -282,19 +282,21 @@ struct BookOverviewView: View {
     }
     
     private func bookCoverageColor(_ coverage: Double) -> Color {
+        // Map coverage to palette-derived colors
+        let tokens = themeManager.currentTokens(for: colorScheme)
         switch coverage {
         case 0..<25:
-            return DS.Colors.gray400
+            return tokens.divider
         case 25..<50:
-            return DS.Colors.gray500
+            return tokens.primary.opacity(0.6)
         case 50..<75:
-            return DS.Colors.gray700
+            return tokens.primary.opacity(0.8)
         case 75..<100:
-            return DS.Colors.gray900
+            return tokens.primary
         case 100:
-            return Color.green
+            return tokens.secondary
         default:
-            return DS.Colors.gray300
+            return tokens.divider
         }
     }
     
@@ -349,7 +351,7 @@ struct BookOverviewView: View {
                         .tracking(DS.Typography.tightTracking(for: 20))
                         .foregroundColor(
                             themeManager.activeRoles.color(role: .primary, tone: 30)
-                            ?? DS.Colors.primaryText
+                            ?? themeManager.currentTokens(for: colorScheme).onSurface
                         )
                         .lineLimit(2)
                     
@@ -361,7 +363,7 @@ struct BookOverviewView: View {
                             .lineLimit(1)
                             .foregroundColor(
                                 themeManager.activeRoles.color(role: .primary, tone: 40)
-                                ?? DS.Colors.primaryText
+                                ?? themeManager.currentTokens(for: colorScheme).onSurface
                             )
                     } else {
                         Text("Author not specified")
@@ -371,7 +373,7 @@ struct BookOverviewView: View {
                             .lineLimit(1)
                             .foregroundColor(
                                 themeManager.activeRoles.color(role: .primary, tone: 40)
-                                ?? DS.Colors.primaryText
+                                ?? themeManager.currentTokens(for: colorScheme).onSurface
                             )
                     }
                     
@@ -382,7 +384,7 @@ struct BookOverviewView: View {
                             .tracking(DS.Typography.tightTracking(for: 12))
                             .foregroundColor(
                                 themeManager.activeRoles.color(role: .primary, tone: 40)
-                                ?? DS.Colors.primaryText
+                                ?? themeManager.currentTokens(for: colorScheme).onSurface
                             )
                             .lineLimit(4)
                             .padding(.top, DS.Spacing.xs)
@@ -392,14 +394,15 @@ struct BookOverviewView: View {
                     if let rating = viewModel.currentBook?.averageRating,
                        let ratingsCount = viewModel.currentBook?.ratingsCount {
                         HStack(spacing: DS.Spacing.xxs) {
+                            let tokens = themeManager.currentTokens(for: colorScheme)
                             ForEach(0..<5) { index in
                                 Image(systemName: index < Int(rating) ? "star.fill" : "star")
                                     .font(.system(size: 12))
-                                    .foregroundColor(.yellow)
+                                    .foregroundColor(tokens.secondary)
                             }
                             Text("(\(ratingsCount))")
                                 .font(DS.Typography.caption)
-                                .foregroundColor(DS.Colors.tertiaryText)
+                                .foregroundColor(tokens.onSurface.opacity(0.6))
                         }
                         .padding(.top, DS.Spacing.xxs)
                     }
@@ -450,6 +453,8 @@ struct BookOverviewView: View {
 struct UnifiedIdeaListItem: View {
     let idea: Idea
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     @State private var ideaCoverage: IdeaCoverage?
     
     var body: some View {
@@ -460,7 +465,7 @@ struct UnifiedIdeaListItem: View {
                     .font(DS.Typography.caption)
                     .fontWeight(.light)
                     .lineLimit(2)
-                    .foregroundColor(DS.Colors.primaryText)
+                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -471,7 +476,7 @@ struct UnifiedIdeaListItem: View {
                     Text(coverage.curveballPassed ? "Mastered" : "\(Int(coverage.coveragePercentage))%")
                         .font(DS.Typography.caption)
                         .fontWeight(.light)
-                        .foregroundColor(DS.Colors.primaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
                     
                     ProgressView(value: coverage.coveragePercentage / 100)
                         .progressViewStyle(LinearProgressViewStyle(tint: coverageColor))
@@ -480,10 +485,10 @@ struct UnifiedIdeaListItem: View {
                     Text("0%")
                         .font(DS.Typography.caption)
                         .fontWeight(.light)
-                        .foregroundColor(DS.Colors.tertiaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.6))
                     
                     ProgressView(value: 0)
-                        .progressViewStyle(LinearProgressViewStyle(tint: DS.Colors.gray300))
+                        .progressViewStyle(LinearProgressViewStyle(tint: themeManager.currentTokens(for: colorScheme).divider))
                         .frame(width: 60, height: 3)
                 }
             }
@@ -495,12 +500,12 @@ struct UnifiedIdeaListItem: View {
                 Text(importanceLevel.rawValue)
                     .font(DS.Typography.caption)
                     .fontWeight(.light)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                 
                 HStack(spacing: 2) {
                     ForEach(0..<3, id: \.self) { index in
                         Rectangle()
-                            .fill(index < importanceLevel.barCount ? DS.Colors.primaryText : DS.Colors.gray300)
+                            .fill(index < importanceLevel.barCount ? themeManager.currentTokens(for: colorScheme).primary : themeManager.currentTokens(for: colorScheme).divider)
                             .frame(width: 3, height: index == 0 ? 6 : index == 1 ? 10 : 14)
                     }
                 }
@@ -513,7 +518,7 @@ struct UnifiedIdeaListItem: View {
         .overlay(
             Rectangle()
                 .frame(height: DS.BorderWidth.thin)
-                .foregroundColor(DS.Colors.subtleBorder),
+                .foregroundColor(themeManager.currentTokens(for: colorScheme).divider),
             alignment: .bottom
         )
         .onAppear {
@@ -522,20 +527,9 @@ struct UnifiedIdeaListItem: View {
     }
     
     private var coverageColor: Color {
-        guard let coverage = ideaCoverage else { return DS.Colors.gray300 }
-        
-        switch coverage.coveragePercentage {
-        case 0..<30:
-            return DS.Colors.gray400
-        case 30..<70:
-            return DS.Colors.gray600
-        case 70..<100:
-            return DS.Colors.gray800
-        case 100:
-            return DS.Colors.black
-        default:
-            return DS.Colors.gray300
-        }
+        // Use the book's extracted palette consistently
+        let tokens = themeManager.currentTokens(for: colorScheme)
+        return tokens.primary
     }
     
     private func loadCoverageData() {
