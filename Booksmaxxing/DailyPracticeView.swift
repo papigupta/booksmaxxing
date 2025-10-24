@@ -45,6 +45,7 @@ struct DailyPracticeView: View {
     @State private var todayPauses: Int = 0
     @State private var todayAttentionPercent: Int = 0
     @State private var hasPrefetchedExplanations = false
+    @State private var showingOverflow: Bool = false
     
     enum PracticeFlowState {
         case none
@@ -91,15 +92,30 @@ struct DailyPracticeView: View {
                     practiceReadyView(test)
                 }
             }
-            .navigationTitle("Practice Session")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+                    Button(action: { dismiss() }) {
+                        DSIcon("book.closed.fill", size: 14)
                     }
-                    .foregroundColor(theme.onSurface)
+                    .dsPaletteSecondaryIconButton(diameter: 38)
+                    .accessibilityLabel("Back to Book")
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showingOverflow = true }) {
+                        DSIcon("ellipsis", size: 14)
+                    }
+                    .dsPaletteSecondaryIconButton(diameter: 38)
+                    .accessibilityLabel("More options")
+                }
+            }
+            .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
+                if ideaForTest.id != "daily_practice" {
+                    Button("Previous Attempts") { showingAttempts = true }
+                }
+                Button("Brush Up with Primer") { showingPrimer = true }
+                Button("Generate New Questions") { Task { await refreshPractice() } }
+                Button("Cancel", role: .cancel) {}
             }
             .task {
                 await generatePractice()
@@ -172,10 +188,11 @@ struct DailyPracticeView: View {
                     }
                 } else {
                     // Fallback for unexpected states
-                    Color.red
+                    let t = themeManager.currentTokens(for: colorScheme)
+                    t.surfaceVariant
                         .overlay(
                             Text("DEBUG: Unexpected state: \(currentView)")
-                                .foregroundColor(.white)
+                                .foregroundColor(t.onSurface)
                         )
                 }
             }
@@ -218,7 +235,7 @@ struct DailyPracticeView: View {
         return VStack(spacing: DS.Spacing.lg) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundColor(.red)
+                .foregroundColor(theme.secondary)
             
             Text("Unable to Generate Practice Session")
                 .font(DS.Typography.headline)
@@ -235,13 +252,13 @@ struct DailyPracticeView: View {
                     await generatePractice()
                 }
             }
-            .themePrimaryButton()
+            .dsPalettePrimaryButton()
             .padding(.top, DS.Spacing.md)
             
             Button("Go Back") {
                 dismiss()
             }
-            .themeSecondaryButton()
+            .dsPaletteSecondaryButton()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(DS.Spacing.xl)
@@ -287,18 +304,18 @@ struct DailyPracticeView: View {
                 Button("Start Practice") {
                     showingTest = true
                 }
-                .themePrimaryButton()
+                .dsPalettePrimaryButton()
                 
                 Button("Brush Up with Primer") {
                     showingPrimer = true
                 }
-                .themeSecondaryButton()
+                .dsPaletteSecondaryButton()
                 
                 if ideaForTest.id != "daily_practice" {
                     Button("Previous Attempts") {
                         showingAttempts = true
                     }
-                    .themeSecondaryButton()
+                    .dsPaletteSecondaryButton()
                 }
                 
                 Button("Generate New Questions") {
@@ -306,12 +323,12 @@ struct DailyPracticeView: View {
                         await refreshPractice()
                     }
                 }
-                .themeSecondaryButton()
+                .dsPaletteSecondaryButton()
                 
                 Button("Cancel") {
                     dismiss()
                 }
-                .themeSecondaryButton()
+                .dsPaletteSecondaryButton()
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.bottom, DS.Spacing.xl)
@@ -356,7 +373,7 @@ struct DailyPracticeView: View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             Text("Question Mix")
                 .font(DS.Typography.captionBold)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
             
             // Group questions by idea
             let questionsByIdea = Dictionary(grouping: (test.questions ?? [])) { $0.ideaId }
@@ -369,21 +386,21 @@ struct DailyPracticeView: View {
                         
                         Text(ideaTitle)
                             .font(DS.Typography.caption)
-                            .foregroundColor(DS.Colors.black)
+                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
                             .lineLimit(1)
                         
                         Spacer()
                         
                         Text("\(questions.count) questions")
                             .font(DS.Typography.caption)
-                            .foregroundColor(DS.Colors.secondaryText)
+                            .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                     }
                     .padding(.vertical, DS.Spacing.xxs)
                 }
             }
         }
         .padding(DS.Spacing.md)
-        .background(DS.Colors.tertiaryBackground)
+        .background(themeManager.currentTokens(for: colorScheme).surfaceVariant)
         .cornerRadius(4)
     }
 

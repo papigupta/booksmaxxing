@@ -28,6 +28,7 @@ struct DailyPracticeHomepage: View {
     // Loading guards
     @State private var didInitialLoad: Bool = false
     @State private var isLoading: Bool = false
+    @State private var showingOverflow: Bool = false
     
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
@@ -74,6 +75,39 @@ struct DailyPracticeHomepage: View {
             .id(refreshID)
             .navigationBarHidden(true)
             .background(theme.background)
+            .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
+                if hasReviewItems {
+                    Button(action: {
+                        let reviewLesson = GeneratedLesson(
+                            lessonNumber: -1,
+                            title: "Review Practice",
+                            primaryIdeaId: "",
+                            primaryIdeaTitle: "Mixed Review",
+                            reviewIdeaIds: [],
+                            mistakeCorrections: [],
+                            questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
+                            estimatedMinutes: 10,
+                            isUnlocked: true,
+                            isCompleted: false
+                        )
+                        selectedLesson = reviewLesson
+                    }) { Text("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")") }
+                }
+                if DebugFlags.enableDevControls {
+                    Button("Force Curveball Due") {
+                        let bookId = book.id.uuidString
+                        curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                        refreshView()
+                    }
+                    Button("Force Spaced Follow‑up Due") {
+                        let bookId = book.id.uuidString
+                        let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                        spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
+                        refreshView()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
             .task {
                 isLoading = true
                 await loadPracticeData()
@@ -146,70 +180,24 @@ struct DailyPracticeHomepage: View {
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             // Top row: back button • streak • debug menu
             HStack {
-                // Back to Book Button
+                // Back to Book (icon-only, palette secondary)
                 Button(action: { dismiss() }) {
-                    HStack(spacing: DS.Spacing.xs) {
-                        DSIcon("book.fill", size: 16)
-                        Text("Back to Book")
-                            .font(DS.Typography.caption)
-                    }
+                    DSIcon("book.closed.fill", size: 14)
                 }
-                .padding(.horizontal, DS.Spacing.md)
-                .padding(.vertical, DS.Spacing.sm)
-                .background(theme.surfaceVariant)
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.outline, lineWidth: DS.BorderWidth.thin))
-                .cornerRadius(8)
+                .dsPaletteSecondaryIconButton(diameter: 38)
+                .accessibilityLabel("Back to Book")
 
                 Spacer()
 
                 // Streak indicator on homepage
                 StreakIndicatorView()
 
-                // Tiny overflow menu for debug/review shortcuts
-                Menu {
-                    if hasReviewItems {
-                        Button(action: {
-                            let reviewLesson = GeneratedLesson(
-                                lessonNumber: -1,
-                                title: "Review Practice",
-                                primaryIdeaId: "",
-                                primaryIdeaTitle: "Mixed Review",
-                                reviewIdeaIds: [],
-                                mistakeCorrections: [],
-                                questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
-                                estimatedMinutes: 10,
-                                isUnlocked: true,
-                                isCompleted: false
-                            )
-                            selectedLesson = reviewLesson
-                        }) {
-                            Label("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")", systemImage: "clock.arrow.circlepath")
-                        }
-                    }
-                    if DebugFlags.enableDevControls {
-                        Button(action: {
-                            let bookId = book.id.uuidString
-                            curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
-                            refreshView()
-                        }) {
-                            Label("Force Curveball Due", systemImage: "bolt.fill")
-                        }
-                        Button(action: {
-                            let bookId = book.id.uuidString
-                            let spacedService = SpacedFollowUpService(modelContext: modelContext)
-                            spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
-                            refreshView()
-                        }) {
-                            Label("Force Spaced Follow‑up Due", systemImage: "bolt.circle")
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(theme.onSurface)
-                        .padding(.leading, DS.Spacing.sm)
+                // Overflow actions trigger (palette secondary icon button)
+                Button(action: { showingOverflow = true }) {
+                    DSIcon("ellipsis", size: 14)
                 }
-                .contentShape(Rectangle())
+                .dsPaletteSecondaryIconButton(diameter: 38)
+                .accessibilityLabel("More options")
             }
             .padding(.bottom, DS.Spacing.sm)
             

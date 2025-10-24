@@ -86,14 +86,14 @@ struct DailyPracticeWithReviewView: View {
                     practiceReadyView
                 }
             }
-            .navigationTitle("Daily Practice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
+                    Button(action: { dismiss() }) {
+                        DSIcon("book.closed.fill", size: 14)
                     }
-                    .foregroundColor(theme.onSurface)
+                    .dsPaletteSecondaryIconButton(diameter: 38)
+                    .accessibilityLabel("Back to Book")
                 }
             }
             .task {
@@ -151,7 +151,7 @@ struct DailyPracticeWithReviewView: View {
                 }
             }
         }
-        .background(theme.surface.ignoresSafeArea())
+        .background(themeManager.currentTokens(for: colorScheme).surface.ignoresSafeArea())
     }
     
     // MARK: - Views
@@ -184,18 +184,19 @@ struct DailyPracticeWithReviewView: View {
     }
     
     private func errorView(_ error: String) -> some View {
-        VStack(spacing: DS.Spacing.lg) {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(spacing: DS.Spacing.lg) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 48))
-                .foregroundColor(.red)
+                .foregroundColor(theme.secondary)
             
             Text("Unable to Generate Practice")
                 .font(DS.Typography.headline)
-                .foregroundColor(DS.Colors.black)
+                .foregroundColor(theme.onSurface)
             
             Text(error)
                 .font(DS.Typography.body)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(theme.onSurface.opacity(0.7))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, DS.Spacing.xl)
             
@@ -204,13 +205,13 @@ struct DailyPracticeWithReviewView: View {
                     await generateDailyPractice()
                 }
             }
-            .themePrimaryButton()
+            .dsPalettePrimaryButton()
             .padding(.top, DS.Spacing.md)
             
             Button("Go Back") {
                 dismiss()
             }
-            .themeSecondaryButton()
+            .dsPaletteSecondaryButton()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(DS.Spacing.xl)
@@ -236,7 +237,7 @@ struct DailyPracticeWithReviewView: View {
             Button("Go Back") {
                 dismiss()
             }
-            .themePrimaryButton()
+            .dsPalettePrimaryButton()
             .padding(.top, DS.Spacing.md)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -282,7 +283,7 @@ struct DailyPracticeWithReviewView: View {
                             Spacer()
                             Text("\(count) question\(count == 1 ? "" : "s")")
                                 .font(DS.Typography.caption)
-                                .foregroundColor(DS.Colors.secondaryText)
+                                .foregroundColor(theme.onSurface.opacity(0.7))
                         }
                     }
                 }
@@ -300,26 +301,26 @@ struct DailyPracticeWithReviewView: View {
                 Button("Start Practice") {
                     showingTest = true
                 }
-                .themePrimaryButton()
+                .dsPalettePrimaryButton()
                 
                 if currentIdea != nil {
                     Button("Review Primer First") {
                         showingPrimer = true
                     }
-                    .themeSecondaryButton()
+                    .dsPaletteSecondaryButton()
                 }
                 
                 if let idea = currentIdea, idea.id != "review_session" {
                     Button("Previous Attempts") {
                         showingAttempts = true
                     }
-                    .themeSecondaryButton()
+                    .dsPaletteSecondaryButton()
                 }
                 
                 Button("Cancel") {
                     dismiss()
                 }
-                .themeSecondaryButton()
+                .dsPaletteSecondaryButton()
             }
             .padding(.horizontal, DS.Spacing.lg)
             .padding(.bottom, DS.Spacing.xl)
@@ -337,7 +338,7 @@ struct DailyPracticeWithReviewView: View {
             
             Text(subtitle)
                 .font(DS.Typography.caption)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
             
             HStack(spacing: DS.Spacing.md) {
                 let mcqCount = questions.filter { $0.type == .mcq }.count
@@ -346,13 +347,13 @@ struct DailyPracticeWithReviewView: View {
                 if mcqCount > 0 {
                     Label("\(mcqCount) MCQ", systemImage: "list.bullet")
                         .font(DS.Typography.caption)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                 }
                 
                 if openEndedCount > 0 {
                     Label("\(openEndedCount) Open", systemImage: "text.alignleft")
                         .font(DS.Typography.caption)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                 }
             }
         }
@@ -363,37 +364,38 @@ struct DailyPracticeWithReviewView: View {
     }
     
     private var statsView: some View {
-        HStack(spacing: DS.Spacing.xl) {
+        let t = themeManager.currentTokens(for: colorScheme)
+        return HStack(spacing: DS.Spacing.xl) {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Total Questions")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(t.onSurface.opacity(0.7))
                 Text("\(freshQuestions.count + reviewQuestions.count)")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(t.onSurface)
             }
             
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Est. Time")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(t.onSurface.opacity(0.7))
                 Text("~\((freshQuestions.count + reviewQuestions.count) * 1) min")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(t.onSurface)
             }
             
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Queue Remaining")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(t.onSurface.opacity(0.7))
                 let queueStats = reviewQueueManager.getQueueStatistics(bookId: book.id.uuidString)
                 Text("\(queueStats.totalMCQs + queueStats.totalOpenEnded)")
                     .font(DS.Typography.headline)
-                    .foregroundColor(DS.Colors.black)
+                    .foregroundColor(t.onSurface)
             }
         }
         .padding(DS.Spacing.md)
-        .background(DS.Colors.secondaryBackground)
+        .background(t.surfaceVariant)
         .cornerRadius(8)
     }
     
@@ -766,9 +768,12 @@ private struct ReviewTestResultsView: View {
     let onContinue: () -> Void
     
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         NavigationStack {
+            let t = themeManager.currentTokens(for: colorScheme)
             VStack(spacing: DS.Spacing.lg) {
                 // Score summary
                 VStack(spacing: DS.Spacing.md) {
@@ -779,15 +784,15 @@ private struct ReviewTestResultsView: View {
                     
                     Text("Practice Complete!")
                         .font(DS.Typography.largeTitle)
-                        .foregroundColor(DS.Colors.black)
+                        .foregroundColor(t.onSurface)
                     
                     Text("\(correctCount) of \(totalQuestions) Correct")
                         .font(DS.Typography.headline)
-                        .foregroundColor(DS.Colors.black)
+                        .foregroundColor(t.onSurface)
                     
                     Text("\(percentage)% Accuracy")
                         .font(DS.Typography.body)
-                        .foregroundColor(DS.Colors.secondaryText)
+                        .foregroundColor(t.onSurface.opacity(0.7))
                 }
                 
                 // Mistake summary
@@ -801,7 +806,7 @@ private struct ReviewTestResultsView: View {
                 Button("Continue") {
                     onContinue()
                 }
-                .dsPrimaryButton()
+                .dsPalettePrimaryButton()
                 .padding(.horizontal, DS.Spacing.lg)
                 .padding(.bottom, DS.Spacing.xl)
             }
@@ -837,23 +842,25 @@ private struct ReviewTestResultsView: View {
     }
     
     private var scoreColor: Color {
+        let t = themeManager.currentTokens(for: colorScheme)
         switch percentage {
-        case 90...100: return .yellow
-        case 70..<90: return .green
-        case 50..<70: return DS.Colors.black
-        default: return .orange
+        case 90...100: return t.secondary
+        case 70..<90: return t.primary
+        case 50..<70: return t.onSurface
+        default: return t.tertiary
         }
     }
     
     private var mistakeSummary: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            let t = themeManager.currentTokens(for: colorScheme)
             Text("Mistakes Added to Review Queue")
                 .font(DS.Typography.bodyBold)
-                .foregroundColor(DS.Colors.black)
+                .foregroundColor(t.onSurface)
             
             Text("\(incorrectCount) question\(incorrectCount == 1 ? "" : "s") will appear in future review sessions")
                 .font(DS.Typography.caption)
-                .foregroundColor(DS.Colors.secondaryText)
+                .foregroundColor(t.onSurface.opacity(0.7))
             
             // Show current queue status
             let queueManager = ReviewQueueManager(modelContext: modelContext)
@@ -861,14 +868,14 @@ private struct ReviewTestResultsView: View {
             
             HStack {
                 Image(systemName: "clock.arrow.circlepath")
-                    .foregroundColor(.orange)
+                    .foregroundColor(t.secondary)
                 Text("Total in queue: \(stats.totalMCQs + stats.totalOpenEnded)")
                     .font(DS.Typography.caption)
-                    .foregroundColor(DS.Colors.secondaryText)
+                    .foregroundColor(t.onSurface.opacity(0.7))
             }
         }
         .padding(DS.Spacing.lg)
-        .background(Color.orange.opacity(0.1))
+        .background(themeManager.currentTokens(for: colorScheme).secondary.opacity(0.1))
         .cornerRadius(8)
         .padding(.horizontal, DS.Spacing.lg)
     }
