@@ -10,7 +10,7 @@ typealias PlatformImage = NSImage
 
 // Utility to allow conditional clipShape
 struct AnyShape: Shape {
-    private let pathBuilder: (CGRect) -> Path
+    private let pathBuilder: @Sendable (CGRect) -> Path
     init<S: Shape>(_ wrapped: S) { self.pathBuilder = { rect in wrapped.path(in: rect) } }
     func path(in rect: CGRect) -> Path { pathBuilder(rect) }
 }

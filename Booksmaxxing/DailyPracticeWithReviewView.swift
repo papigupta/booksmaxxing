@@ -73,7 +73,6 @@ struct DailyPracticeWithReviewView: View {
     }
     
     var body: some View {
-        let theme = themeManager.currentTokens(for: colorScheme)
         return NavigationStack {
             VStack {
                 if isGenerating {

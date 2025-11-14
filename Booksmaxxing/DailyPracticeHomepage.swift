@@ -13,7 +13,6 @@ struct DailyPracticeHomepage: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
     
-    @State private var practiceStats: PracticeStats?
     @State private var currentLessonNumber: Int = 0
     @State private var selectedLesson: GeneratedLesson? = nil
     @State private var refreshID = UUID()
@@ -58,14 +57,6 @@ struct DailyPracticeHomepage: View {
         return NavigationStack {
             ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: DS.Spacing.lg) {
-                    // Header
-                    headerSection
-                    
-                    // Practice Stats Overview
-                    if let stats = practiceStats {
-                        statsSection(stats)
-                    }
-                    
                     // Practice Path
                     practicePathSection
                 }
@@ -75,6 +66,12 @@ struct DailyPracticeHomepage: View {
             .id(refreshID)
             .navigationBarHidden(true)
             .background(theme.background)
+            .safeAreaInset(edge: .top) {
+                headerSection
+                    .padding(.horizontal, DS.Spacing.xxl)
+                    .padding(.top, DS.Spacing.sm)
+                    .background(theme.background)
+            }
             .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
                 if hasReviewItems {
                     Button(action: {
@@ -217,51 +214,10 @@ struct DailyPracticeHomepage: View {
         .background(tokens.surface)
     }
     
-    // MARK: - Stats Section
-    private func statsSection(_ stats: PracticeStats) -> some View {
-        let theme = themeManager.currentTokens(for: colorScheme)
-        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Your Progress")
-                .font(DS.Typography.headline)
-                .foregroundColor(theme.onSurface)
-            
-            HStack(spacing: DS.Spacing.md) {
-                StatCard(
-                    icon: "brain.head.profile",
-                    title: "New Ideas",
-                    value: "\(stats.newIdeasCount)",
-                    subtitle: "Ready to learn"
-                )
-                
-                StatCard(
-                    icon: "arrow.clockwise",
-                    title: "Review",
-                    value: "\(stats.reviewDueCount)",
-                    subtitle: "Due today"
-                )
-                
-                StatCard(
-                    icon: "star.fill",
-                    title: "Mastered",
-                    value: "\(stats.masteredCount)",
-                    subtitle: "Concepts"
-                )
-            }
-        }
-        .padding(DS.Spacing.md)
-        .background(theme.surfaceVariant)
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.outline, lineWidth: DS.BorderWidth.thin))
-        .cornerRadius(8)
-    }
-    
     // MARK: - Practice Path Section
     private var practicePathSection: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
         return VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            Text("Your Learning Path")
-                .font(DS.Typography.headline)
-                .foregroundColor(theme.onSurface)
-            
             if practiceMilestones.isEmpty {
                 HStack(spacing: DS.Spacing.sm) {
                     ProgressView()
@@ -273,94 +229,96 @@ struct DailyPracticeHomepage: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(spacing: DS.Spacing.lg) {
+                        LazyVStack(alignment: .leading, spacing: DS.Spacing.lg) {
                             ForEach(Array(practiceMilestones.enumerated()), id: \.element.id) { index, milestone in
-                            VStack(spacing: DS.Spacing.sm) {
-                                MilestoneNode(
-                                    milestone: milestone,
-                                    lesson: nil, // No longer pre-generating lessons
-                                    onTap: {
-                                        print("DEBUG: Tapped on lesson \(milestone.id), isCurrent: \(milestone.isCurrent), isCompleted: \(milestone.isCompleted)")
-                                        
-                                        let totalIdeas = (book.ideas ?? []).count
-                                        if milestone.id > totalIdeas {
-                                            // Review-only lesson: create a placeholder GeneratedLesson and present review view
-                                            print("DEBUG: Starting review-only session for lesson \(milestone.id)")
-                                            // Ensure a StoredLesson exists so we can mark completion
-                                            let _ = lessonStorage.getOrCreateReviewLesson(bookId: book.id.uuidString, lessonNumber: milestone.id, book: book)
-                                            let tempLesson = GeneratedLesson(
-                                                lessonNumber: milestone.id,
-                                                title: "Review Practice",
-                                                primaryIdeaId: "review_session",
-                                                primaryIdeaTitle: "Review Practice",
-                                                reviewIdeaIds: [],
-                                                mistakeCorrections: [],
-                                                questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 8, correctionQuestions: 0),
-                                                estimatedMinutes: 12,
-                                                isUnlocked: true,
-                                                isCompleted: false
-                                            )
-                                            selectedLesson = tempLesson
-                                        } else {
-                                            // Normal idea lesson
-                                            let bookId = book.id.uuidString
-                                            guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
-                                                print("ERROR: Could not get lesson info for lesson \(milestone.id)")
-                                                return
-                                            }
-                                            if lessonInfo.isUnlocked {
-                                                print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
-                                                let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
-                                                let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
-                                                let primaryIdeaId = sortedIdeas[milestone.id - 1].id
-                                                let tempLesson = GeneratedLesson(
-                                                    lessonNumber: milestone.id,
-                                                    title: "Lesson \(milestone.id): \(lessonInfo.title)",
-                                                    primaryIdeaId: primaryIdeaId,
-                                                    primaryIdeaTitle: lessonInfo.title,
-                                                    reviewIdeaIds: [],
-                                                    mistakeCorrections: emptyMistakeCorrections,
-                                                    questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
-                                                    estimatedMinutes: 10,
-                                                    isUnlocked: true,
-                                                    isCompleted: lessonInfo.isCompleted
-                                                )
-                                                selectedLesson = tempLesson
-                                            } else {
-                                                print("DEBUG: Lesson \(milestone.id) is not unlocked")
-                                            }
+                                VStack(spacing: DS.Spacing.sm) {
+                                    MilestoneNode(
+                                        milestone: milestone,
+                                        lesson: nil, // No longer pre-generating lessons
+                                        onTap: {
+                                            handleMilestoneTap(milestone: milestone)
                                         }
+                                    )
+                                    .id(milestone.id)
+
+                                    // Connection line (except for last item)
+                                    if index < practiceMilestones.count - 1 {
+                                        Rectangle()
+                                            .fill(milestone.isCompleted ? DS.Colors.black : DS.Colors.gray300)
+                                            .frame(width: 2, height: 30)
                                     }
-                                )
-                                .id(milestone.id)
-                                
-                                // Connection line (except for last item)
-                                if index < practiceMilestones.count - 1 {
-                                    Rectangle()
-                                        .fill(milestone.isCompleted ? DS.Colors.black : DS.Colors.gray300)
-                                        .frame(width: 2, height: 30)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
+                        .padding(.vertical, DS.Spacing.md)
                     }
-                    .padding(.vertical, DS.Spacing.md)
                     .onChange(of: practiceMilestones) { _, _ in
                         // Recenter when milestones update (e.g., after completing a review-only session)
                         scrollToCurrentLesson(proxy: proxy)
                     }
-                }
-                .frame(maxHeight: 400)
-                .onAppear {
-                    // Scroll to current lesson (Today's Focus)
-                    scrollToCurrentLesson(proxy: proxy)
+                    .onAppear {
+                        // Scroll to current lesson (Today's Focus)
+                        scrollToCurrentLesson(proxy: proxy)
+                    }
                 }
             }
         }
-            }
     }
     
-    
     // MARK: - Helper Methods
+    private func handleMilestoneTap(milestone: PracticeMilestone) {
+        print("DEBUG: Tapped on lesson \(milestone.id), isCurrent: \(milestone.isCurrent), isCompleted: \(milestone.isCompleted)")
+        let totalIdeas = (book.ideas ?? []).count
+        if milestone.id > totalIdeas {
+            // Review-only lesson: create a placeholder GeneratedLesson and present review view
+            print("DEBUG: Starting review-only session for lesson \(milestone.id)")
+            // Ensure a StoredLesson exists so we can mark completion
+            let _ = lessonStorage.getOrCreateReviewLesson(bookId: book.id.uuidString, lessonNumber: milestone.id, book: book)
+            let tempLesson = GeneratedLesson(
+                lessonNumber: milestone.id,
+                title: "Review Practice",
+                primaryIdeaId: "review_session",
+                primaryIdeaTitle: "Review Practice",
+                reviewIdeaIds: [],
+                mistakeCorrections: [],
+                questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 8, correctionQuestions: 0),
+                estimatedMinutes: 12,
+                isUnlocked: true,
+                isCompleted: false
+            )
+            selectedLesson = tempLesson
+        } else {
+            // Normal idea lesson
+            let bookId = book.id.uuidString
+            guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
+                print("ERROR: Could not get lesson info for lesson \(milestone.id)")
+                return
+            }
+            if lessonInfo.isUnlocked {
+                print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
+                let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
+                let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
+                let primaryIdeaId = sortedIdeas[milestone.id - 1].id
+                let tempLesson = GeneratedLesson(
+                    lessonNumber: milestone.id,
+                    title: "Lesson \(milestone.id): \(lessonInfo.title)",
+                    primaryIdeaId: primaryIdeaId,
+                    primaryIdeaTitle: lessonInfo.title,
+                    reviewIdeaIds: [],
+                    mistakeCorrections: emptyMistakeCorrections,
+                    questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
+                    estimatedMinutes: 10,
+                    isUnlocked: true,
+                    isCompleted: lessonInfo.isCompleted
+                )
+                selectedLesson = tempLesson
+            } else {
+                print("DEBUG: Lesson \(milestone.id) is not unlocked")
+            }
+        }
+    }
+    
     private func scrollToCurrentLesson(proxy: ScrollViewProxy) {
         if let currentMilestone = practiceMilestones.first(where: { $0.isCurrent }) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -525,12 +483,6 @@ struct DailyPracticeHomepage: View {
             self.practiceMilestones = milestones
             print("DEBUG: practiceMilestones.count after setting: \(self.practiceMilestones.count)")
             
-            self.practiceStats = PracticeStats(
-                newIdeasCount: newIdeasCount,
-                reviewDueCount: reviewDueCount,
-                masteredCount: masteredCount
-            )
-            
             // Update review queue state
             self.reviewQueueCount = totalReviewItems
             self.hasReviewItems = totalReviewItems > 0
@@ -589,42 +541,6 @@ struct DailyPracticeHomepage: View {
 }
 
 // MARK: - Supporting Views
-private struct StatCard: View {
-    let icon: String
-    let title: String
-    let value: String
-    let subtitle: String
-    
-    @EnvironmentObject var themeManager: ThemeManager
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        let theme = themeManager.currentTokens(for: colorScheme)
-        return VStack(spacing: DS.Spacing.xs) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(theme.primary)
-            
-            Text(value)
-                .font(DS.Typography.headline)
-                .foregroundColor(theme.onSurface)
-            
-            Text(title)
-                .font(DS.Typography.caption)
-                .foregroundColor(theme.onSurface.opacity(0.7))
-            
-            Text(subtitle)
-                .font(DS.Typography.small)
-                .foregroundColor(theme.onSurface.opacity(0.6))
-        }
-        .frame(maxWidth: .infinity)
-        .padding(DS.Spacing.sm)
-        .background(theme.surfaceVariant)
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(theme.outline, lineWidth: DS.BorderWidth.hairline))
-        .cornerRadius(6)
-    }
-}
-
 private struct MilestoneNode: View {
     let milestone: PracticeMilestone
     let lesson: GeneratedLesson?
@@ -698,6 +614,7 @@ private struct MilestoneNode: View {
                     .stroke(milestone.isCurrent ? theme.outline : Color.clear, lineWidth: 1)
             )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .buttonStyle(PlainButtonStyle())
         .disabled(!milestone.isCompleted && !milestone.isCurrent)
     }
@@ -724,12 +641,6 @@ private struct MilestoneNode: View {
 }
 
 // MARK: - Data Models
-struct PracticeStats {
-    let newIdeasCount: Int
-    let reviewDueCount: Int
-    let masteredCount: Int
-}
-
 struct PracticeMilestone: Equatable {
     let id: Int
     let title: String

@@ -105,12 +105,9 @@ private struct SecondaryStyledContent: View {
     private let pressInAnimation: Animation = .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.2)
     private let pressOutAnimation: Animation = .interactiveSpring(response: 0.32, dampingFraction: 0.68, blendDuration: 0.12)
     private let bounceReleaseDelay: Double = 0.1
-    private let defaultMinHeight: CGFloat = 36 // unified control height
-
     var body: some View { content }
 
     private var content: some View {
-        let minHeight: CGFloat = height
         let cornerRadius = height / 2
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 

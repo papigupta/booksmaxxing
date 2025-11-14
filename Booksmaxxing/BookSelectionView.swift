@@ -955,7 +955,6 @@ private struct BookStatsView: View {
         let accuracyRounded = Int(accuracyPercent.rounded())
 
         // Mastered ideas
-        let ideaCount = book.ideas?.count ?? 0
         let masteredIdeas = book.ideas?.filter { $0.masteryLevel >= 3 }.count ?? 0
 
         // Aggregate Brain Calories and distractions from attempts tied to this book
