@@ -177,7 +177,6 @@ struct DailyPracticeHomepage: View {
     // MARK: - Header Section
     private var headerSection: some View {
         let tokens = themeManager.currentTokens(for: colorScheme)
-        let totalIdeas = (book.ideas ?? []).count
         return VStack(alignment: .leading, spacing: 0) {
             // Top row: back button • streak • overflow
             HStack {
@@ -203,123 +202,19 @@ struct DailyPracticeHomepage: View {
             .padding(.horizontal, DS.Spacing.xxs)
             .padding(.bottom, DS.Spacing.md)
 
-            // Book cover, title, author, description (match BookOverviewView)
-            HStack(alignment: .top, spacing: DS.Spacing.md) {
-                // Book Cover
-                if book.coverImageUrl != nil || book.thumbnailUrl != nil {
-                    BookCoverView(
-                        thumbnailUrl: book.thumbnailUrl,
-                        coverUrl: book.coverImageUrl,
-                        isLargeView: false
-                    )
-                    .frame(width: 80, height: 120)
-                    .cornerRadius(8)
-                    .shadow(radius: 4)
-                }
-
-                // Book title and author
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    Text(book.title)
-                        .font(DS.Typography.title2)
-                        .tracking(DS.Typography.tightTracking(for: 20))
-                        .foregroundColor(
-                            themeManager.activeRoles.color(role: .primary, tone: 30)
-                            ?? tokens.onSurface
-                        )
-                        .lineLimit(2)
-
-                    if let author = book.author {
-                        Text("by \(author)")
-                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
-                            .tracking(DS.Typography.tightTracking(for: 14))
-                            .padding(.top, 4)
-                            .lineLimit(1)
-                            .foregroundColor(
-                                themeManager.activeRoles.color(role: .primary, tone: 40)
-                                ?? tokens.onSurface
-                            )
-                    } else {
-                        Text("Author not specified")
-                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
-                            .tracking(DS.Typography.tightTracking(for: 14))
-                            .padding(.top, 4)
-                            .lineLimit(1)
-                            .foregroundColor(
-                                themeManager.activeRoles.color(role: .primary, tone: 40)
-                                ?? tokens.onSurface
-                            )
-                    }
-
-                    // Book description (match BookOverviewView text properties)
-                    if let description = book.bookDescription, !description.isEmpty {
-                        Text(description)
-                            .font(DS.Typography.fraunces(size: 12, weight: .regular))
-                            .tracking(DS.Typography.tightTracking(for: 12))
-                            .foregroundColor(
-                                themeManager.activeRoles.color(role: .primary, tone: 40)
-                                ?? tokens.onSurface
-                            )
-                            .lineLimit(4)
-                            .padding(.top, DS.Spacing.xs)
-                    }
-
-                    // Show rating if available
-                    if let rating = book.averageRating,
-                       let ratingsCount = book.ratingsCount {
-                        HStack(spacing: DS.Spacing.xxs) {
-                            let t = tokens
-                            ForEach(0..<5) { index in
-                                Image(systemName: index < Int(rating) ? "star.fill" : "star")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(t.secondary)
-                            }
-                            Text("(\(ratingsCount))")
-                                .font(DS.Typography.caption)
-                                .foregroundColor(t.onSurface.opacity(0.6))
-                        }
-                        .padding(.top, DS.Spacing.xxs)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.bottom, DS.Spacing.sm)
-
-            // Book Coverage Display (full-width)
-            if totalIdeas > 0 {
-                bookCoverageView
-            }
+            Text(book.title)
+                .font(DS.Typography.title2)
+                .tracking(DS.Typography.tightTracking(for: 20))
+                .foregroundColor(
+                    themeManager.activeRoles.color(role: .primary, tone: 30)
+                    ?? tokens.onSurface
+                )
+                .lineLimit(3)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, DS.Spacing.sm)
         }
         .background(tokens.surface)
-    }
-
-    // MARK: - Book Coverage View (match BookOverviewView)
-    @ViewBuilder
-    private var bookCoverageView: some View {
-        let bookId = book.id.uuidString
-        let totalIdeas = (book.ideas ?? []).count
-        let coverageService = CoverageService(modelContext: modelContext)
-        let bookCoverage = coverageService.calculateBookCoverage(bookId: bookId, totalIdeas: totalIdeas)
-
-        VStack(spacing: DS.Spacing.xs) {
-            HStack {
-                Text("Book Coverage")
-                    .font(DS.Typography.caption)
-                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
-                Spacer()
-                Text("\(Int(bookCoverage))%")
-                    .font(DS.Typography.bodyBold)
-                    .foregroundColor(themeManager.currentTokens(for: colorScheme).onSurface)
-            }
-
-            ProgressView(value: bookCoverage / 100)
-                .progressViewStyle(LinearProgressViewStyle(tint: themeManager.currentTokens(for: colorScheme).primary))
-                .frame(height: 6)
-        }
-        .padding(.horizontal, DS.Spacing.sm)
-        .padding(.vertical, DS.Spacing.sm)
-        .background(themeManager.currentTokens(for: colorScheme).surfaceVariant)
-        .cornerRadius(8)
-        .padding(.bottom, DS.Spacing.sm)
     }
     
     // MARK: - Stats Section
