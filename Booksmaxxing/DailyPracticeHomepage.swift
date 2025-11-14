@@ -69,7 +69,7 @@ struct DailyPracticeHomepage: View {
                     // Practice Path
                     practicePathSection
                 }
-                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.horizontal, DS.Spacing.xxl)
                 .padding(.top, DS.Spacing.md)
             }
             .id(refreshID)
