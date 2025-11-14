@@ -55,24 +55,25 @@ struct DailyPracticeHomepage: View {
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
         return NavigationStack {
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: DS.Spacing.lg) {
-                    // Practice Path
-                    practicePathSection
-                }
-                .padding(.horizontal, DS.Spacing.xxl)
-                .padding(.top, DS.Spacing.md)
-            }
-            .id(refreshID)
-            .navigationBarHidden(true)
-            .background(theme.background)
-            .safeAreaInset(edge: .top) {
-                headerSection
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: DS.Spacing.lg) {
+                        // Practice Path
+                        practicePathSection
+                    }
                     .padding(.horizontal, DS.Spacing.xxl)
-                    .padding(.top, DS.Spacing.sm)
-                    .background(theme.background)
-            }
-            .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
+                    .padding(.top, DS.Spacing.md)
+                }
+                .id(refreshID)
+                .navigationBarHidden(true)
+                .background(theme.background)
+                .safeAreaInset(edge: .top) {
+                    headerSection
+                        .padding(.horizontal, DS.Spacing.xxl)
+                        .padding(.top, DS.Spacing.sm)
+                        .background(theme.background)
+                }
+                .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
                 if hasReviewItems {
                     Button(action: {
                         let reviewLesson = GeneratedLesson(
@@ -104,34 +105,41 @@ struct DailyPracticeHomepage: View {
                     }
                 }
                 Button("Cancel", role: .cancel) {}
-            }
-            .task {
-                isLoading = true
-                await loadPracticeData()
-                await prefetchCurrentLessonIfNeeded()
-                didInitialLoad = true
-                isLoading = false
-            }
-            .onAppear {
-                Task { await themeManager.activateTheme(for: book) }
-                // Avoid duplicate loads that cause visible flicker
-                if !didInitialLoad {
-                    Task {
-                        isLoading = true
+                }
+                .task {
+                    isLoading = true
+                    await loadPracticeData()
+                    await prefetchCurrentLessonIfNeeded()
+                    didInitialLoad = true
+                    isLoading = false
+                }
+                .onAppear {
+                    scrollToCurrentLesson(proxy: proxy)
+                    Task { await themeManager.activateTheme(for: book) }
+                    // Avoid duplicate loads that cause visible flicker
+                    if !didInitialLoad {
+                        Task {
+                            isLoading = true
                         await loadPracticeData()
                         await prefetchCurrentLessonIfNeeded()
                         didInitialLoad = true
                         isLoading = false
                     }
                 }
-            }
-            .onChange(of: refreshID) { _, newValue in
-                // Force reload when refresh is triggered
-                Task {
-                    await loadPracticeData()
                 }
-            }
-            .fullScreenCover(item: $selectedLesson) { lesson in
+                .onChange(of: refreshID) { _, _ in
+                    // Force reload when refresh is triggered
+                    Task {
+                        await loadPracticeData()
+                    }
+                }
+                .onChange(of: practiceMilestones) { _, _ in
+                    scrollToCurrentLesson(proxy: proxy)
+                }
+                .onChange(of: currentLessonNumber) { _, _ in
+                    scrollToCurrentLesson(proxy: proxy)
+                }
+                .fullScreenCover(item: $selectedLesson) { lesson in
                 // If lesson number exceeds total ideas, treat as review-only session
                 let totalIdeas = (book.ideas ?? []).count
                 if lesson.lessonNumber > totalIdeas {
@@ -166,6 +174,7 @@ struct DailyPracticeHomepage: View {
                         print("DEBUG: ✅✅ Refreshing view after lesson completion")
                     }
                 )
+                }
                 }
             }
         }
@@ -227,41 +236,29 @@ struct DailyPracticeHomepage: View {
                 }
                 .padding()
             } else {
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                            ForEach(Array(practiceMilestones.enumerated()), id: \.element.id) { index, milestone in
-                                VStack(spacing: DS.Spacing.sm) {
-                                    MilestoneNode(
-                                        milestone: milestone,
-                                        lesson: nil, // No longer pre-generating lessons
-                                        onTap: {
-                                            handleMilestoneTap(milestone: milestone)
-                                        }
-                                    )
-                                    .id(milestone.id)
-
-                                    // Connection line (except for last item)
-                                    if index < practiceMilestones.count - 1 {
-                                        Rectangle()
-                                            .fill(milestone.isCompleted ? DS.Colors.black : DS.Colors.gray300)
-                                            .frame(width: 2, height: 30)
-                                    }
+                LazyVStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    ForEach(Array(practiceMilestones.enumerated()), id: \.element.id) { index, milestone in
+                        VStack(spacing: DS.Spacing.sm) {
+                            MilestoneNode(
+                                milestone: milestone,
+                                lesson: nil, // No longer pre-generating lessons
+                                onTap: {
+                                    handleMilestoneTap(milestone: milestone)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            )
+                            .id(milestone.id)
+
+                            // Connection line (except for last item)
+                            if index < practiceMilestones.count - 1 {
+                                Rectangle()
+                                    .fill(milestone.isCompleted ? DS.Colors.black : DS.Colors.gray300)
+                                    .frame(width: 2, height: 30)
                             }
                         }
-                        .padding(.vertical, DS.Spacing.md)
-                    }
-                    .onChange(of: practiceMilestones) { _, _ in
-                        // Recenter when milestones update (e.g., after completing a review-only session)
-                        scrollToCurrentLesson(proxy: proxy)
-                    }
-                    .onAppear {
-                        // Scroll to current lesson (Today's Focus)
-                        scrollToCurrentLesson(proxy: proxy)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                .padding(.vertical, DS.Spacing.md)
             }
         }
     }
@@ -323,7 +320,8 @@ struct DailyPracticeHomepage: View {
         if let currentMilestone = practiceMilestones.first(where: { $0.isCurrent }) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 withAnimation(.easeInOut(duration: 0.5)) {
-                    proxy.scrollTo(currentMilestone.id, anchor: .center)
+                    let anchor: UnitPoint = currentMilestone.id > 3 ? .center : .top
+                    proxy.scrollTo(currentMilestone.id, anchor: anchor)
                 }
             }
         }
