@@ -139,43 +139,56 @@ struct DailyPracticeHomepage: View {
                 .onChange(of: currentLessonNumber) { _, _ in
                     scrollToCurrentLesson(proxy: proxy)
                 }
-                .fullScreenCover(item: $selectedLesson) { lesson in
-                // If lesson number exceeds total ideas, treat as review-only session
-                let totalIdeas = (book.ideas ?? []).count
+        .fullScreenCover(item: $selectedLesson) { lesson in
+            // If lesson number exceeds total ideas, treat as review-only session
+            let totalIdeas = (book.ideas ?? []).count
+            let presentedView: AnyView = {
                 if lesson.lessonNumber > totalIdeas {
                     // Use the new review-enabled practice view
-                    DailyPracticeWithReviewView(
-                        book: book,
-                        openAIService: openAIService,
-                        selectedLesson: lesson,
-                        onPracticeComplete: {
-                            print("DEBUG: ✅✅ Review practice complete")
-                            // Mark this review-only lesson as completed so the next (17, 18, …) can appear
-                            completeLesson(lesson)
-                            selectedLesson = nil
-                            refreshView()
-                        }
+                    return AnyView(
+                        DailyPracticeWithReviewView(
+                            book: book,
+                            openAIService: openAIService,
+                            selectedLesson: lesson,
+                            onPracticeComplete: {
+                                print("DEBUG: ✅✅ Review practice complete")
+                                // Mark this review-only lesson as completed so the next (17, 18, …) can appear
+                                completeLesson(lesson)
+                                selectedLesson = nil
+                                refreshView()
+                            }
+                        )
                     )
                 } else {
                     // Use the regular lesson view
-                    DailyPracticeView(
-                        book: book,
-                        openAIService: openAIService,
-                        practiceType: .quick,
-                        selectedLesson: lesson,
-                        onPracticeComplete: {
-                            print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
-                            // Mark lesson as completed and unlock next lesson
-                        completeLesson(lesson)
-                        // Dismiss after completion
-                        selectedLesson = nil
-                        // Force refresh
-                        refreshID = UUID()
-                        print("DEBUG: ✅✅ Refreshing view after lesson completion")
-                    }
-                )
+                    return AnyView(
+                        DailyPracticeView(
+                            book: book,
+                            openAIService: openAIService,
+                            practiceType: .quick,
+                            selectedLesson: lesson,
+                            onPracticeComplete: {
+                                print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
+                                // Mark lesson as completed and unlock next lesson
+                                completeLesson(lesson)
+                                // Dismiss after completion
+                                selectedLesson = nil
+                                // Force refresh
+                                refreshID = UUID()
+                                print("DEBUG: ✅✅ Refreshing view after lesson completion")
+                            }
+                        )
+                    )
                 }
-                }
+            }()
+            
+            if #available(iOS 17.0, *) {
+                presentedView
+                    .presentationBackground(theme.background)
+            } else {
+                presentedView
+            }
+        }
             }
         }
     }

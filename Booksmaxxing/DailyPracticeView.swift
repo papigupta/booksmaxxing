@@ -82,101 +82,82 @@ struct DailyPracticeView: View {
     
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
-        NavigationStack {
-            VStack {
-                if isGenerating {
-                    generatingView
-                } else if let error = errorMessage {
-                    errorView(error)
-                } else if let test = generatedTest {
-                    practiceReadyView(test)
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { dismiss() }) {
-                        DSIcon("book.closed.fill", size: 14)
-                    }
-                    .dsPaletteSecondaryIconButton(diameter: 38)
-                    .accessibilityLabel("Back to Book")
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingOverflow = true }) {
-                        DSIcon("ellipsis", size: 14)
-                    }
-                    .dsPaletteSecondaryIconButton(diameter: 38)
-                    .accessibilityLabel("More options")
-                }
-            }
-            .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
-                if ideaForTest.id != "daily_practice" {
-                    Button("Previous Attempts") { showingAttempts = true }
-                }
-                Button("Brush Up with Primer") { showingPrimer = true }
-                Button("Generate New Questions") { Task { await refreshPractice() } }
-                Button("Cancel", role: .cancel) {}
-            }
-            .task {
-                await generatePractice()
-            }
-            .fullScreenCover(isPresented: $showingTest) {
-                if let test = generatedTest {
-                    TestView(
-                        idea: ideaForTest,
-                        test: test,
-                        openAIService: openAIService,
-                        onCompletion: handleTestCompletion,
-                        onSubmitted: { _ in },
-                        onExit: { showingTest = false }
-                    )
-                }
-            }
-            .sheet(isPresented: $showingPrimer) {
-                PrimerView(idea: ideaForTest, openAIService: openAIService)
-                    .presentationDetents([.medium, .large])
-            }
-            .fullScreenCover(isPresented: .constant(currentView != .none)) {
-                if currentView == .streak {
-                    StreakView(onContinue: {
-                        print("DEBUG: ✅ Streak onContinue tapped")
-                        withAnimation { currentView = .bcal }
-                    })
-                } else if currentView == .bcal {
-                    BrainCaloriesView(
-                        sessionBCal: sessionBCal,
-                        todayBCalTotal: todayBCalTotal,
-                        sessionCorrect: sessionCorrect,
-                        sessionTotal: sessionTotal,
-                        todayCorrect: todayCorrect,
-                        todayTotal: todayTotal,
-                        goalAccuracyPercent: 80,
-                        sessionPauses: sessionPauses,
-                        todayPauses: todayPauses,
-                        todayAttentionPercent: todayAttentionPercent,
-                        onContinue: {
-                            if !celebrationQueue.isEmpty {
-                                currentCelebrationIdea = celebrationQueue.removeFirst()
-                                withAnimation { currentView = .celebration }
-                            } else {
-                                currentCelebrationIdea = nil
-                                currentView = .none
-                                if let onComplete = onPracticeComplete { onComplete() }
-                                else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
-                            }
+        return ZStack(alignment: .topLeading) {
+            theme.background.ignoresSafeArea()
+            
+            NavigationStack {
+                VStack(spacing: DS.Spacing.lg) {
+                    headerSection
+                    
+                    Group {
+                        if isGenerating {
+                            generatingView
+                        } else if let error = errorMessage {
+                            errorView(error)
+                        } else if let test = generatedTest {
+                            practiceReadyView(test)
                         }
-                    )
-                } else if currentView == .celebration {
-                    if let idea = currentCelebrationIdea {
-                        CelebrationView(
-                            idea: idea,
-                            userResponse: "",
-                            level: 3,
-                            starScore: 3,
+                    }
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+                .padding(.horizontal, DS.Spacing.xxl)
+                .padding(.top, DS.Spacing.sm)
+                .padding(.bottom, DS.Spacing.lg)
+                .navigationBarHidden(true)
+                .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
+                    if ideaForTest.id != "daily_practice" {
+                        Button("Previous Attempts") { showingAttempts = true }
+                    }
+                    Button("Brush Up with Primer") { showingPrimer = true }
+                    Button("Generate New Questions") { Task { await refreshPractice() } }
+                    Button("Cancel", role: .cancel) {}
+                }
+                .task {
+                    await generatePractice()
+                }
+                .onAppear {
+                    Task { await themeManager.activateTheme(for: book) }
+                }
+                .fullScreenCover(isPresented: $showingTest) {
+                    if let test = generatedTest {
+                        TestView(
+                            idea: ideaForTest,
+                            test: test,
                             openAIService: openAIService,
+                            onCompletion: handleTestCompletion,
+                            onSubmitted: { _ in },
+                            onExit: { showingTest = false }
+                        )
+                    }
+                }
+                .sheet(isPresented: $showingPrimer) {
+                    PrimerView(idea: ideaForTest, openAIService: openAIService)
+                        .presentationDetents([.medium, .large])
+                }
+                .fullScreenCover(isPresented: .constant(currentView != .none)) {
+                    if currentView == .streak {
+                        StreakView(onContinue: {
+                            print("DEBUG: ✅ Streak onContinue tapped")
+                            withAnimation { currentView = .bcal }
+                        })
+                    } else if currentView == .bcal {
+                        BrainCaloriesView(
+                            sessionBCal: sessionBCal,
+                            todayBCalTotal: todayBCalTotal,
+                            sessionCorrect: sessionCorrect,
+                            sessionTotal: sessionTotal,
+                            todayCorrect: todayCorrect,
+                            todayTotal: todayTotal,
+                            goalAccuracyPercent: 80,
+                            sessionPauses: sessionPauses,
+                            todayPauses: todayPauses,
+                            todayAttentionPercent: todayAttentionPercent,
                             onContinue: {
                                 if !celebrationQueue.isEmpty {
                                     currentCelebrationIdea = celebrationQueue.removeFirst()
+                                    withAnimation { currentView = .celebration }
                                 } else {
                                     currentCelebrationIdea = nil
                                     currentView = .none
@@ -185,22 +166,63 @@ struct DailyPracticeView: View {
                                 }
                             }
                         )
+                    } else if currentView == .celebration {
+                        if let idea = currentCelebrationIdea {
+                            CelebrationView(
+                                idea: idea,
+                                userResponse: "",
+                                level: 3,
+                                starScore: 3,
+                                openAIService: openAIService,
+                                onContinue: {
+                                    if !celebrationQueue.isEmpty {
+                                        currentCelebrationIdea = celebrationQueue.removeFirst()
+                                    } else {
+                                        currentCelebrationIdea = nil
+                                        currentView = .none
+                                        if let onComplete = onPracticeComplete { onComplete() }
+                                        else { print("DEBUG: ❌ onPracticeComplete callback is nil!") }
+                                    }
+                                }
+                            )
+                        }
+                    } else {
+                        // Fallback for unexpected states
+                        let t = themeManager.currentTokens(for: colorScheme)
+                        t.surfaceVariant
+                            .overlay(
+                                Text("DEBUG: Unexpected state: \(currentView)")
+                                    .foregroundColor(t.onSurface)
+                            )
                     }
-                } else {
-                    // Fallback for unexpected states
-                    let t = themeManager.currentTokens(for: colorScheme)
-                    t.surfaceVariant
-                        .overlay(
-                            Text("DEBUG: Unexpected state: \(currentView)")
-                                .foregroundColor(t.onSurface)
-                        )
                 }
             }
         }
-        .background(theme.surface.ignoresSafeArea())
     }
     
     // MARK: - Views
+    
+    private var headerSection: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                DSIcon("book.closed.fill", size: 14)
+            }
+            .dsPaletteSecondaryIconButton(diameter: 38)
+            .accessibilityLabel("Back to Book")
+            
+            Spacer()
+            
+            StreakIndicatorView()
+            
+            Button(action: { showingOverflow = true }) {
+                DSIcon("ellipsis", size: 14)
+            }
+            .dsPaletteSecondaryIconButton(diameter: 38)
+            .accessibilityLabel("More options")
+        }
+        .padding(.horizontal, DS.Spacing.xxs)
+        .padding(.bottom, DS.Spacing.md)
+    }
     
     private var generatingView: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
@@ -247,21 +269,25 @@ struct DailyPracticeView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, DS.Spacing.xl)
             
-            Button("Try Again") {
+            Button(action: {
                 Task {
                     await generatePractice()
                 }
+            }) {
+                Text("Try Again")
+                    .frame(maxWidth: .infinity)
             }
             .dsPalettePrimaryButton()
             .padding(.top, DS.Spacing.md)
             
-            Button("Go Back") {
-                dismiss()
+            Button(action: { dismiss() }) {
+                Text("Go Back")
+                    .frame(maxWidth: .infinity)
             }
             .dsPaletteSecondaryButton()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(DS.Spacing.xl)
+        .padding(.vertical, DS.Spacing.xl)
     }
     
     private func practiceReadyView(_ test: Test) -> some View {
@@ -274,13 +300,9 @@ struct DailyPracticeView: View {
                     .foregroundColor(theme.primary)
                     .padding(.top, DS.Spacing.xxl)
                 
-                Text("Practice Ready!")
-                    .font(DS.Typography.largeTitle)
+                Text("Lesson Ready!")
+                    .font(DS.Typography.title2)
                     .foregroundColor(theme.onSurface)
-                
-                Text("\((test.questions ?? []).count) questions selected")
-                    .font(DS.Typography.body)
-                    .foregroundColor(theme.onSurface.opacity(0.7))
             }
             
             // Practice Overview
@@ -294,43 +316,50 @@ struct DailyPracticeView: View {
                 // Question breakdown
                 questionBreakdownView(test)
             }
-            .padding(DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
             
             Spacer()
             
             // Start button
             VStack(spacing: DS.Spacing.md) {
-                Button("Start Practice") {
-                    showingTest = true
+                Button(action: { showingTest = true }) {
+                    Text("Start Practice")
+                        .frame(maxWidth: .infinity)
                 }
                 .dsPalettePrimaryButton()
                 
-                Button("Brush Up with Primer") {
-                    showingPrimer = true
+                Button(action: { showingPrimer = true }) {
+                    Text("Brush Up with Primer")
+                        .frame(maxWidth: .infinity)
                 }
                 .dsPaletteSecondaryButton()
                 
                 if ideaForTest.id != "daily_practice" {
-                    Button("Previous Attempts") {
-                        showingAttempts = true
+                    Button(action: { showingAttempts = true }) {
+                        Text("Previous Attempts")
+                            .frame(maxWidth: .infinity)
                     }
                     .dsPaletteSecondaryButton()
                 }
                 
-                Button("Generate New Questions") {
+                Button(action: {
                     Task {
                         await refreshPractice()
                     }
+                }) {
+                    Text("Generate New Questions")
+                        .frame(maxWidth: .infinity)
                 }
                 .dsPaletteSecondaryButton()
                 
-                Button("Cancel") {
-                    dismiss()
+                Button(action: { dismiss() }) {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity)
                 }
                 .dsPaletteSecondaryButton()
             }
-            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.top, DS.Spacing.lg)
             .padding(.bottom, DS.Spacing.xl)
         }
         .sheet(isPresented: $showingAttempts) {
@@ -343,7 +372,7 @@ struct DailyPracticeView: View {
     
     private func practiceStatsView(_ test: Test) -> some View {
         let theme = themeManager.currentTokens(for: colorScheme)
-        return HStack(spacing: DS.Spacing.xl) {
+        return HStack(alignment: .top, spacing: DS.Spacing.lg) {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Questions")
                     .font(DS.Typography.caption)
@@ -352,6 +381,8 @@ struct DailyPracticeView: View {
                     .font(DS.Typography.headline)
                     .foregroundColor(theme.onSurface)
             }
+            
+            Spacer()
             
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 Text("Est. Time")
@@ -364,6 +395,7 @@ struct DailyPracticeView: View {
             
         }
         .padding(DS.Spacing.md)
+        .frame(maxWidth: .infinity)
         .background(theme.surfaceVariant)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.outline, lineWidth: DS.BorderWidth.thin))
         .cornerRadius(8)
@@ -401,6 +433,7 @@ struct DailyPracticeView: View {
         }
         .padding(DS.Spacing.md)
         .background(themeManager.currentTokens(for: colorScheme).surfaceVariant)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .cornerRadius(4)
     }
 
