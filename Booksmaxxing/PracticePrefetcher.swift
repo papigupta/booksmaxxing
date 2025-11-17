@@ -88,12 +88,8 @@ final class PracticePrefetcher {
                 var mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
                 var hardFresh = freshQuestions.filter { $0.difficulty == .hard }
 
-                // Keep invariant positions for open-ended
-                if let idx = mediumFresh.firstIndex(where: { $0.bloomCategory == .reframe && $0.type == .openEnded }) {
-                    let q = mediumFresh.remove(at: idx)
-                    mediumFresh.append(q)
-                }
-                if let idx = hardFresh.firstIndex(where: { $0.bloomCategory == .howWield && $0.type == .openEnded }) {
+                // Keep invariant position for the single open-ended prompt (now part of the hard bucket)
+                if let idx = hardFresh.firstIndex(where: { $0.type == .openEnded }) {
                     let q = hardFresh.remove(at: idx)
                     hardFresh.append(q)
                 }

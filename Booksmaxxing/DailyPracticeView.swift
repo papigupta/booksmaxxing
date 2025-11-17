@@ -563,17 +563,10 @@ struct DailyPracticeView: View {
                 var mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
                 var hardFresh = freshQuestions.filter { $0.difficulty == .hard }
 
-                // Enforce fixed placement within groups:
-                // - Reframe (OpenEnded) should be last within Medium (overall Q6)
-                if let idx = mediumFresh.firstIndex(where: { $0.bloomCategory == .reframe && $0.type == .openEnded }) {
-                    let reframe = mediumFresh.remove(at: idx)
-                    mediumFresh.append(reframe)
-                }
-
-                // - HowWield (OpenEnded) should be last within Hard (overall Q8)
-                if let idx = hardFresh.firstIndex(where: { $0.bloomCategory == .howWield && $0.type == .openEnded }) {
-                    let howWield = hardFresh.remove(at: idx)
-                    hardFresh.append(howWield)
+                // Ensure the single open-ended question (now Q8) is at the end of the hard bucket
+                if let idx = hardFresh.firstIndex(where: { $0.type == .openEnded }) {
+                    let openEnded = hardFresh.remove(at: idx)
+                    hardFresh.append(openEnded)
                 }
                 
                 // Generate review questions and keep mapping to their queue items
