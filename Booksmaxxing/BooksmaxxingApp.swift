@@ -10,6 +10,7 @@ import SwiftData
 
 @main
 struct BooksmaxxingApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     // Shared OpenAIService instance
     private let openAIService = OpenAIService(apiKey: Secrets.openAIAPIKey)
     
@@ -137,5 +138,10 @@ struct BooksmaxxingApp: App {
             // Removed global Experiments FAB overlay; access Experiments from kebab menu in BookOverviewView.
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                streakManager.refreshNotificationSchedule()
+            }
+        }
     }
 }

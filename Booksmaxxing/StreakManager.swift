@@ -11,11 +11,18 @@ final class StreakManager: ObservableObject {
     // Persisted via SwiftData
     private var modelContext: ModelContext?
     private var state: StreakState?
+    private var previousStreakCount: Int
+    private var previousLastActiveDay: Date?
+    private var hasAttemptedReturningUserPrompt = false
+    private let notificationScheduler = StreakNotificationScheduler.shared
+    private let permissionManager = NotificationPermissionManager.shared
 
     init() {
         self.currentStreak = 0
         self.bestStreak = 0
         self.lastActiveDay = nil
+        self.previousStreakCount = 0
+        self.previousLastActiveDay = nil
     }
 
     func attachModelContext(_ modelContext: ModelContext) {
@@ -28,17 +35,29 @@ final class StreakManager: ObservableObject {
         return Calendar.current.isDateInToday(last)
     }
 
+    func refreshNotificationSchedule() {
+        Task { [weak self] in
+            guard let self else { return }
+            await notificationScheduler.updateScheduledReminders(lastActiveDay: self.lastActiveDay)
+        }
+    }
+
     @discardableResult
     func markActivity(on date: Date = Date()) -> Bool {
-        // Ensure state exists only when actually marking activity
         ensureStateExists()
         let cal = Calendar.current
         let today = cal.startOfDay(for: date)
 
-        // If already marked today, no-op
         if let last = lastActiveDay, cal.isDate(last, inSameDayAs: today) {
             return false
         }
+
+        let priorStreakValue = currentStreak
+        let priorLastActive = lastActiveDay
+        let wasFirstRecordedSession = (priorStreakValue == 0 && priorLastActive == nil)
+
+        previousStreakCount = priorStreakValue
+        previousLastActiveDay = priorLastActive
 
         if let last = lastActiveDay {
             let yesterday = cal.date(byAdding: .day, value: -1, to: today)!
@@ -54,7 +73,31 @@ final class StreakManager: ObservableObject {
         lastActiveDay = today
         if currentStreak > bestStreak { bestStreak = currentStreak }
         persist()
+        refreshNotificationSchedule()
+        requestNotificationsAfterFirstSessionIfNeeded(wasFirstRecordedSession)
         return true
+    }
+
+    @discardableResult
+    func resetTodayActivity() -> Bool {
+        let cal = Calendar.current
+        guard let last = lastActiveDay, cal.isDateInToday(last) else {
+            return false
+        }
+
+        currentStreak = previousStreakCount
+        lastActiveDay = previousLastActiveDay
+        persist()
+        refreshNotificationSchedule()
+        return true
+    }
+
+    private func requestNotificationsAfterFirstSessionIfNeeded(_ wasFirstSession: Bool) {
+        guard wasFirstSession else { return }
+        permissionManager.requestAuthorizationIfNeeded(reason: .firstSession) { [weak self] granted in
+            guard let self, granted else { return }
+            self.refreshNotificationSchedule()
+        }
     }
 
     private func persist() {
@@ -63,6 +106,8 @@ final class StreakManager: ObservableObject {
         state?.currentStreak = currentStreak
         state?.bestStreak = bestStreak
         state?.lastActiveDay = lastActiveDay
+        state?.previousStreakCount = previousStreakCount
+        state?.previousLastActiveDay = previousLastActiveDay
         // State is created and inserted in loadOrCreateState(); no re-insert needed here
         do { try modelContext.save() } catch { print("Streak persist error: \(error)") }
     }
@@ -70,13 +115,11 @@ final class StreakManager: ObservableObject {
     private func loadOrCreateState() {
         guard let modelContext else { return }
         do {
-            // Fetch by deterministic ID to avoid arbitrary ordering and allow consolidation
             var descriptor = FetchDescriptor<StreakState>(predicate: #Predicate { $0.id == "streak_singleton" })
             descriptor.fetchLimit = 10
             let existing = try modelContext.fetch(descriptor)
 
             if existing.count > 1 {
-                // Consolidate duplicates: choose highest streak, then most recent activity
                 let bestRecord = existing.max { lhs, rhs in
                     if lhs.currentStreak != rhs.currentStreak {
                         return lhs.currentStreak < rhs.currentStreak
@@ -90,31 +133,20 @@ final class StreakManager: ObservableObject {
                     for rec in existing where rec !== bestRecord {
                         modelContext.delete(rec)
                     }
-                    state = bestRecord
-                    currentStreak = bestRecord.currentStreak
-                    bestStreak = bestRecord.bestStreak
-                    lastActiveDay = bestRecord.lastActiveDay
+                    bindState(bestRecord)
                     try modelContext.save()
                 }
             } else if let first = existing.first {
-                state = first
-                currentStreak = first.currentStreak
-                bestStreak = first.bestStreak
-                lastActiveDay = first.lastActiveDay
+                bindState(first)
             } else {
-                // No record yet. Avoid creating immediately to give CloudKit a chance to sync it down.
-                // We'll lazily create on first activity, and also attempt a delayed re-fetch.
                 Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
                     do {
                         var retry = FetchDescriptor<StreakState>(predicate: #Predicate { $0.id == "streak_singleton" })
                         retry.fetchLimit = 1
                         let re = try modelContext.fetch(retry)
                         if let fetched = re.first {
-                            self.state = fetched
-                            self.currentStreak = fetched.currentStreak
-                            self.bestStreak = fetched.bestStreak
-                            self.lastActiveDay = fetched.lastActiveDay
+                            self.bindState(fetched)
                         }
                     } catch {
                         print("Streak delayed fetch error: \(error)")
@@ -126,6 +158,29 @@ final class StreakManager: ObservableObject {
         }
     }
 
+    private func bindState(_ newState: StreakState, triggerSideEffects: Bool = true) {
+        state = newState
+        currentStreak = newState.currentStreak
+        bestStreak = newState.bestStreak
+        lastActiveDay = newState.lastActiveDay
+        previousStreakCount = newState.previousStreakCount
+        previousLastActiveDay = newState.previousLastActiveDay
+        guard triggerSideEffects else { return }
+        evaluateReturningUserPromptIfNeeded()
+        refreshNotificationSchedule()
+    }
+
+    private func evaluateReturningUserPromptIfNeeded() {
+        guard !hasAttemptedReturningUserPrompt else { return }
+        guard !permissionManager.hasPrompted else { return }
+        guard currentStreak > 0 || lastActiveDay != nil else { return }
+        hasAttemptedReturningUserPrompt = true
+        permissionManager.requestAuthorizationIfNeeded(reason: .returningUser) { [weak self] granted in
+            guard let self, granted else { return }
+            self.refreshNotificationSchedule()
+        }
+    }
+
     /// Ensure a state exists before mutating; fetch again in case CloudKit just synced.
     private func ensureStateExists() {
         guard let modelContext else { return }
@@ -134,10 +189,7 @@ final class StreakManager: ObservableObject {
             var descriptor = FetchDescriptor<StreakState>(predicate: #Predicate { $0.id == "streak_singleton" })
             descriptor.fetchLimit = 1
             if let fetched = try modelContext.fetch(descriptor).first {
-                state = fetched
-                currentStreak = fetched.currentStreak
-                bestStreak = fetched.bestStreak
-                lastActiveDay = fetched.lastActiveDay
+                bindState(fetched, triggerSideEffects: false)
                 return
             }
         } catch {
@@ -146,7 +198,7 @@ final class StreakManager: ObservableObject {
 
         let newState = StreakState()
         modelContext.insert(newState)
-        state = newState
+        bindState(newState, triggerSideEffects: false)
         do { try modelContext.save() } catch { print("Streak create error: \(error)") }
     }
 }

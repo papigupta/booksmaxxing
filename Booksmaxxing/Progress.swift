@@ -63,11 +63,15 @@ final class StreakState {
     var currentStreak: Int = 0
     var bestStreak: Int = 0
     var lastActiveDay: Date?
+    var previousStreakCount: Int = 0
+    var previousLastActiveDay: Date?
     
     init() {
         self.id = "streak_singleton"
         self.currentStreak = 0
         self.bestStreak = 0
         self.lastActiveDay = nil
+        self.previousStreakCount = 0
+        self.previousLastActiveDay = nil
     }
 }

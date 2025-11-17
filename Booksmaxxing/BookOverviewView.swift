@@ -437,6 +437,14 @@ struct BookOverviewView: View {
                     Button("Book Selection Lab") { showingBookSelectionLab = true }
                     if DebugFlags.enableThemeLab { Button("Experiments") { showingExperiments = true } }
                 }
+                Button("Reset Today's Streak", role: .destructive) {
+                    let didReset = streakManager.resetTodayActivity()
+                    if didReset {
+                        print("DEBUG: Manual streak reset from BookOverviewView")
+                    } else {
+                        print("DEBUG: Streak reset skipped — no activity recorded for today")
+                    }
+                }
                 Button("Delete this book", role: .destructive) { showingDeleteAlert = true }
             }
             Button("Profile") { showingProfile = true }
