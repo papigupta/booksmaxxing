@@ -4,6 +4,10 @@ import SwiftData
 import UIKit
 #endif
 
+enum BookSelectionEducationKeys {
+    static let addBookTipAcknowledged = "BookSelectionHasAcknowledgedAddBookEducation"
+}
+
 struct BookSelectionView: View {
     let openAIService: OpenAIService
     @Environment(\.modelContext) private var modelContext
@@ -40,6 +44,10 @@ struct BookSelectionView: View {
     // Tap bounce animation state
     @State private var tappedCardIndex: Int? = nil
     @State private var tapScale: CGFloat = 1.0
+    @AppStorage(BookSelectionEducationKeys.addBookTipAcknowledged)
+    private var hasAcknowledgedAddBookEducation: Bool = false
+    @State private var showAddBookEducationTooltip: Bool = false
+    @State private var animateAddButtonPulse: Bool = false
 
     private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
@@ -102,7 +110,15 @@ struct BookSelectionView: View {
         }
         .ignoresSafeArea()
         .safeAreaInset(edge: .bottom) {
-            ZStack {
+            ZStack(alignment: .bottomTrailing) {
+                if showAddBookEducationTooltip {
+                    addBookEducationTooltip
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .padding(.trailing, addButtonDiameter + addButtonGap + 12)
+                        .padding(.bottom, addButtonDiameter + addButtonGap + 56)
+                        .accessibilityHidden(true)
+                }
+
                 // Floating add button on the right
                 HStack { Spacer(); addBookButton }
                     .padding(.horizontal, 24)
@@ -149,6 +165,9 @@ struct BookSelectionView: View {
         .onAppear { handleInitialAppear() }
         .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
         .onChange(of: selectedIndex) { _, newValue in handleSelectionChange(newValue) }
+        .onChange(of: hasAcknowledgedAddBookEducation) { _, _ in
+            refreshAddBookEducationVisibility(animated: true)
+        }
         .onDisappear {
             themeUpdateTask?.cancel()
             extractionTask?.cancel()
@@ -343,20 +362,137 @@ struct BookSelectionView: View {
     // Primary selection button removed in favor of tap-to-select on cards.
 
     private var addBookButton: some View {
-        Button(action: {
-            guard !isProcessingSelection else { return }
-            triggerAddButtonHaptic()
-            withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
-                isAddOverlayActive = true
+        ZStack {
+            if showAddBookEducationTooltip {
+                addButtonSpotlight
+                    .transition(.scale.combined(with: .opacity))
             }
-        }) {
-            Image(systemName: "plus")
-                .font(.system(size: 16, weight: .regular))
+
+            Button(action: {
+                guard !isProcessingSelection else { return }
+                triggerAddButtonHaptic()
+                completeAddBookEducation(animated: true)
+                withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
+                    isAddOverlayActive = true
+                }
+            }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .regular))
+            }
+            .matchedGeometryEffect(id: "addControl", in: addOverlayNamespace)
+            .dsPaletteIconButton(diameter: addButtonDiameter)
+            .accessibilityIdentifier("BookSelectionAddButton")
+            .disabled(isProcessingSelection)
         }
-        .matchedGeometryEffect(id: "addControl", in: addOverlayNamespace)
-        .dsPaletteIconButton(diameter: addButtonDiameter)
-        .accessibilityIdentifier("BookSelectionAddButton")
-        .disabled(isProcessingSelection)
+    }
+
+    private var addButtonSpotlight: some View {
+        let tokens = themeManager.currentTokens(for: colorScheme)
+        let baseSize = addButtonDiameter + 46
+        let auraSize = addButtonDiameter + 86
+        let gradient = RadialGradient(
+            gradient: Gradient(colors: [
+                tokens.primary.opacity(0.135),
+                tokens.primary.opacity(0.054),
+                tokens.primary.opacity(0.003)
+            ]),
+            center: .center,
+            startRadius: addButtonDiameter * 0.35,
+            endRadius: auraSize / 2
+        )
+
+        return ZStack {
+            Circle()
+                .fill(gradient)
+                .frame(width: baseSize, height: baseSize)
+                .blur(radius: 10)
+                .opacity(0.27)
+
+            Circle()
+                .fill(gradient)
+                .frame(width: auraSize, height: auraSize)
+                .blur(radius: 16)
+                .scaleEffect(animateAddButtonPulse ? 1.08 : 0.92)
+                .opacity(animateAddButtonPulse ? 0.225 : 0.105)
+                .animation(
+                    .timingCurve(0.55, 0.02, 0.2, 1.0, duration: 0.95)
+                        .repeatForever(autoreverses: true),
+                    value: animateAddButtonPulse
+                )
+
+            Circle()
+                .fill(gradient)
+                .frame(width: auraSize + 30, height: auraSize + 30)
+                .blur(radius: 22)
+                .scaleEffect(animateAddButtonPulse ? 1.18 : 0.94)
+                .opacity(animateAddButtonPulse ? 0.12 : 0.015)
+                .animation(
+                    .timingCurve(0.45, 0.05, 0.15, 0.95, duration: 1.15)
+                        .repeatForever(autoreverses: true)
+                        .delay(0.18),
+                    value: animateAddButtonPulse
+                )
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            guard !animateAddButtonPulse else { return }
+            animateAddButtonPulse = true
+        }
+        .onDisappear {
+            animateAddButtonPulse = false
+        }
+    }
+
+    private var addBookEducationTooltip: some View {
+        let tokens = themeManager.currentTokens(for: colorScheme)
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("Recommended next step")
+                .font(DS.Typography.micro)
+                .tracking(DS.Typography.microTracking)
+                .textCase(.uppercase)
+                .foregroundColor(tokens.onSurface.opacity(0.65))
+
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Add your own book")
+                        .font(DS.Typography.subheadline)
+                        .tracking(DS.Typography.subheadlineTracking)
+                        .foregroundColor(tokens.onSurface)
+
+                    Text("Tap the \"+\" Add new book button to capture something you're reading now. That's how you unlock tailored ideas instantly.")
+                        .font(DS.Typography.caption)
+                        .tracking(DS.Typography.captionTracking)
+                        .foregroundColor(tokens.onSurface.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button(action: { completeAddBookEducation(animated: true) }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(tokens.onSurface.opacity(0.7))
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(tokens.primary.opacity(0.08))
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss tip")
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(tokens.surface.opacity(colorScheme == .dark ? 0.96 : 0.98))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(tokens.outline.opacity(0.35), lineWidth: 1)
+                )
+                .shadow(color: tokens.primary.opacity(0.20), radius: 30, x: 0, y: 18)
+        )
+        .frame(maxWidth: 320, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func confirmSelection() {
@@ -389,6 +525,8 @@ struct BookSelectionView: View {
         if let book = activeBook {
             Task { await themeManager.activateTheme(for: book) }
         }
+
+        refreshAddBookEducationVisibility(animated: true)
     }
 
     private func adjustSelectionForBookChanges() {
@@ -433,6 +571,30 @@ struct BookSelectionView: View {
                     detailsTransitionInFlight = false
                 }
             }
+        }
+    }
+
+    private func refreshAddBookEducationVisibility(animated: Bool = true) {
+        let shouldShow = !hasAcknowledgedAddBookEducation
+        guard shouldShow != showAddBookEducationTooltip else { return }
+        let update = { showAddBookEducationTooltip = shouldShow }
+        if animated {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.88)) { update() }
+        } else {
+            update()
+        }
+    }
+
+    private func completeAddBookEducation(animated: Bool = true) {
+        if !hasAcknowledgedAddBookEducation {
+            hasAcknowledgedAddBookEducation = true
+        }
+        guard showAddBookEducationTooltip else { return }
+        let update = { showAddBookEducationTooltip = false }
+        if animated {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) { update() }
+        } else {
+            update()
         }
     }
 

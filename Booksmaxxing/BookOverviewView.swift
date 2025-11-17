@@ -435,6 +435,9 @@ struct BookOverviewView: View {
                         service.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
                     }
                     Button("Book Selection Lab") { showingBookSelectionLab = true }
+                    Button("Reset add-book tooltip") {
+                        UserDefaults.standard.set(false, forKey: BookSelectionEducationKeys.addBookTipAcknowledged)
+                    }
                     if DebugFlags.enableThemeLab { Button("Experiments") { showingExperiments = true } }
                 }
                 Button("Reset Today's Streak", role: .destructive) {
