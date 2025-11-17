@@ -114,6 +114,7 @@ final class PracticePrefetcher {
                     bookTitle: bookTitle,
                     testType: "mixed"
                 )
+                mixedTest.idea = targetIdea
 
                 let clonedQuestions: [Question] = allQuestions.enumerated().map { (index, q) in
                     Question(

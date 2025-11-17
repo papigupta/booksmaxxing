@@ -489,26 +489,35 @@ class BookService: ObservableObject {
             print("⚠️ DELETION: Manual cascade for \(ideas.count) ideas…")
             for (idx, idea) in ideas.enumerated() {
                 print("⚠️ DELETION: Processing idea \(idx+1)/\(ideas.count) id=\(idea.id) title=\(idea.title)")
-                // Tests graph
-                if var tests = idea.tests {
-                    for test in tests {
-                        if var questions = test.questions {
-                            for q in questions {
-                                if let responses = q.responses { responses.forEach { resp in resp.attempt = nil; resp.question = nil; modelContext.delete(resp) } }
-                                q.test = nil
-                                modelContext.delete(q)
-                            }
-                            questions.removeAll()
-                            test.questions = questions
-                        }
-                        if var attempts = test.attempts { attempts.forEach { at in at.test = nil; modelContext.delete(at) } ; attempts.removeAll(); test.attempts = attempts }
-                        test.idea = nil
-                        test.practiceSession = nil
-                        modelContext.delete(test)
+                // Tests graph (include any orphaned tests matched by ideaId)
+                var testsToDelete: [Test] = idea.tests ?? []
+                let targetIdeaId = idea.id
+                let orphanDescriptor = FetchDescriptor<Test>(
+                    predicate: #Predicate<Test> { t in t.ideaId == targetIdeaId }
+                )
+                if let orphanedTests = try? modelContext.fetch(orphanDescriptor) {
+                    let existingIds = Set(testsToDelete.map { $0.id })
+                    for test in orphanedTests where !existingIds.contains(test.id) {
+                        testsToDelete.append(test)
                     }
-                    tests.removeAll()
-                    idea.tests = tests
                 }
+
+                for test in testsToDelete {
+                    if var questions = test.questions {
+                        for q in questions {
+                            if let responses = q.responses { responses.forEach { resp in resp.attempt = nil; resp.question = nil; modelContext.delete(resp) } }
+                            q.test = nil
+                            modelContext.delete(q)
+                        }
+                        questions.removeAll()
+                        test.questions = questions
+                    }
+                    if var attempts = test.attempts { attempts.forEach { at in at.test = nil; modelContext.delete(at) } ; attempts.removeAll(); test.attempts = attempts }
+                    test.practiceSession = nil
+                    test.idea = nil
+                    modelContext.delete(test)
+                }
+                idea.tests = []
 
                 // Primer graph
                 if var links = idea.primer?.links { links.forEach { l in l.primer = nil; modelContext.delete(l) }; links.removeAll(); idea.primer?.links = links }

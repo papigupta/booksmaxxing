@@ -118,18 +118,17 @@ class TestGenerationService {
         
         do {
             let tests = try modelContext.fetch(descriptor)
-            // Return the most recent test for this idea and type
             let sorted = tests.sorted { $0.createdAt > $1.createdAt }
-            if let candidate = sorted.first {
+            for candidate in sorted {
                 let minCount = (testType == "review") ? 1 : 8
                 let qs = candidate.questions ?? []
                 let hasMin = qs.count >= minCount
                 let hasValidOptions = isValid(candidate)
-                if hasMin && hasValidOptions {
+                let bookMatches = candidate.bookTitle == idea.bookTitle
+                if hasMin && hasValidOptions && bookMatches {
                     return candidate
                 }
-                // Delete incomplete/invalid test to avoid getting stuck with partial/migrated data
-                logger.debug("Discarding invalid existing test (count=\(qs.count), validOptions=\(hasValidOptions)) ; regenerating…")
+                logger.debug("Discarding stale test (count=\(qs.count), validOptions=\(hasValidOptions), bookMatches=\(bookMatches)) ; regenerating…")
                 modelContext.delete(candidate)
                 try? modelContext.save()
             }
@@ -200,7 +199,10 @@ class TestGenerationService {
         // Add questions to test (ensure they're sorted by orderIndex)
         test.questions = questions.sorted { $0.orderIndex < $1.orderIndex }
         questions.forEach { $0.test = test }
-        
+
+        // Link test to the source idea so cascade deletes and diagnostics stay accurate
+        test.idea = idea
+
         // Save to database
         modelContext.insert(test)
         try modelContext.save()
@@ -261,7 +263,10 @@ class TestGenerationService {
         // Add questions to test (ensure they're sorted by orderIndex)
         test.questions = questions.sorted { $0.orderIndex < $1.orderIndex }
         questions.forEach { $0.test = test }
-        
+
+        // Attach retry tests to the originating idea for proper lifecycle management
+        test.idea = idea
+
         // Save to database
         modelContext.insert(test)
         try modelContext.save()

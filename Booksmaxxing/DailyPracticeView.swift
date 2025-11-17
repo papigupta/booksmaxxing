@@ -595,6 +595,7 @@ struct DailyPracticeView: View {
                     bookTitle: book.title,
                     testType: "mixed"
                 )
+                test.idea = primaryIdea
                 
                 // Clone questions to attach to the mixed test cleanly
                 var combined: [Question] = []

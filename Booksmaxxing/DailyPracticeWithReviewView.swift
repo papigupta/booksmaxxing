@@ -490,6 +490,7 @@ struct DailyPracticeWithReviewView: View {
                         bookTitle: book.title,
                         testType: "daily"
                     )
+                    test.idea = currentIdea
                     await MainActor.run {
                         self.modelContext.insert(test)
                     }
@@ -610,6 +611,7 @@ struct DailyPracticeWithReviewView: View {
             bookTitle: book.title,
             testType: "daily"
         )
+        if let idea = currentIdea { test.idea = idea }
         
         // Combine questions with proper ordering
         var allQuestions: [Question] = []

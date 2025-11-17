@@ -1313,15 +1313,22 @@ struct ProgressBar: View {
     
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
+        let clampedProgress: Double = {
+            guard progress.isFinite else { return 0 }
+            return min(max(progress, 0), 1)
+        }()
+
         VStack(spacing: DS.Spacing.xs) {
             HStack {
-                Text("Question \(currentQuestion) of \(totalQuestions)")
+                let safeTotal = max(totalQuestions, 1)
+                let safeCurrent = min(max(currentQuestion, 1), safeTotal)
+                Text("Question \(safeCurrent) of \(safeTotal)")
                     .font(DS.Typography.caption)
                     .foregroundStyle(theme.onSurface.opacity(0.7))
                 
                 Spacer()
                 
-                Text("\(Int(progress * 100))%")
+                Text("\(Int(clampedProgress * 100))%")
                     .font(DS.Typography.captionBold)
                     .foregroundStyle(theme.onSurface)
             }
@@ -1334,7 +1341,7 @@ struct ProgressBar: View {
                     
                     Rectangle()
                         .fill(theme.primary)
-                        .frame(width: geometry.size.width * progress, height: 4)
+                        .frame(width: max(0, geometry.size.width * clampedProgress), height: 4)
                         .animation(.easeInOut(duration: 0.3), value: progress)
                 }
             }
