@@ -8,6 +8,14 @@ struct MainView: View {
     @EnvironmentObject var streakManager: StreakManager
     @EnvironmentObject var themeManager: ThemeManager
     @Query(sort: \Book.lastAccessed, order: .reverse) private var books: [Book]
+
+    private var activeBook: Book? {
+        if let selectedTitle = navigationState.selectedBookTitle,
+           let selectedBook = books.first(where: { $0.title == selectedTitle }) {
+            return selectedBook
+        }
+        return books.first
+    }
     
     var body: some View {
         Group {
@@ -15,30 +23,14 @@ struct MainView: View {
                 // Show OnboardingView which has its own NavigationStack
                 OnboardingView(openAIService: openAIService)
                     .environmentObject(navigationState)
-                    .onAppear {
-                        // Run migration for existing data and cleanup duplicates
-                        Task {
-                            do {
-                                let bookService = BookService(modelContext: modelContext)
-                                try await bookService.migrateExistingDataToBookSpecificIds()
-                                // Clean up any duplicate books (0 ideas books with similar titles)
-                                try bookService.cleanupDuplicateBooks()
-                            } catch {
-                                print("DEBUG: Migration/cleanup failed: \(error)")
-                            }
-                        }
-                    }
+            } else if let book = activeBook {
+                DailyPracticeHomepage(
+                    book: book,
+                    openAIService: openAIService,
+                    isRootExperience: true
+                )
             } else {
-                // Wrap BookOverviewView in NavigationStack since it needs navigation context
-                NavigationStack {
-                    BookOverviewView(
-                        bookTitle: navigationState.selectedBookTitle ?? books[0].title,
-                        openAIService: openAIService,
-                        bookService: BookService(modelContext: modelContext)
-                    )
-                    .environmentObject(navigationState)
-                    .navigationBarBackButtonHidden(true)
-                }
+                ProgressView("Loading your library…")
             }
         }
         .onChange(of: books) { oldBooks, newBooks in
@@ -57,10 +49,11 @@ struct MainView: View {
             Task {
                 do {
                     let bookService = BookService(modelContext: modelContext)
+                    try await bookService.migrateExistingDataToBookSpecificIds()
                     try bookService.cleanupDuplicateBooks()
-                    print("DEBUG: Cleaned up duplicate books on app startup")
+                    print("DEBUG: Completed migration and duplicate cleanup on app startup")
                 } catch {
-                    print("DEBUG: Cleanup failed: \(error)")
+                    print("DEBUG: Migration/cleanup failed: \(error)")
                 }
             }
 

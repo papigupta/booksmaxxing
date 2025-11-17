@@ -5,6 +5,7 @@ import SwiftData
 struct DailyPracticeHomepage: View {
     let book: Book
     let openAIService: OpenAIService
+    let isRootExperience: Bool
     
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -28,6 +29,7 @@ struct DailyPracticeHomepage: View {
     @State private var didInitialLoad: Bool = false
     @State private var isLoading: Bool = false
     @State private var showingOverflow: Bool = false
+    @State private var showingBookOverview: Bool = false
     
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
@@ -52,6 +54,12 @@ struct DailyPracticeHomepage: View {
         CurveballService(modelContext: modelContext)
     }
     
+    init(book: Book, openAIService: OpenAIService, isRootExperience: Bool = false) {
+        self.book = book
+        self.openAIService = openAIService
+        self.isRootExperience = isRootExperience
+    }
+
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
         return NavigationStack {
@@ -189,6 +197,9 @@ struct DailyPracticeHomepage: View {
                 presentedView
             }
         }
+        .fullScreenCover(isPresented: $showingBookOverview) {
+            BookOverviewModalView(bookTitle: book.title, openAIService: openAIService)
+        }
             }
         }
     }
@@ -200,7 +211,7 @@ struct DailyPracticeHomepage: View {
             // Top row: back button • streak • overflow
             HStack {
                 // Back to Book (icon-only, palette secondary)
-                Button(action: { dismiss() }) {
+                Button(action: handlePrimaryNavigationTap) {
                     DSIcon("book.closed.fill", size: 14)
                 }
                 .dsPaletteSecondaryIconButton(diameter: 38)
@@ -273,6 +284,14 @@ struct DailyPracticeHomepage: View {
                 }
                 .padding(.vertical, DS.Spacing.md)
             }
+        }
+    }
+
+    private func handlePrimaryNavigationTap() {
+        if isRootExperience {
+            showingBookOverview = true
+        } else {
+            dismiss()
         }
     }
     
@@ -546,6 +565,24 @@ struct DailyPracticeHomepage: View {
                 title: info.title,
                 isCompleted: info.isCompleted,
                 isCurrent: info.lessonNumber == currentLessonNumber && info.isUnlocked && !info.isCompleted
+            )
+        }
+    }
+}
+
+private struct BookOverviewModalView: View {
+    let bookTitle: String
+    let openAIService: OpenAIService
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            BookOverviewView(
+                bookTitle: bookTitle,
+                openAIService: openAIService,
+                bookService: BookService(modelContext: modelContext),
+                onClose: { dismiss() }
             )
         }
     }

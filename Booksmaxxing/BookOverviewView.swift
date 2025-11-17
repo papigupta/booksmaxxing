@@ -5,6 +5,7 @@ import SwiftData
 struct BookOverviewView: View {
     let bookTitle: String
     let openAIService: OpenAIService
+    let onClose: (() -> Void)?
     @StateObject private var viewModel: IdeaExtractionViewModel
     @State private var showingDebugInfo = false
     @State private var navigateToOnboarding = false
@@ -24,9 +25,10 @@ struct BookOverviewView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
 
-    init(bookTitle: String, openAIService: OpenAIService, bookService: BookService) {
+    init(bookTitle: String, openAIService: OpenAIService, bookService: BookService, onClose: (() -> Void)? = nil) {
         self.bookTitle = bookTitle
         self.openAIService = openAIService
+        self.onClose = onClose
         self._viewModel = StateObject(wrappedValue: IdeaExtractionViewModel(openAIService: openAIService, bookService: bookService))
     }
 
@@ -304,17 +306,34 @@ struct BookOverviewView: View {
     private var headerView: some View {
         VStack(spacing: 0) {
             // Top row with home button, streak, and overflow menu
-            HStack {
-                // Home Button - now palette secondary icon-only with book icon
-                Button(action: {
-                    // Use NavigationState to navigate back to book selection
-                    navigationState.navigateToBookSelection()
-                }) {
-                    DSIcon("book.closed.fill", size: 14)
+            HStack(spacing: DS.Spacing.xxs) {
+                if let onClose {
+                    Button(action: onClose) {
+                        DSIcon("chevron.down", size: 14)
+                    }
+                    .dsPaletteSecondaryIconButton(diameter: 38)
+                    .accessibilityLabel("Back to practice")
+
+                    Button(action: {
+                        onClose()
+                        navigationState.navigateToBookSelection()
+                    }) {
+                        DSIcon("book.closed.fill", size: 14)
+                    }
+                    .dsPaletteSecondaryIconButton(diameter: 38)
+                    .accessibilityLabel("Select another book")
+                } else {
+                    // Home Button - palette secondary icon-only with book icon
+                    Button(action: {
+                        // Use NavigationState to navigate back to book selection
+                        navigationState.navigateToBookSelection()
+                    }) {
+                        DSIcon("book.closed.fill", size: 14)
+                    }
+                    .dsPaletteSecondaryIconButton(diameter: 38)
+                    .accessibilityLabel("Select another book")
                 }
-                .dsPaletteSecondaryIconButton(diameter: 38)
-                .accessibilityLabel("Select another book")
-                
+
                 Spacer()
 
                 // Streak indicator
