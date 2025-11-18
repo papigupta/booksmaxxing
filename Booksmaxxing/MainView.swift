@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import FirebaseAnalytics
 
 struct MainView: View {
     let openAIService: OpenAIService
@@ -9,6 +8,7 @@ struct MainView: View {
     @EnvironmentObject var streakManager: StreakManager
     @EnvironmentObject var themeManager: ThemeManager
     @Query(sort: \Book.lastAccessed, order: .reverse) private var books: [Book]
+    @State private var hasTrackedAppOpen = false
 
     private var activeBook: Book? {
         if let selectedTitle = navigationState.selectedBookTitle,
@@ -41,7 +41,10 @@ struct MainView: View {
             }
         }
         .onAppear {
-            Analytics.logEvent("test_event", parameters: nil)
+            if !hasTrackedAppOpen {
+                AnalyticsManager.shared.track(.appOpened)
+                hasTrackedAppOpen = true
+            }
             // Initialize selected book on first appear
             if !books.isEmpty && navigationState.selectedBookTitle == nil {
                 navigationState.selectedBookTitle = books[0].title

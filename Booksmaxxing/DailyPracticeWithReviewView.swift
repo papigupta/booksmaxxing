@@ -103,6 +103,7 @@ struct DailyPracticeWithReviewView: View {
                     TestView(
                         idea: currentIdea ?? createDailyPracticeIdea(),
                         test: test,
+                        bookId: book.id.uuidString,
                         openAIService: openAIService,
                         onCompletion: handleTestCompletion,
                         onExit: { showingTest = false }
@@ -387,7 +388,10 @@ struct DailyPracticeWithReviewView: View {
                 Text("Queue Remaining")
                     .font(DS.Typography.caption)
                     .foregroundColor(t.onSurface.opacity(0.7))
-                let queueStats = reviewQueueManager.getQueueStatistics(bookId: book.id.uuidString)
+                let queueStats = reviewQueueManager.getQueueStatistics(
+                    bookId: book.id.uuidString,
+                    bookTitle: book.title
+                )
                 Text("\(queueStats.totalMCQs + queueStats.totalOpenEnded)")
                     .font(DS.Typography.headline)
                     .foregroundColor(t.onSurface)
@@ -445,7 +449,12 @@ struct DailyPracticeWithReviewView: View {
             }
             // For pure review sessions, we only need review questions
             // 1. Get review items from queue for this specific book — review-only sessions want 6 MCQ + 2 OEQ
-            let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(bookId: book.id.uuidString, mcqCap: 6, openCap: 2)
+            let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(
+                bookId: book.id.uuidString,
+                bookTitle: book.title,
+                mcqCap: 6,
+                openCap: 2
+            )
             reviewQueueItems = mcqItems + openEndedItems
             
             print("🔄 REVIEW SESSION: Found \(reviewQueueItems.count) items in queue (\(mcqItems.count) MCQ, \(openEndedItems.count) Open-ended)")
@@ -865,7 +874,10 @@ private struct ReviewTestResultsView: View {
             
             // Show current queue status
             let queueManager = ReviewQueueManager(modelContext: modelContext)
-            let stats = queueManager.getQueueStatistics(bookId: book.id.uuidString)
+            let stats = queueManager.getQueueStatistics(
+                bookId: book.id.uuidString,
+                bookTitle: book.title
+            )
             
             HStack {
                 Image(systemName: "clock.arrow.circlepath")

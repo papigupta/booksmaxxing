@@ -242,6 +242,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 try bookService.saveIdeas(parsedIdeas, for: book)
                 // Ensure book.ideas is sorted after saving
                 book.ideas = (book.ideas ?? []).sortedByNumericId()
+                AnalyticsManager.shared.track(.bookAdded(bookId: book.id.uuidString, source: .manual))
                 await MainActor.run {
                     self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")
                     self.currentBook = book
