@@ -78,14 +78,17 @@ final class PracticePrefetcher {
 
                 // Pull review items (max 3 MCQ + 1 OEQ) and generate review questions
                 let manager = ReviewQueueManager(modelContext: modelContext)
-                let result = manager.getDailyReviewItems(bookId: bookId)
+                let result = manager.getDailyReviewItems(
+                    bookId: bookId,
+                    bookTitle: book.title
+                )
                 let (mcqItemsRaw, openEndedItemsRaw): ([ReviewQueueItem], [ReviewQueueItem]) = (result.mcqs, result.openEnded)
                 let allReviewItems = mcqItemsRaw + openEndedItemsRaw
                 print("PREFETCH: Review queue items selected: \(allReviewItems.count)")
 
                 let freshQuestions = freshTest.orderedQuestions
                 let easyFresh = freshQuestions.filter { $0.difficulty == .easy }
-                var mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
+                let mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
                 var hardFresh = freshQuestions.filter { $0.difficulty == .hard }
 
                 // Keep invariant position for the single open-ended prompt (now part of the hard bucket)

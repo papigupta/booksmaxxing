@@ -118,11 +118,21 @@ class ReviewQueueManager {
     
     // MARK: - Get Daily Review Questions
     
-    func getDailyReviewItems(bookId: String, mcqCap: Int = 3, openCap: Int = 1) -> (mcqs: [ReviewQueueItem], openEnded: [ReviewQueueItem]) {
+    func getDailyReviewItems(
+        bookId: String,
+        bookTitle: String? = nil,
+        mcqCap: Int = 3,
+        openCap: Int = 1
+    ) -> (mcqs: [ReviewQueueItem], openEnded: [ReviewQueueItem]) {
         let targetBookId = bookId
+        let hasLegacyTitle = bookTitle != nil
+        let safeLegacyTitle = bookTitle ?? ""
         let descriptor = FetchDescriptor<ReviewQueueItem>(
             predicate: #Predicate { item in
-                !item.isCompleted && (item.bookId == targetBookId)
+                !item.isCompleted && (
+                    item.bookId == targetBookId ||
+                    (hasLegacyTitle && item.bookId == nil && item.bookTitle == safeLegacyTitle)
+                )
             },
             sortBy: [SortDescriptor(\.addedDate)]
         )
@@ -218,12 +228,17 @@ class ReviewQueueManager {
     
     // MARK: - Get Queue Statistics
     
-    func getQueueStatistics(bookId: String) -> (totalMCQs: Int, totalOpenEnded: Int) {
+    func getQueueStatistics(bookId: String, bookTitle: String? = nil) -> (totalMCQs: Int, totalOpenEnded: Int) {
         print("🔍 REVIEW QUEUE: getQueueStatistics() called for bookId: \(bookId)")
         let targetBookId = bookId
+        let hasLegacyTitle = bookTitle != nil
+        let safeLegacyTitle = bookTitle ?? ""
         let descriptor = FetchDescriptor<ReviewQueueItem>(
             predicate: #Predicate { item in
-                !item.isCompleted && (item.bookId == targetBookId)
+                !item.isCompleted && (
+                    item.bookId == targetBookId ||
+                    (hasLegacyTitle && item.bookId == nil && item.bookTitle == safeLegacyTitle)
+                )
             }
         )
         

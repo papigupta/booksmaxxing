@@ -552,7 +552,10 @@ struct DailyPracticeView: View {
 
                 // Get review questions from the queue (max 3 MCQ + 1 OEQ = 4 total) for this book only
                 let reviewManager = ReviewQueueManager(modelContext: modelContext)
-                let (mcqItems, openEndedItems) = reviewManager.getDailyReviewItems(bookId: book.id.uuidString)
+                let (mcqItems, openEndedItems) = reviewManager.getDailyReviewItems(
+                    bookId: book.id.uuidString,
+                    bookTitle: book.title
+                )
                 let allReviewItems = mcqItems + openEndedItems // Already limited to 3 MCQ + 1 OEQ
                 
                 // Use orderedQuestions to preserve the fixed internal sequence (Q6/Q8 invariants)
@@ -560,7 +563,7 @@ struct DailyPracticeView: View {
 
                 // Partition by difficulty while preserving relative order within each group
                 let easyFresh = freshQuestions.filter { $0.difficulty == .easy }
-                var mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
+                let mediumFresh = freshQuestions.filter { $0.difficulty == .medium }
                 var hardFresh = freshQuestions.filter { $0.difficulty == .hard }
 
                 // Ensure the single open-ended question (now Q8) is at the end of the hard bucket
