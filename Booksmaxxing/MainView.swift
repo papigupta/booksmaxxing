@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import FirebaseAnalytics
 
 struct MainView: View {
     let openAIService: OpenAIService
@@ -40,6 +41,7 @@ struct MainView: View {
             }
         }
         .onAppear {
+            Analytics.logEvent("test_event", parameters: nil)
             // Initialize selected book on first appear
             if !books.isEmpty && navigationState.selectedBookTitle == nil {
                 navigationState.selectedBookTitle = books[0].title

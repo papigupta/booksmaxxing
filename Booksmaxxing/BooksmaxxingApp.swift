@@ -7,9 +7,14 @@
 
 import SwiftUI
 import SwiftData
+import FirebaseCore
+import FirebaseCrashlytics
 
 @main
+    
 struct BooksmaxxingApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    
     @Environment(\.scenePhase) private var scenePhase
     // Shared OpenAIService instance
     private let openAIService = OpenAIService(apiKey: Secrets.openAIAPIKey)

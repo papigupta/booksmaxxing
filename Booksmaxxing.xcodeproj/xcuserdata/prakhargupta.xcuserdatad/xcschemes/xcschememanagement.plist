@@ -9,10 +9,28 @@
 			<key>orderHint</key>
 			<integer>0</integer>
 		</dict>
-		<key>Booksmaxxing.xcscheme_^#shared#^_</key>
+		<key>Promises (Playground).xcscheme</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>0</integer>
+			<integer>1</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>9501EA652E2949EA00E66525</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>9501EA782E2949EB00E66525</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>9501EA822E2949EB00E66525</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>
