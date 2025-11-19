@@ -1098,7 +1098,6 @@ struct FeedbackFullScreen: View {
     let feedback: QuestionFeedback
     let isLastQuestion: Bool
     let onPrimaryAction: () -> Void
-    @State private var showExemplar: Bool = false
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
 
@@ -1246,26 +1245,13 @@ struct FeedbackFullScreen: View {
                     // Exemplar for OEQ (collapsed), or Correct Answer for objective items
                     if feedback.isOpenEnded, let exemplar = feedback.correctAnswer, !exemplar.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                            HStack {
-                                Text("Author’s Exemplar")
-                                    .font(DS.Typography.captionBold)
-                                    .foregroundStyle(DS.Colors.primaryText)
-                                Spacer()
-                                Button(action: { withAnimation { showExemplar.toggle() } }) {
-                                    HStack(spacing: 4) {
-                                        Text(showExemplar ? "Hide" : "Show")
-                                        Image(systemName: showExemplar ? "chevron.up" : "chevron.down")
-                                    }
-                                    .font(DS.Typography.caption)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            if showExemplar {
-                                Text(exemplar)
-                                    .font(DS.Typography.body)
-                                    .foregroundStyle(DS.Colors.secondaryText)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+                            Text("Author’s Exemplar")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(DS.Colors.primaryText)
+                            Text(exemplar)
+                                .font(DS.Typography.body)
+                                .foregroundStyle(DS.Colors.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     } else if !feedback.isOpenEnded, !feedback.isCorrect, let correct = feedback.correctAnswer {
                         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
