@@ -8,14 +8,14 @@ import UIKit
 /// Timing and intensity live inside `Configuration` so we can tweak them easily.
 final class AnswerHaptics {
     struct Configuration {
-        var correctDuration: TimeInterval = 0.45
-        var correctIntensity: Float = 0.9
+        var correctDuration: TimeInterval = 0.3
+        var correctIntensity: Float = 0.5
         var correctSharpness: Float = 0.3
-        var incorrectFirstPulseDuration: TimeInterval = 0.10
-        var incorrectSecondPulseDuration: TimeInterval = 0.20
-        var incorrectPulseSpacing: TimeInterval = 0.08
-        var incorrectIntensity: Float = 1.0
-        var incorrectSharpness: Float = 0.5
+        var incorrectFirstPulseDuration: TimeInterval = 0.20
+        var incorrectSecondPulseDuration: TimeInterval = 0.30
+        var incorrectPulseSpacing: TimeInterval = 0.1
+        var incorrectIntensity: Float = 1
+        var incorrectSharpness: Float = 0.7
     }
 
     static let shared = AnswerHaptics()

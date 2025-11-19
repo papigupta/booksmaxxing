@@ -302,9 +302,9 @@ private struct ButtonBackground: View {
             .overlay(innerDarkOverlay)
     }
 
-    private var outerShadowRadius: CGFloat { interpolated(from: 24, to: 8) }
-    private var outerShadowOpacity: Double { interpolated(from: 0.60, to: 0.42) }
-    private var outerShadowOffset: CGFloat { interpolated(from: 0, to: 8) }
+    private var outerShadowRadius: CGFloat { interpolated(from: 12, to: 2) }
+    private var outerShadowOpacity: Double { interpolated(from: 0.3, to: 0.1) }
+    private var outerShadowOffset: CGFloat { interpolated(from: 0, to: 4) }
     private var innerShadowRadius: CGFloat { interpolated(from: 3, to: 1) }
     private var innerShadowOpacity: Double { interpolated(from: 0.18, to: 0.36) }
     private var innerShadowOffset: CGFloat { interpolated(from: 2, to: 1) }
