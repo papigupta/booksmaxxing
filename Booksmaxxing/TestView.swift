@@ -157,8 +157,9 @@ struct TestView: View {
                                 Text("Previous")
                             }
                             .font(DS.Typography.captionBold)
+                            .foregroundStyle(theme.onSurface)
                         }
-                        .themeSecondaryButton()
+                        .buttonStyle(.plain)
                     }
                     
                     Spacer()
@@ -166,52 +167,27 @@ struct TestView: View {
                     if currentQuestionIndex < (test.questions ?? []).count - 1 {
                         if showingFeedback {
                             Button(action: nextQuestion) {
-                                HStack(spacing: DS.Spacing.xs) {
-                                    Text("Continue")
-                                    DSIcon("chevron.right", size: 16)
-                                }
-                                .font(DS.Typography.captionBold)
+                                TestPrimaryButtonLabel(text: "Continue", isLoading: false)
                             }
-                            .themePrimaryButton()
+                            .dsPalettePrimaryButton()
                         } else {
                             Button(action: checkAnswer) {
-                                HStack(spacing: DS.Spacing.xs) {
-                                    if isEvaluatingQuestion {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.white))
-                                            .scaleEffect(0.8)
-                                    } else {
-                                        Text("Check")
-                                        DSIcon("checkmark", size: 16)
-                                    }
-                                }
-                                .font(DS.Typography.captionBold)
+                                TestPrimaryButtonLabel(text: "Check", isLoading: isEvaluatingQuestion)
                             }
-                            .themePrimaryButton()
+                            .dsPalettePrimaryButton()
                             .disabled(!isCurrentQuestionAnswered() || isEvaluatingQuestion)
                         }
                     } else {
                         if showingFeedback {
                             Button(action: submitTest) {
-                                Text("Finish Test")
-                                    .font(DS.Typography.captionBold)
+                                TestPrimaryButtonLabel(text: "Finish Test", isLoading: false)
                             }
-                            .themePrimaryButton()
+                            .dsPalettePrimaryButton()
                         } else {
                             Button(action: checkAnswer) {
-                                HStack(spacing: DS.Spacing.xs) {
-                                    if isEvaluatingQuestion {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.white))
-                                            .scaleEffect(0.8)
-                                    } else {
-                                        Text("Check")
-                                        DSIcon("checkmark", size: 16)
-                                    }
-                                }
-                                .font(DS.Typography.captionBold)
+                                TestPrimaryButtonLabel(text: "Check", isLoading: isEvaluatingQuestion)
                             }
-                            .themePrimaryButton()
+                            .dsPalettePrimaryButton()
                             .disabled(!isCurrentQuestionAnswered() || isEvaluatingQuestion)
                         }
                     }
@@ -219,7 +195,7 @@ struct TestView: View {
                 .padding(.horizontal, DS.Spacing.xxl)
                 .padding(.vertical, DS.Spacing.md)
             }
-            .background(theme.surface)
+            .background(theme.background)
             .navigationBarHidden(true)
             .onAppear {
                 initializeAttempt()
@@ -312,7 +288,7 @@ struct TestView: View {
                     .presentationDetents([.medium, .large])
             }
         }
-        .background(theme.surface.ignoresSafeArea())
+        .background(theme.background.ignoresSafeArea())
     }
     
     // MARK: - Helper Methods
@@ -1001,12 +977,8 @@ struct MCQOptions: View {
                     }
                     .padding(DS.Spacing.md)
                     .background(
-                        Rectangle()
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(selectedOptions.contains(index) ? theme.primaryContainer.opacity(0.35) : theme.surfaceVariant)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(selectedOptions.contains(index) ? theme.primary : theme.outline, lineWidth: DS.BorderWidth.thin)
-                            )
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -1055,12 +1027,8 @@ struct MSQOptions: View {
                     }
                     .padding(DS.Spacing.md)
                     .background(
-                        Rectangle()
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(selectedOptions.contains(index) ? theme.primaryContainer.opacity(0.35) : theme.surfaceVariant)
-                            .overlay(
-                                Rectangle()
-                                    .stroke(selectedOptions.contains(index) ? theme.primary : theme.outline, lineWidth: DS.BorderWidth.thin)
-                            )
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -1075,6 +1043,7 @@ struct OpenEndedInput: View {
     var onActivity: (() -> Void)? = nil
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
@@ -1091,17 +1060,25 @@ struct OpenEndedInput: View {
                 .frame(minHeight: 120)
                 .padding(DS.Spacing.md)
                 .background(
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(theme.surfaceVariant)
-                        .overlay(
-                            Rectangle()
-                                .stroke(theme.outline, lineWidth: DS.BorderWidth.thin)
-                        )
                 )
                 .disabled(isDisabled)
+                .focused($isFocused)
                 .onChange(of: response) { _, _ in
                     onActivity?()
                 }
+                .onAppear(perform: focusIfNeeded)
+                .onChange(of: isDisabled) { _, newValue in
+                    if newValue == false { focusIfNeeded() }
+                }
+        }
+    }
+
+    private func focusIfNeeded() {
+        guard !isDisabled else { return }
+        DispatchQueue.main.async {
+            isFocused = true
         }
     }
 }
@@ -1287,14 +1264,11 @@ struct FeedbackFullScreen: View {
             
             // Primary action
             HStack {
+                Spacer()
                 Button(action: onPrimaryAction) {
-                    HStack(spacing: DS.Spacing.xs) {
-                        Text(isLastQuestion ? "Finish Test" : "Continue")
-                        if !isLastQuestion { DSIcon("chevron.right", size: 16) }
-                    }
-                    .font(DS.Typography.captionBold)
+                    TestPrimaryButtonLabel(text: isLastQuestion ? "Finish Test" : "Continue", isLoading: false)
                 }
-                .themePrimaryButton()
+                .dsPalettePrimaryButton()
             }
             .padding(.horizontal, DS.Spacing.xxl)
             .padding(.vertical, DS.Spacing.md)
@@ -1362,9 +1336,9 @@ struct DifficultyBadge: View {
             .foregroundStyle(colorForDifficulty)
             .padding(.horizontal, DS.Spacing.xs)
             .padding(.vertical, 2)
-            .overlay(
-                Rectangle()
-                    .stroke(colorForDifficulty, lineWidth: DS.BorderWidth.thin)
+            .background(
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(colorForDifficulty.opacity(0.12))
             )
     }
     
@@ -1386,9 +1360,9 @@ struct BloomBadge: View {
             .foregroundStyle(DS.Colors.secondaryText)
             .padding(.horizontal, DS.Spacing.xs)
             .padding(.vertical, 2)
-            .overlay(
-                Rectangle()
-                    .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+            .background(
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(DS.Colors.secondaryText.opacity(0.08))
             )
     }
 }
@@ -1400,9 +1374,9 @@ struct RetrievalBadge: View {
             .foregroundStyle(DS.Colors.secondaryText)
             .padding(.horizontal, DS.Spacing.xs)
             .padding(.vertical, 2)
-            .overlay(
-                Rectangle()
-                    .stroke(DS.Colors.subtleBorder, lineWidth: DS.BorderWidth.thin)
+            .background(
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(DS.Colors.secondaryText.opacity(0.08))
             )
             .accessibilityLabel("Retrieval")
     }
@@ -1439,5 +1413,25 @@ struct SpacedFollowUpBadge: View {
                     .stroke(Color.blue, lineWidth: DS.BorderWidth.thin)
             )
             .accessibilityLabel("Spaced Follow-up")
+    }
+}
+
+// Shared primary button label for Check/Continue/Finish states
+struct TestPrimaryButtonLabel: View {
+    let text: String
+    let isLoading: Bool
+    
+    var body: some View {
+        HStack(spacing: DS.Spacing.xs) {
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: DS.Colors.white))
+                    .scaleEffect(0.8)
+            } else {
+                Text(text)
+                DSIcon("checkmark", size: 16)
+            }
+        }
+        .font(DS.Typography.captionBold)
     }
 }
