@@ -144,7 +144,8 @@ struct TestResultsView: View {
                         }
                     }
                 }
-                .padding(DS.Spacing.lg)
+                .padding(.horizontal, DS.Spacing.xxl)
+                .padding(.vertical, DS.Spacing.lg)
             }
             .background(themeManager.currentTokens(for: colorScheme).surface)
             .navigationTitle("Results")
@@ -193,7 +194,7 @@ struct TestResultsView: View {
                             Spacer()
                         }
                     }
-                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.horizontal, DS.Spacing.xxl)
                     .padding(.vertical, DS.Spacing.md)
                 }
                 .background(themeManager.currentTokens(for: colorScheme).surface)

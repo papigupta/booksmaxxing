@@ -88,13 +88,41 @@ struct TestView: View {
     }
     
     var body: some View {
-        NavigationStack {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return NavigationStack {
             VStack(spacing: 0) {
+                HStack(alignment: .center) {
+                    Button("Exit") {
+                        handleExitTapped()
+                    }
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(theme.onSurface)
+
+                    Spacer()
+
+                    Text(idea.title)
+                        .font(DS.Typography.title2)
+                        .foregroundStyle(theme.onSurface)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
+                    Spacer()
+
+                    Button("Primer") {
+                        showingPrimer = true
+                    }
+                    .font(DS.Typography.caption)
+                    .foregroundStyle(theme.onSurface)
+                }
+                .padding(.horizontal, DS.Spacing.xxl)
+                .padding(.top, DS.Spacing.sm)
+                .padding(.bottom, DS.Spacing.md)
+
                 // Progress Bar
                 ProgressBar(progress: progress, currentQuestion: currentQuestionIndex + 1, totalQuestions: (test.questions ?? []).count)
-                    .padding(.horizontal, DS.Spacing.lg)
-                    .padding(.vertical, DS.Spacing.md)
-                
+                    .padding(.horizontal, DS.Spacing.xxl)
+                    .padding(.bottom, DS.Spacing.md)
+
                 DSDivider()
                 
                 // Question Content
@@ -109,9 +137,10 @@ struct TestView: View {
                                 isDisabled: showingFeedback,
                                 onActivity: { markActivity() }
                             )
-                            .padding(DS.Spacing.lg)
+                            .padding(.vertical, DS.Spacing.lg)
                         }
                     }
+                    .padding(.horizontal, DS.Spacing.xxl)
                     .simultaneousGesture(DragGesture(minimumDistance: 1).onChanged { _ in
                         markActivity()
                     })
@@ -187,36 +216,11 @@ struct TestView: View {
                         }
                     }
                 }
-                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.horizontal, DS.Spacing.xxl)
                 .padding(.vertical, DS.Spacing.md)
             }
-            .background(themeManager.currentTokens(for: colorScheme).surface)
-            .navigationTitle(idea.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Exit") {
-                        // Save progress before exiting
-                        if let attempt = currentAttempt, !attempt.isComplete {
-                            saveCurrentResponse()
-                            attempt.currentQuestionIndex = currentQuestionIndex
-                            try? modelContext.save()
-                        }
-                        onExit?()
-                        dismiss()
-                    }
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingPrimer = true }) {
-                        Text("Primer")
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
-                    }
-                }
-            }
+            .background(theme.surface)
+            .navigationBarHidden(true)
             .onAppear {
                 initializeAttempt()
                 streakManager.isTestingActive = true
@@ -308,7 +312,7 @@ struct TestView: View {
                     .presentationDetents([.medium, .large])
             }
         }
-        .background(themeManager.currentTokens(for: colorScheme).surface.ignoresSafeArea())
+        .background(theme.surface.ignoresSafeArea())
     }
     
     // MARK: - Helper Methods
@@ -379,6 +383,16 @@ struct TestView: View {
         )
     }
     
+    private func handleExitTapped() {
+        if let attempt = currentAttempt, !attempt.isComplete {
+            saveCurrentResponse()
+            attempt.currentQuestionIndex = currentQuestionIndex
+            try? modelContext.save()
+        }
+        onExit?()
+        dismiss()
+    }
+
     private func isCurrentQuestionAnswered() -> Bool {
         guard let question = currentQuestion else { return false }
         
@@ -1265,7 +1279,8 @@ struct FeedbackFullScreen: View {
                         }
                     }
                 }
-                .padding(DS.Spacing.lg)
+                .padding(.horizontal, DS.Spacing.xxl)
+                .padding(.vertical, DS.Spacing.lg)
             }
             
             DSDivider()
@@ -1281,7 +1296,7 @@ struct FeedbackFullScreen: View {
                 }
                 .themePrimaryButton()
             }
-            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.horizontal, DS.Spacing.xxl)
             .padding(.vertical, DS.Spacing.md)
         }
         .background(themeManager.currentTokens(for: colorScheme).background.ignoresSafeArea())
