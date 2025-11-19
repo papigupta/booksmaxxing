@@ -419,6 +419,7 @@ struct TestView: View {
                     // Present full-screen feedback view
                     self.showingFeedback = true
                     self.isEvaluatingQuestion = false
+                    self.triggerAnswerHaptic(isCorrect: feedback.isCorrect)
                 }
 
                 await fetchWhyIfNeeded(for: question, baseEvaluation: evaluation)
@@ -553,6 +554,16 @@ struct TestView: View {
             isOpenEnded: isOpenEnded,
             isWhyPending: pendingWhy
         )
+    }
+
+    private func triggerAnswerHaptic(isCorrect: Bool) {
+        #if os(iOS)
+        if isCorrect {
+            AnswerHaptics.shared.playCorrect()
+        } else {
+            AnswerHaptics.shared.playIncorrect()
+        }
+        #endif
     }
 
     private func trimmed(_ text: String?) -> String? {
