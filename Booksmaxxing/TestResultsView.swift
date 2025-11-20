@@ -24,6 +24,12 @@ struct TestResultsView: View {
     private var masteryAchieved: Bool {
         result.masteryAchieved != .none
     }
+
+    private var accuracyPercentage: Int {
+        guard result.totalQuestions > 0 else { return 0 }
+        let ratio = (Double(result.correctCount) / Double(result.totalQuestions)) * 100
+        return Int(ratio.rounded())
+    }
     
     var body: some View {
         NavigationStack {
@@ -31,26 +37,18 @@ struct TestResultsView: View {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                     // Header with score
                     VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                        Text("Test Complete!")
-                            .font(DS.Typography.largeTitle)
+                        Text("Test complete")
+                            .font(DS.Typography.title2)
+                            .tracking(DS.Typography.tightTracking(for: 20))
                             .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                         
                         // Score display
                         HStack(spacing: DS.Spacing.md) {
                             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                Text("Score")
-                                    .font(DS.Typography.captionBold)
-                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
-                                Text("\(result.totalScore)/\(result.maxScore)")
-                                    .font(DS.Typography.title)
-                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                                 Text("Accuracy")
                                     .font(DS.Typography.captionBold)
                                     .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
-                                Text("\(result.correctCount)/\(result.totalQuestions)")
+                                Text("\(accuracyPercentage)%")
                                     .font(DS.Typography.title)
                                     .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             }
@@ -71,12 +69,8 @@ struct TestResultsView: View {
                         }
                         .padding(DS.Spacing.lg)
                         .background(
-                            Rectangle()
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(themeManager.currentTokens(for: colorScheme).surfaceVariant)
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(themeManager.currentTokens(for: colorScheme).outline, lineWidth: DS.BorderWidth.thin)
-                                )
                         )
                     }
                     
@@ -114,12 +108,8 @@ struct TestResultsView: View {
                         }
                         .padding(DS.Spacing.md)
                         .background(
-                            Rectangle()
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(.orange.opacity(0.1))
-                                .overlay(
-                                    Rectangle()
-                                        .stroke(.orange.opacity(0.3), lineWidth: DS.BorderWidth.thin)
-                                )
                         )
                     }
                     
@@ -169,30 +159,27 @@ struct TestResultsView: View {
                                 HStack(spacing: DS.Spacing.xs) {
                                     if isGeneratingRetryTest {
                                         ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: themeManager.currentTokens(for: colorScheme).onPrimary))
+                                            .progressViewStyle(CircularProgressViewStyle(tint: themeManager.currentTokens(for: colorScheme).onSurface))
                                             .scaleEffect(0.8)
                                     } else {
                                         DSIcon("arrow.clockwise", size: 16)
-                                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onPrimary)
+                                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                                     }
                                     Text(isGeneratingRetryTest ? "Preparing..." : "Retry Incorrect")
                                         .font(DS.Typography.captionBold)
-                                        .foregroundStyle(themeManager.currentTokens(for: colorScheme).onPrimary)
+                                        .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                                 }
                             }
-                            .themePrimaryButton()
+                            .buttonStyle(.plain)
                             .disabled(isGeneratingRetryTest)
                         }
                         
-                        Button(action: completeTest) {
-                            Text(hasIncorrectAnswers ? "Continue Anyway" : "Continue")
-                                .font(DS.Typography.captionBold)
-                        }
-                        .themeSecondaryButton()
+                        Spacer()
                         
-                        if !hasIncorrectAnswers {
-                            Spacer()
+                        Button(action: completeTest) {
+                            TestPrimaryButtonLabel(text: hasIncorrectAnswers ? "Continue Anyway" : "Continue", isLoading: false)
                         }
+                        .dsPalettePrimaryButton()
                     }
                     .padding(.horizontal, DS.Spacing.xxl)
                     .padding(.vertical, DS.Spacing.md)
@@ -440,7 +427,10 @@ struct QuestionResultCard: View {
                         .foregroundStyle(statusLabel.color)
                         .padding(.horizontal, DS.Spacing.xs)
                         .padding(.vertical, 2)
-                        .overlay(Rectangle().stroke(statusLabel.color, lineWidth: DS.BorderWidth.thin))
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(statusLabel.color.opacity(0.15))
+                        )
                     Text("\(evaluation.pointsEarned) pts")
                         .font(DS.Typography.captionBold)
                         .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
@@ -492,12 +482,8 @@ struct QuestionResultCard: View {
         }
         .padding(DS.Spacing.md)
         .background(
-            Rectangle()
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(themeManager.currentTokens(for: colorScheme).surfaceVariant)
-                .overlay(
-                    Rectangle()
-                        .stroke(themeManager.currentTokens(for: colorScheme).outline, lineWidth: DS.BorderWidth.thin)
-                )
         )
     }
     
