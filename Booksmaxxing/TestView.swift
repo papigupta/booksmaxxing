@@ -248,7 +248,7 @@ struct TestView: View {
                 lastSelectedIndex[q.id] = newIndex
                 markActivity()
             }
-            .sheet(isPresented: Binding(
+            .fullScreenCover(isPresented: Binding(
                 get: { shouldShowResults },
                 set: { if !$0 { evaluationResult = nil } }
             )) {
