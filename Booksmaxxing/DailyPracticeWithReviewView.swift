@@ -103,7 +103,6 @@ struct DailyPracticeWithReviewView: View {
                     TestView(
                         idea: currentIdea ?? createDailyPracticeIdea(),
                         test: test,
-                        bookId: book.id.uuidString,
                         openAIService: openAIService,
                         onCompletion: handleTestCompletion,
                         onExit: { showingTest = false }

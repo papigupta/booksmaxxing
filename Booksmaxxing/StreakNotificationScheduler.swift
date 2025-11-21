@@ -58,10 +58,10 @@ final class StreakNotificationScheduler {
 
         guard !requests.isEmpty else { return }
         for request in requests {
-            center.add(request) { error in
-                if let error {
-                    print("Streak notification scheduling failed: \(error)")
-                }
+            do {
+                try await center.add(request)
+            } catch {
+                print("Streak notification scheduling failed: \(error)")
             }
         }
     }
@@ -93,7 +93,7 @@ final class StreakNotificationScheduler {
 
     private func isAuthorized(status: UNAuthorizationStatus) -> Bool {
         switch status {
-        case .authorized, .provisional:
+        case .authorized, .provisional, .ephemeral:
             return true
         default:
             return false

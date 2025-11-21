@@ -125,7 +125,6 @@ struct DailyPracticeView: View {
                         TestView(
                             idea: ideaForTest,
                             test: test,
-                            bookId: book.id.uuidString,
                             openAIService: openAIService,
                             onCompletion: handleTestCompletion,
                             onSubmitted: { _ in },

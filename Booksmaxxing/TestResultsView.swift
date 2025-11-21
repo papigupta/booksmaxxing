@@ -31,48 +31,64 @@ struct TestResultsView: View {
         return Int(ratio.rounded())
     }
     
+    private var correctOutOfTotalText: String {
+        "\(result.correctCount)/\(result.totalQuestions) correct"
+    }
+    
+    private var incorrectSummaryText: String {
+        let count = result.incorrectQuestions.count
+        let questionWord = count == 1 ? "question" : "questions"
+        return "You missed \(count) \(questionWord) this round. We'll bring those ideas back in your next lessons so you can lock them in."
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    // Header with score
-                    VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                        Text("Test complete")
-                            .font(DS.Typography.title2)
-                            .tracking(DS.Typography.tightTracking(for: 20))
-                            .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
-                        
-                        // Score display
-                        HStack(spacing: DS.Spacing.md) {
-                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                Text("Accuracy")
-                                    .font(DS.Typography.captionBold)
-                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
-                                Text("\(accuracyPercentage)%")
+                    // Score display
+                    HStack(spacing: DS.Spacing.xl) {
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text("Accuracy")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
+                            Text("\(accuracyPercentage)%")
+                                .font(DS.Typography.title)
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
+                        }
+
+                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                            Text("Correct")
+                                .font(DS.Typography.captionBold)
+                                .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
+                            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                                Text("\(result.correctCount)")
                                     .font(DS.Typography.title)
                                     .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
-                            }
-                            
-                            Spacer()
-                            
-                            // Mastery badge (only show for solid mastery)
-                            if result.masteryAchieved == .solid {
-                                VStack(alignment: .center, spacing: DS.Spacing.xs) {
-                                    DSIcon("star.fill", size: 24)
-                                        .foregroundStyle(.yellow)
-                                    Text("SOLID MASTERY")
-                                        .font(DS.Typography.captionBold)
-                                        .foregroundStyle(DS.Colors.primaryText)
-                                        .multilineTextAlignment(.center)
-                                }
+                                Text("/\(result.totalQuestions)")
+                                    .font(DS.Typography.captionBold)
+                                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                             }
                         }
-                        .padding(DS.Spacing.lg)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(themeManager.currentTokens(for: colorScheme).surfaceVariant)
-                        )
+                        
+                        Spacer()
+                        
+                        // Mastery badge (only show for solid mastery)
+                        if result.masteryAchieved == .solid {
+                            VStack(alignment: .center, spacing: DS.Spacing.xs) {
+                                DSIcon("star.fill", size: 24)
+                                    .foregroundStyle(.yellow)
+                                Text("SOLID MASTERY")
+                                    .font(DS.Typography.captionBold)
+                                    .foregroundStyle(DS.Colors.primaryText)
+                                    .multilineTextAlignment(.center)
+                            }
+                        }
                     }
+                    .padding(DS.Spacing.lg)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(themeManager.currentTokens(for: colorScheme).surfaceVariant)
+                    )
                     
                     // Results breakdown
                     if !result.evaluationDetails.isEmpty {
@@ -102,36 +118,16 @@ struct TestResultsView: View {
                                     .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
                             }
                             
-                            Text("You got \(result.incorrectQuestions.count) question\(result.incorrectQuestions.count == 1 ? "" : "s") incorrect. Let's focus on those concepts!")
+                            Text(incorrectSummaryText)
                                 .font(DS.Typography.body)
                                 .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                         }
-                        .padding(DS.Spacing.md)
+                        .padding(DS.Spacing.lg)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.orange.opacity(0.1))
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(.orange.opacity(0.12))
                         )
-                    }
-                    
-                    // Next steps
-                    VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                        Text("What's Next?")
-                            .font(DS.Typography.bodyBold)
-                            .foregroundStyle(DS.Colors.primaryText)
-                        
-                        if hasIncorrectAnswers {
-                            Text("Review the incorrect answers and try again to achieve mastery.")
-                                .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                        } else if result.masteryAchieved == .solid {
-                            Text("Perfect! You've achieved solid mastery of this idea.")
-                                .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                        } else {
-                            Text("Great job! Keep practicing to solidify your understanding.")
-                                .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                        }
                     }
                 }
                 .padding(.horizontal, DS.Spacing.xxl)

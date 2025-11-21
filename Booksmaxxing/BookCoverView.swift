@@ -160,7 +160,7 @@ struct BookCoverView: View {
                 Task {
                     do {
                         let (data, _) = try await URLSession.shared.data(from: url)
-                        let scale = currentScale()
+                        let scale = await currentDisplayScale()
                         if let img = downsampledImage(data: data, to: target, scale: scale) {
                             await MainActor.run {
                                 self.lowResImage = img
@@ -185,7 +185,7 @@ struct BookCoverView: View {
                 Task {
                     do {
                         let (data, _) = try await URLSession.shared.data(from: url)
-                        let scale = currentScale()
+                        let scale = await currentDisplayScale()
                         if let img = downsampledImage(data: data, to: target, scale: scale) {
                             await MainActor.run {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -204,15 +204,6 @@ struct BookCoverView: View {
         }
     }
 
-    private func currentScale() -> CGFloat {
-        #if canImport(UIKit)
-        return UIScreen.main.scale
-        #elseif canImport(AppKit)
-        return NSScreen.main?.backingScaleFactor ?? 2.0
-        #else
-        return 2.0
-        #endif
-    }
 }
 
 // MARK: - Average color sampling
@@ -298,15 +289,7 @@ class ImageCache {
         Task.detached(priority: .background) {
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
-                let scale: CGFloat = {
-                    #if canImport(UIKit)
-                    return UIScreen.main.scale
-                    #elseif canImport(AppKit)
-                    return NSScreen.main?.backingScaleFactor ?? 2.0
-                    #else
-                    return 2.0
-                    #endif
-                }()
+                let scale = await currentDisplayScale()
                 if let img = downsampledImage(data: data, to: targetSize, scale: scale) {
                     await MainActor.run {
                         self.setImage(img, for: urlString)
@@ -317,4 +300,14 @@ class ImageCache {
             }
         }
     }
+}
+
+private func currentDisplayScale() async -> CGFloat {
+#if canImport(UIKit)
+    return await MainActor.run { UIScreen.main.scale }
+#elseif canImport(AppKit)
+    return await MainActor.run { NSScreen.main?.backingScaleFactor ?? 2.0 }
+#else
+    return 2.0
+#endif
 }

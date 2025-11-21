@@ -27,7 +27,7 @@ final class NotificationPermissionManager {
             }
 
             switch settings.authorizationStatus {
-            case .authorized, .provisional:
+            case .authorized, .provisional, .ephemeral:
                 DispatchQueue.main.async { completion?(true) }
             case .denied:
                 DispatchQueue.main.async { completion?(false) }
