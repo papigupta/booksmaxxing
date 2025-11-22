@@ -52,45 +52,58 @@ final class ThemeManager: ObservableObject {
         }
         // No existing: attempt to download cover and compute
         guard let urlStr = (book.coverImageUrl ?? book.thumbnailUrl), let url = URL(string: urlStr) else { return }
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            #if canImport(UIKit)
-            guard let img = UIImage(data: data) else { return }
-            #elseif canImport(AppKit)
-            guard let img = NSImage(data: data) else { return }
-            #endif
-            guard let cg = ImageSampler.downsampleToCGImage(img, maxDimension: 64) else { return }
-            let px = ImageSampler.extractRGBAPixels(cg)
-            var labs: [LabPoint] = []
-            labs.reserveCapacity(px.count/4)
-            var i = 0
-            while i < px.count { // ignore transparent
-                if px[i+3] > 127 {
-                    let r = Double(px[i]) / 255.0
-                    let g = Double(px[i+1]) / 255.0
-                    let b = Double(px[i+2]) / 255.0
-                    let lab = rgbToOKLab(r: r, g: g, b: b)
-                    labs.append(LabPoint(L: lab.L, a: lab.a, b: lab.b))
+
+        // Heavy work (network + quantization) off the main actor to avoid UI jank
+        let generated: (roleDTOs: [PaletteRoleDTO], seedHexes: [String])? = await Task.detached(priority: .utility) {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                #if canImport(UIKit)
+                guard let img = UIImage(data: data) else { return nil }
+                #elseif canImport(AppKit)
+                guard let img = NSImage(data: data) else { return nil }
+                #endif
+                guard let cg = ImageSampler.downsampleToCGImage(img, maxDimension: 64) else { return nil }
+                let px = ImageSampler.extractRGBAPixels(cg)
+                var labs: [LabPoint] = []
+                labs.reserveCapacity(px.count/4)
+                var i = 0
+                while i < px.count { // ignore transparent
+                    if px[i+3] > 127 {
+                        let r = Double(px[i]) / 255.0
+                        let g = Double(px[i+1]) / 255.0
+                        let b = Double(px[i+2]) / 255.0
+                        let lab = rgbToOKLab(r: r, g: g, b: b)
+                        labs.append(LabPoint(L: lab.L, a: lab.a, b: lab.b))
+                    }
+                    i += 4
                 }
-                i += 4
+                let clusters = KMeansQuantizer.quantize(labPoints: labs, k: 5, maxIterations: 10)
+                let seeds = PaletteGenerator.scoreSeeds(clusters)
+                let roles = PaletteGenerator.generateRoles(from: seeds)
+                let dto: [PaletteRoleDTO] = roles.map { role in
+                    let dict = Dictionary(uniqueKeysWithValues: role.tones.map { ($0.tone, $0.color.toHexString() ?? "#000000") })
+                    return PaletteRoleDTO(name: role.name, tones: dict)
+                }
+                let seedHexes = seeds.compactMap { $0.color.toHexString() }
+                return (dto, seedHexes)
+            } catch {
+                print("ThemeManager error (background): \(error)")
+                return nil
             }
-            let clusters = KMeansQuantizer.quantize(labPoints: labs, k: 5, maxIterations: 10)
-            let seeds = PaletteGenerator.scoreSeeds(clusters)
-            let roles = PaletteGenerator.generateRoles(from: seeds)
-            applyRoles(roles, seeds: seeds)
-            usingBookPalette = true
-            // Persist
-            let dto: [PaletteRoleDTO] = roles.map { role in
-                let dict = Dictionary(uniqueKeysWithValues: role.tones.map { ($0.tone, $0.color.toHexString() ?? "#000000") })
-                return PaletteRoleDTO(name: role.name, tones: dict)
-            }
-            if let data = try? JSONEncoder().encode(dto) {
-                let theme = BookTheme(bookId: book.id, seedHex: seeds.first?.color.toHexString() ?? "#000000", rolesJSON: data)
-                mc.insert(theme)
-                try? mc.save()
-            }
-        } catch {
-            print("ThemeManager error: \(error)")
+        }.value
+
+        guard let generated = generated else { return }
+        let roles = generated.roleDTOs.map { $0.model }
+        applyRoles(roles, seeds: nil)
+        activeSeedHexes = generated.seedHexes
+        usingBookPalette = true
+
+        // Persist on main actor
+        if let data = try? JSONEncoder().encode(generated.roleDTOs) {
+            let seedHex = generated.seedHexes.first ?? "#000000"
+            let theme = BookTheme(bookId: book.id, seedHex: seedHex, rolesJSON: data)
+            mc.insert(theme)
+            try? mc.save()
         }
     }
 
