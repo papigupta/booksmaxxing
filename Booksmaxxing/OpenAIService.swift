@@ -4,7 +4,11 @@ import OSLog
 
 // MARK: - Network Monitor
 
-class NetworkMonitor: ObservableObject {
+protocol NetworkStatusProviding {
+    var isConnected: Bool { get }
+}
+
+class NetworkMonitor: ObservableObject, NetworkStatusProviding {
     @Published var isConnected = true
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "NetworkMonitor")
@@ -37,12 +41,22 @@ class OpenAIService {
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
     private let session: URLSession
-    private let networkMonitor: NetworkMonitor
+    private let networkMonitor: NetworkStatusProviding
+    private let sleep: (UInt64) async throws -> Void
     
-    init(apiKey: String) {
+    init(
+        apiKey: String,
+        session: URLSession,
+        networkMonitor: NetworkStatusProviding,
+        sleep: @escaping (UInt64) async throws -> Void = Task.sleep
+    ) {
         self.apiKey = apiKey
-        self.networkMonitor = NetworkMonitor()
-        
+        self.session = session
+        self.networkMonitor = networkMonitor
+        self.sleep = sleep
+    }
+    
+    convenience init(apiKey: String) {
         // Create a custom configuration with maximum reliability settings
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 90.0  // 90 seconds for request timeout (very generous for OEQ)
@@ -54,7 +68,9 @@ class OpenAIService {
         // Allow limited parallelism when enabled for faster multi-batch requests
         configuration.httpMaximumConnectionsPerHost = DebugFlags.enableParallelOpenAI ? 3 : 1
         
-        self.session = URLSession(configuration: configuration)
+        let defaultSession = URLSession(configuration: configuration)
+        let monitor = NetworkMonitor()
+        self.init(apiKey: apiKey, session: defaultSession, networkMonitor: monitor, sleep: Task.sleep)
     }
     
     // MARK: - Input Validation and Sanitization
@@ -390,7 +406,7 @@ class OpenAIService {
     }
     
     // Retry logic with exponential backoff and network connectivity checks
-    private func withRetry<T>(maxAttempts: Int, operation: @escaping () async throws -> T) async throws -> T {
+    func withRetry<T>(maxAttempts: Int, operation: @escaping () async throws -> T) async throws -> T {
         var lastError: Error?
         
         for attempt in 1...maxAttempts {
@@ -398,12 +414,12 @@ class OpenAIService {
             if !networkMonitor.isConnected {
                 // Wait a bit for network to come back
                 logger.debug("Network offline, waiting for connectivity…")
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
-                
-                // Check again
-                if !networkMonitor.isConnected {
-                    let error = OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1009, userInfo: [NSLocalizedDescriptionKey: "No internet connection available"]))
-                    logger.debug("Still no network connectivity on attempt \(attempt)")
+                    try? await sleep(2_000_000_000) // 2 seconds
+                    
+                    // Check again
+                    if !networkMonitor.isConnected {
+                        let error = OpenAIServiceError.networkError(NSError(domain: "OpenAIService", code: -1009, userInfo: [NSLocalizedDescriptionKey: "No internet connection available"]))
+                        logger.debug("Still no network connectivity on attempt \(attempt)")
                     lastError = error
                     
                     if attempt < maxAttempts {
@@ -440,7 +456,7 @@ class OpenAIService {
                     let jitter = Double.random(in: 0.5...1.5) // Add jitter to prevent thundering herd
                     let delay = exponentialDelay * jitter
                     self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    try await sleep(UInt64(delay * 1_000_000_000))
                 } else {
                     self.logger.error("Max attempts reached, failing with error: \(String(describing: error))")
                 }
@@ -453,7 +469,7 @@ class OpenAIService {
                     let jitter = Double.random(in: 0.5...1.5)
                     let delay = exponentialDelay * jitter
                     self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    try await sleep(UInt64(delay * 1_000_000_000))
                 }
             }
         }
