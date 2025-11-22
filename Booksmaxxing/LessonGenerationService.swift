@@ -27,6 +27,10 @@ struct QuestionDistribution {
 }
 
 // MARK: - Lesson Generation Service
+enum LessonGenerationError: Error {
+    case primaryIdeaNotFound
+}
+
 @MainActor
 final class LessonGenerationService {
     
@@ -132,7 +136,10 @@ final class LessonGenerationService {
         
         // 1. Generate new questions from primary idea
         if lesson.questionDistribution.newQuestions > 0 {
-            let primaryIdea = (book.ideas ?? []).first { $0.id == lesson.primaryIdeaId }!
+            guard let primaryIdea = (book.ideas ?? []).first(where: { $0.id == lesson.primaryIdeaId }) else {
+                print("DEBUG: Missing primary idea \(lesson.primaryIdeaId); aborting practice test generation")
+                throw LessonGenerationError.primaryIdeaNotFound
+            }
             let newQuestions = try await generateQuestionsForIdea(
                 primaryIdea,
                 count: lesson.questionDistribution.newQuestions,
