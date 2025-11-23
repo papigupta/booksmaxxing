@@ -2,6 +2,9 @@ import Foundation
 import SwiftData
 
 final class PracticePrefetcher {
+    // Treat prefetch sessions older than this as stale and safe to reset.
+    static let staleInterval: TimeInterval = 5 * 60
+
     private let modelContext: ModelContext
     private let openAIService: OpenAIService
 
@@ -23,29 +26,41 @@ final class PracticePrefetcher {
         let bookTitle = book.title
 
         Task { @MainActor in
+            let cutoff = Date().addingTimeInterval(-Self.staleInterval)
+
+            // Remove stale "generating"/"error" sessions so they don't permanently block prefetch.
+            purgeStaleSessions(ideaId: ideaId, bookId: bookId, cutoff: cutoff)
+
             let start = Date()
-            // If a session already exists and is ready or generating, no-op
-            let existing: PracticeSession? = {
-                do {
-                    let descriptor = FetchDescriptor<PracticeSession>(
-                        predicate: #Predicate { s in
-                            s.ideaId == ideaId && s.bookId == bookId && s.type == "lesson_practice"
-                        },
-                        sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
-                    )
-                    return try modelContext.fetch(descriptor).first
-                } catch { return nil }
-            }()
-            if let existing = existing {
-                if existing.status == "ready" || existing.status == "generating" {
-                    print("PREFETCH: Existing session for idea \(ideaId) is \(existing.status). Skipping.")
+            // If a session already exists and is ready or actively generating, no-op.
+            if let existing = try? await fetchLatestSession(ideaId: ideaId, bookId: bookId, type: "lesson_practice") {
+                if existing.status == "ready" {
+                    print("PREFETCH: Existing session for idea \(ideaId) is READY. Skipping.")
                     return
+                } else if existing.status == "generating", existing.updatedAt >= cutoff {
+                    print("PREFETCH: Existing session for idea \(ideaId) still GENERATING. Skipping.")
+                    return
+                } else if existing.status == "error" {
+                    print("PREFETCH: Removing ERROR session for idea \(ideaId); will regenerate.")
+                    modelContext.delete(existing)
+                    try? modelContext.save()
                 }
+            }
+
+            // Fetch the Idea by id on MainActor to avoid crossing non-sendable references
+            let descriptor = FetchDescriptor<Idea>(
+                predicate: #Predicate { i in i.id == ideaId }
+            )
+            let targetIdea: Idea? = try? modelContext.fetch(descriptor).first
+            guard let targetIdea = targetIdea else {
+                print("PREFETCH: Could not fetch idea \(ideaId); aborting prefetch")
+                return
             }
 
             // Create a generating session as a lock
             let session: PracticeSession = {
                 let s = PracticeSession(ideaId: ideaId, bookId: bookId, type: "lesson_practice", status: "generating", configVersion: 1)
+                s.updatedAt = Date()
                 modelContext.insert(s)
                 try? modelContext.save()
                 print("PREFETCH: Created GENERATING session for idea \(ideaId)")
@@ -55,16 +70,6 @@ final class PracticePrefetcher {
             do {
                 // Build mixed test similar to DailyPracticeView.generatePractice()
                 let testGen = TestGenerationService(openAI: openAIService, modelContext: modelContext)
-
-                // Fetch the Idea by id on MainActor to avoid crossing non-sendable references
-                let descriptor = FetchDescriptor<Idea>(
-                    predicate: #Predicate { i in i.id == ideaId }
-                )
-                let targetIdea: Idea? = try? modelContext.fetch(descriptor).first
-                guard let targetIdea = targetIdea else {
-                    print("PREFETCH: Could not fetch idea \(ideaId); aborting prefetch")
-                    return
-                }
 
                 // Generate fresh 8 questions for the primary idea
                 print("PREFETCH: Generating fresh questions for idea \(ideaId) …")
@@ -211,6 +216,27 @@ final class PracticePrefetcher {
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )
             return try self.modelContext.fetch(descriptor).first
+        }
+    }
+
+    private func purgeStaleSessions(ideaId: String, bookId: String, cutoff: Date) {
+        let descriptor = FetchDescriptor<PracticeSession>(
+            predicate: #Predicate { s in
+                s.ideaId == ideaId && s.bookId == bookId && s.type == "lesson_practice"
+            },
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        guard let sessions = try? modelContext.fetch(descriptor) else { return }
+        var purged = 0
+        for session in sessions {
+            if (session.status == "generating" || session.status == "error"), session.updatedAt < cutoff {
+                modelContext.delete(session)
+                purged += 1
+            }
+        }
+        if purged > 0 {
+            try? modelContext.save()
+            print("PREFETCH: Purged \(purged) stale sessions for idea \(ideaId)")
         }
     }
 }

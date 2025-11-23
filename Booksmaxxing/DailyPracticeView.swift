@@ -511,39 +511,47 @@ struct DailyPracticeView: View {
                         }
                         return
                     } else if existingSession.status == PracticeSessionStatus.generating {
-                        print("DEBUG: Found GENERATING session; waiting for readiness…")
-                        // Poll for up to ~40 seconds (batching can take longer)
-                        var attempts = 0
-                        while attempts < 40 {
-                            try await Task.sleep(nanoseconds: 1_000_000_000)
-                            if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
-                                if refreshed.status == PracticeSessionStatus.ready,
-                                   let readyTest = refreshed.test,
-                                   (readyTest.questions ?? []).count >= 8 {
-                                    await MainActor.run {
-                                        self.applyLoadedSession(test: readyTest, session: refreshed)
-                                    }
-                                    return
-                                } else if refreshed.status == PracticeSessionStatus.error {
-                                    let msg = String(data: refreshed.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
-                                    await MainActor.run {
-                                        self.errorMessage = msg
-                                        self.isGenerating = false
-                                    }
-                                    return
-                                }
+                        let cutoff = Date().addingTimeInterval(-PracticePrefetcher.staleInterval)
+                        if existingSession.updatedAt < cutoff {
+                            print("DEBUG: Found stale GENERATING session; deleting and regenerating inline")
+                            await MainActor.run {
+                                self.modelContext.delete(existingSession)
+                                try? self.modelContext.save()
                             }
-                            attempts += 1
+                        } else {
+                            print("DEBUG: Found GENERATING session; waiting for readiness…")
+                            // Poll for up to ~40 seconds (batching can take longer)
+                            var attempts = 0
+                            while attempts < 40 {
+                                try await Task.sleep(nanoseconds: 1_000_000_000)
+                                if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
+                                    if refreshed.status == PracticeSessionStatus.ready,
+                                       let readyTest = refreshed.test,
+                                       (readyTest.questions ?? []).count >= 8 {
+                                        await MainActor.run {
+                                            self.applyLoadedSession(test: readyTest, session: refreshed)
+                                        }
+                                        return
+                                    } else if refreshed.status == PracticeSessionStatus.error {
+                                        let msg = String(data: refreshed.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
+                                        await MainActor.run {
+                                            self.errorMessage = msg
+                                            self.isGenerating = false
+                                        }
+                                        return
+                                    }
+                                }
+                                attempts += 1
+                            }
+                            // Timed out; proceed to generate inline as fallback
+                            print("DEBUG: GENERATING session timed out; generating inline…")
                         }
-                        // Timed out; proceed to generate inline as fallback
-                        print("DEBUG: GENERATING session timed out; generating inline…")
                     } else if existingSession.status == PracticeSessionStatus.error {
-                        let msg = String(data: existingSession.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
+                        print("DEBUG: Found ERROR session; deleting and regenerating inline")
                         await MainActor.run {
-                            self.errorMessage = msg
-                            self.isGenerating = false
+                            self.modelContext.delete(existingSession)
+                            try? self.modelContext.save()
                         }
-                        return
                     }
                 }
 
