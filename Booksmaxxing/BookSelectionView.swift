@@ -179,7 +179,7 @@ struct BookSelectionView: View {
         let key = activeBook?.id.uuidString ?? "none"
         return AnimatedBackgroundGradient(
             start: tokens.background,
-            end: tokens.primary.opacity(0.08),
+            end: tokens.primary.opacity(0.20),
             key: key,
             duration: 0.6
         )
@@ -1025,7 +1025,7 @@ private struct BookCarouselCard: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [glowColor.opacity(0.9), glowColor.opacity(0.0)],
+                            colors: [glowColor.opacity(1.0), glowColor.opacity(0.0)],
                             center: .center,
                             startRadius: 0,
                             endRadius: 440
