@@ -8,6 +8,14 @@ enum BookSelectionEducationKeys {
     static let addBookTipAcknowledged = "BookSelectionHasAcknowledgedAddBookEducation"
 }
 
+private struct AddButtonAnchorPreferenceKey: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
+    }
+}
+
 struct BookSelectionView: View {
     let openAIService: OpenAIService
     @Environment(\.modelContext) private var modelContext
@@ -51,6 +59,8 @@ struct BookSelectionView: View {
 
     private let addButtonDiameter: CGFloat = 52
     private let addButtonGap: CGFloat = 12
+    private let addButtonHorizontalPadding: CGFloat = 24
+    private let addTooltipRise: CGFloat = 8
     // Prevent layout jumping: fix heights for title, author, and details block
     private let titleAuthorBlockHeight: CGFloat = 72 // fits 2-line title + 1-line author + 4pt gap
     private let detailsFixedHeight: CGFloat = 140 // description + stats area
@@ -110,21 +120,34 @@ struct BookSelectionView: View {
         }
         .ignoresSafeArea()
         .safeAreaInset(edge: .bottom) {
-            ZStack(alignment: .bottomTrailing) {
-                if showAddBookEducationTooltip {
-                    addBookEducationTooltip
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                        .padding(.trailing, addButtonDiameter + addButtonGap + 12)
-                        .padding(.bottom, addButtonDiameter + addButtonGap + 56)
-                        .accessibilityHidden(true)
-                }
-
-                // Floating add button on the right
-                HStack { Spacer(); addBookButton }
-                    .padding(.horizontal, 24)
+            HStack {
+                Spacer()
+                addBookButton
+                    .anchorPreference(key: AddButtonAnchorPreferenceKey.self, value: .bounds) { $0 }
             }
+            .padding(.horizontal, addButtonHorizontalPadding)
             .padding(.vertical, 8)
-            .background(Color.clear)
+        }
+        .overlayPreferenceValue(AddButtonAnchorPreferenceKey.self) { anchor in
+            GeometryReader { proxy in
+                Group {
+                    if showAddBookEducationTooltip, let anchor {
+                        let buttonFrame = proxy[anchor]
+                        let trailingSpace = max(proxy.size.width - buttonFrame.maxX, 0)
+                        let buttonBottomGap = max(proxy.size.height - buttonFrame.maxY, 0)
+
+                        addBookEducationTooltip
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                            .padding(.trailing, trailingSpace)
+                            .padding(
+                                .bottom,
+                                buttonBottomGap + addButtonDiameter + addButtonGap + addTooltipRise
+                            )
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
         }
         // Present Cmd+K overlay inline so it always shows
         .overlay {
@@ -362,27 +385,27 @@ struct BookSelectionView: View {
     // Primary selection button removed in favor of tap-to-select on cards.
 
     private var addBookButton: some View {
-        ZStack {
+        Button(action: {
+            guard !isProcessingSelection else { return }
+            triggerAddButtonHaptic()
+            completeAddBookEducation(animated: true)
+            withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
+                isAddOverlayActive = true
+            }
+        }) {
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .regular))
+        }
+        .matchedGeometryEffect(id: "addControl", in: addOverlayNamespace)
+        .dsPaletteIconButton(diameter: addButtonDiameter)
+        .accessibilityIdentifier("BookSelectionAddButton")
+        .disabled(isProcessingSelection)
+        .background {
             if showAddBookEducationTooltip {
                 addButtonSpotlight
                     .transition(.scale.combined(with: .opacity))
+                    .allowsHitTesting(false)
             }
-
-            Button(action: {
-                guard !isProcessingSelection else { return }
-                triggerAddButtonHaptic()
-                completeAddBookEducation(animated: true)
-                withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
-                    isAddOverlayActive = true
-                }
-            }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .regular))
-            }
-            .matchedGeometryEffect(id: "addControl", in: addOverlayNamespace)
-            .dsPaletteIconButton(diameter: addButtonDiameter)
-            .accessibilityIdentifier("BookSelectionAddButton")
-            .disabled(isProcessingSelection)
         }
     }
 
