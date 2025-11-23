@@ -1,0 +1,822 @@
+[
+  {
+    "starterId": "starter_demon_haunted_world",
+    "title": "The Demon-Haunted World: Science as a Candle in the Dark",
+    "author": "Carl Sagan",
+    "description": "A defense of scientific thinking and skepticism that shows how the methods of science and everyday 'baloney detection' protect us from pseudoscience, superstition, and manipulation.",
+    "coverImageUrl": "https://m.media-amazon.com/images/I/61Cwip6BFuL._AC_UF1000,1000_QL80_.jpg",
+    "thumbnailUrl": "https://m.media-amazon.com/images/I/61Cwip6BFuL._AC_UF1000,1000_QL80_.jpg",
+    "ideas": [
+      {
+        "id": "i1",
+        "title": "Scientific Method",
+        "description": "A systematic way of forming hypotheses, testing them against evidence, and revising them, designed to expose and correct error over time.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i2",
+        "title": "Skepticism as a Tool",
+        "description": "A habit of withholding belief until claims survive questioning and evidence checks, used to avoid being fooled rather than to dismiss everything.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i3",
+        "title": "Pattern-Seeking and Pareidolia",
+        "description": "The mind\u2019s tendency to see meaningful patterns and faces in random noise, which explains phenomena like the 'face on Mars' and many false positives.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i4",
+        "title": "Extraordinary Claims Principle",
+        "description": "The rule that extraordinary claims require extraordinary evidence, because the more a claim clashes with established knowledge, the stronger the proof needed.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i5",
+        "title": "Aliens and UFO Claims",
+        "description": "A case study in how anecdotes, blurry photos, and missing evidence fall short of the standards needed to justify belief in extraterrestrial visitors.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i6",
+        "title": "Hallucinations and Perception Limits",
+        "description": "The idea that vivid experiences can be generated entirely by the brain, showing why first-person reports alone are not reliable proof of external events.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i7",
+        "title": "Science vs Pseudoscience",
+        "description": "A distinction based on testability, openness to refutation, and peer criticism versus reliance on anecdotes, ad hoc excuses, and isolation from scrutiny.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i8",
+        "title": "Baloney Detection Kit",
+        "description": "A practical checklist for evaluating claims, including checking sources, seeking independent confirmation, using Occam\u2019s razor, and looking for falsification tests.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i9",
+        "title": "Falsifiability and Burden of Proof",
+        "description": "The idea that meaningful claims must expose themselves to possible disproof, and that the claimant\u2014not the skeptic\u2014bears the burden of providing evidence.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i10",
+        "title": "Unfalsifiable Claims",
+        "description": "Claims like the 'invisible dragon in my garage' that are protected from any possible test, making them scientifically empty even if emotionally compelling.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i11",
+        "title": "Pseudoscience Tactics",
+        "description": "Common moves such as cherry-picking data, moving goalposts, attacking critics, and invoking conspiracy to explain away failures instead of revising the claim.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i12",
+        "title": "Evidence-Based Medicine",
+        "description": "The view that treatments\u2014whether conventional or 'alternative'\u2014must be judged by controlled trials and data, not by tradition or testimonials alone.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i13",
+        "title": "Superstition and Moral Panics",
+        "description": "How fear plus ignorance of natural causes can lead to witch hunts and persecutions, showing the social cost of demon-haunted thinking.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i14",
+        "title": "Science and Moral Responsibility",
+        "description": "The idea that although knowledge itself is neutral, scientists and citizens share responsibility for how technologies\u2014from nukes to biotech\u2014are developed and used.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i15",
+        "title": "Curiosity and No Dumb Questions",
+        "description": "A cultural norm that questions should be welcomed, not punished, especially in children, because curiosity is the engine of scientific progress.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i16",
+        "title": "Skeptical Citizenship",
+        "description": "Applying the same critical habits used in science to politics, media, and advertising, so that citizens are harder to manipulate by propaganda or spin.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i17",
+        "title": "Skepticism and Wonder Together",
+        "description": "The stance that rigorous doubt and childlike awe are compatible: understanding more about reality deepens wonder instead of killing it.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      }
+    ]
+  },
+  {
+    "starterId": "starter_thinking_fast_slow",
+    "title": "Thinking, Fast and Slow",
+    "author": "Daniel Kahneman",
+    "description": "A tour of how fast, intuitive System 1 and slow, deliberate System 2 shape our judgments and choices, and how their interaction leads to systematic biases in decision-making and memory.",
+    "coverImageUrl": "https://m.media-amazon.com/images/I/71f6DceqZAL.jpg",
+    "thumbnailUrl": "https://m.media-amazon.com/images/I/71f6DceqZAL.jpg",
+    "ideas": [
+      {
+        "id": "i1",
+        "title": "System 1 and System 2",
+        "description": "Two interacting modes of thinking: fast, automatic, intuitive System 1 and slow, deliberate, effortful System 2, with System 2 often endorsing System 1\u2019s quick impressions.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i2",
+        "title": "Attention and Effort",
+        "description": "System 2 requires limited mental energy and focused attention, so when tasks are demanding, people are more likely to default to shortcuts from System 1.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i3",
+        "title": "Lazy System 2",
+        "description": "System 2 tends to conserve effort and usually accepts System 1\u2019s suggestions unless there is a clear reason to intervene, making bias correction rare by default.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i4",
+        "title": "Associative Machine",
+        "description": "System 1 constantly links ideas, emotions, and memories into coherent stories, so subtle primes\u2014words, images, or moods\u2014can shift judgments without our awareness.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i5",
+        "title": "Cognitive Ease",
+        "description": "Information that feels familiar and easy to process is judged as more true and safe, while effortful processing creates doubt and can trigger more careful thinking.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i6",
+        "title": "Norms and Causes",
+        "description": "System 1 quickly classifies events as normal or surprising and invents simple causal stories, often underplaying randomness and complexity.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i7",
+        "title": "What You See Is All There Is",
+        "description": "System 1 acts on the information that is salient and available, ignoring what is missing, so we build confident stories from incomplete data instead of seeking further evidence.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i8",
+        "title": "Question Substitution",
+        "description": "When asked a hard question, the mind often unconsciously substitutes an easier one\u2014such as 'How do I feel about this?'\u2014and answers that instead.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i9",
+        "title": "Law of Small Numbers",
+        "description": "People expect small samples to faithfully represent the population, so they overinterpret streaks and anomalies that are mostly just statistical noise.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i10",
+        "title": "Anchoring",
+        "description": "Initial numbers, even if arbitrary, pull subsequent judgments toward them, biasing estimates in negotiations, pricing, and forecasting.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i11",
+        "title": "Availability Heuristic",
+        "description": "Judgments of frequency and risk are driven by how easily examples come to mind, so vivid or recent events feel more common than they really are.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i12",
+        "title": "Representativeness Heuristic",
+        "description": "People judge probabilities by similarity to stereotypes, leading to neglect of base rates and misunderstanding of randomness.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i13",
+        "title": "Conjunction Fallacy",
+        "description": "Because detailed stories feel more representative, people often judge a specific scenario as more likely than a broader one that logically includes it.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i14",
+        "title": "Regression to the Mean",
+        "description": "Extreme performances or outcomes tend to be followed by more average ones, but people mistakenly attribute this to interventions instead of statistics.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i15",
+        "title": "Illusion of Validity",
+        "description": "Confidence in a judgment is driven by the coherence of the story, not actual accuracy, so experts often feel sure even when their predictions are poor.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i16",
+        "title": "Hindsight and Narrative Fallacy",
+        "description": "In hindsight, people weave narratives that make events seem predictable and inevitable, reinforcing overconfidence in their ability to foresee complex outcomes.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i17",
+        "title": "Planning Fallacy",
+        "description": "Individuals and organizations underestimate time, cost, and risks by focusing on optimistic inside views instead of using outside statistical baselines.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i18",
+        "title": "Prospect Theory",
+        "description": "A model of decision-making in which outcomes are evaluated as gains or losses relative to a reference point, with diminishing sensitivity and loss aversion shaping choices.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i19",
+        "title": "Reference Points",
+        "description": "People evaluate outcomes relative to a changing baseline\u2014such as current wealth or expectations\u2014rather than in absolute terms.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i20",
+        "title": "Loss Aversion",
+        "description": "Losses loom larger than equivalent gains, making people risk-averse for gains but risk-seeking when trying to avoid losses.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i21",
+        "title": "Endowment Effect and Status Quo Bias",
+        "description": "People value what they already own more than identical items they do not, and they overweight the disadvantages of change, leading to inertia.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i22",
+        "title": "Framing Effects",
+        "description": "Logically equivalent descriptions\u2014such as survival rates versus mortality rates\u2014can lead to different preferences, because choices depend on whether options are framed as gains or losses.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i23",
+        "title": "Mental Accounting",
+        "description": "People mentally partition money and outcomes into separate 'accounts' and evaluate decisions locally, often leading to globally inconsistent choices.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i24",
+        "title": "Probability Weighting and Rare Events",
+        "description": "People overweight small probabilities and underweight moderate and high ones, helping explain behaviors like buying both lottery tickets and insurance.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i25",
+        "title": "Experiencing vs Remembering Self",
+        "description": "The experiencing self lives in the present moment, while the remembering self constructs stories about episodes and largely determines future choices.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i26",
+        "title": "Peak-End Rule and Duration Neglect",
+        "description": "Memory of an experience depends mostly on its most intense moment and how it ended, with duration playing little role in the remembered evaluation.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i27",
+        "title": "Focusing Illusion",
+        "description": "When thinking about one aspect of life\u2014like income or location\u2014people temporarily exaggerate its impact on happiness, forgetting that many other factors matter too.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      }
+    ]
+  },
+  {
+    "starterId": "starter_selfish_gene",
+    "title": "The Selfish Gene",
+    "author": "Richard Dawkins",
+    "description": "An explanation of evolution from the perspective of genes as replicators, showing how gene-level selection can produce cooperation, altruism, conflict, and cultural evolution.",
+    "coverImageUrl": "https://m.media-amazon.com/images/I/81yWNVpjkmL._AC_UF1000,1000_QL80_.jpg",
+    "thumbnailUrl": "https://m.media-amazon.com/images/I/81yWNVpjkmL._AC_UF1000,1000_QL80_.jpg",
+    "ideas": [
+      {
+        "id": "i1",
+        "title": "Gene-Centred View",
+        "description": "Natural selection is best understood at the level of genes, which persist across generations while organisms are temporary vehicles that genes build.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i2",
+        "title": "Replicators and Survival Machines",
+        "description": "Early evolution involved self-copying molecules\u2014replicators\u2014that later built protective 'survival machines' (organisms) to improve their replication chances.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i3",
+        "title": "Selfish Gene Metaphor",
+        "description": "Calling genes 'selfish' means that genes which promote their own replication spread, even if the behaviors they produce look cooperative or altruistic at the organism level.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i4",
+        "title": "Gene vs Group Selection",
+        "description": "Many phenomena that look like group-level selection can be explained more cleanly by genes promoting strategies that help copies of themselves, without invoking sacrifice for the group as a whole.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i5",
+        "title": "Altruism as Genetic Strategy",
+        "description": "Apparent altruism\u2014helping others at a cost to oneself\u2014can evolve when the beneficiaries carry copies of the same genes, turning self-sacrifice into indirect genetic self-interest.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i6",
+        "title": "Inclusive Fitness",
+        "description": "An individual\u2019s genetic success includes not only its own reproduction but also the reproduction of relatives who share its genes, broadening what 'fitness' means.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i7",
+        "title": "Hamilton\u2019s Rule",
+        "description": "A gene for altruism spreads when the cost to the helper is less than the benefit to the recipient multiplied by their genetic relatedness (C < r \u00d7 B).",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i8",
+        "title": "Kin Selection",
+        "description": "Selection favoring behaviors that help genetic relatives explains patterns like worker ants helping their queen or animals risking themselves for siblings.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i9",
+        "title": "Evolutionarily Stable Strategy",
+        "description": "An evolutionarily stable strategy (ESS) is a behavioral strategy that, once common, cannot be invaded by alternatives, providing a game-theoretic tool for analyzing social behavior.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i10",
+        "title": "Hawk-Dove Model",
+        "description": "A simple game where aggressive 'hawks' and peaceful 'doves' interact shows how mixes of strategies can be stable, depending on the costs and benefits of fighting.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i11",
+        "title": "Reciprocal Altruism",
+        "description": "Helping unrelated individuals can evolve when interactions are repeated and aid is likely to be repaid, making cooperation a long-run beneficial strategy.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i12",
+        "title": "Tit-for-Tat Strategy",
+        "description": "In repeated interactions, a simple rule\u2014cooperate on the first move, then copy your partner\u2019s last move\u2014can be an effective and stable strategy for reciprocal altruism.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i13",
+        "title": "Parent-Offspring Conflict",
+        "description": "Parents and offspring share genes but not all of them, creating conflicts over resources like weaning time because each has slightly different genetic interests.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i14",
+        "title": "Sibling Rivalry",
+        "description": "Siblings may compete for parental investment because each is more related to itself than to its siblings, though shared genes can also promote cooperation when it benefits them all.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i15",
+        "title": "Sexual Selection",
+        "description": "Differences in parental investment between males and females drive traits like competition among males and choosiness among females, shaping elaborate displays and behaviors.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i16",
+        "title": "Sex Ratios and Strategy",
+        "description": "Genes can spread by influencing the proportion of sons and daughters produced when certain sex ratios yield higher expected genetic payoff.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i17",
+        "title": "Extended Phenotype",
+        "description": "A gene\u2019s effects can extend beyond the body\u2014into structures like beaver dams or manipulated host behavior\u2014so these external effects are also part of what selection acts on.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i18",
+        "title": "Memes as Cultural Replicators",
+        "description": "Memes\u2014ideas, tunes, and practices\u2014replicate by spreading between minds, undergoing selection pressures analogous to those acting on genes.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i19",
+        "title": "Misreading the Metaphor",
+        "description": "Understanding that genes are 'selfish' is a descriptive model, not a moral prescription, and does not justify selfish behavior in human ethics.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i20",
+        "title": "Gene-Level Thinking Tool",
+        "description": "Thinking in terms of gene interests helps clarify puzzles in behavior, cooperation, and design that are harder to explain with organism- or group-centred views alone.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      }
+    ]
+  },
+  {
+    "starterId": "starter_beginning_infinity",
+    "title": "The Beginning of Infinity: Explanations that Transform the World",
+    "author": "David Deutsch",
+    "description": "A philosophy of knowledge and progress arguing that good explanations, open-ended criticism, and human creativity can lead to unbounded scientific, technological, and moral improvement.",
+    "coverImageUrl": "https://m.media-amazon.com/images/I/818fIMXxgOL.jpg",
+    "thumbnailUrl": "https://m.media-amazon.com/images/I/818fIMXxgOL.jpg",
+    "ideas": [
+      {
+        "id": "i1",
+        "title": "Reach of Explanations",
+        "description": "Explanations are accounts of how the world works that apply far beyond the specific observations that first suggested them, giving them wide reach.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i2",
+        "title": "Good vs Bad Explanations",
+        "description": "Good explanations are hard to vary while still explaining the same facts, whereas bad ones can be easily adjusted to fit any outcome and therefore explain little.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i3",
+        "title": "Fallibilism",
+        "description": "All knowledge is conjectural and subject to error, so progress depends on exposing ideas to criticism and improvement rather than seeking certainty or justification.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i4",
+        "title": "Problem-Solving View",
+        "description": "Knowledge grows through a cycle of proposing solutions to problems, criticizing them, and correcting errors, not through passive observation or induction from data alone.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i5",
+        "title": "Reality of Abstractions",
+        "description": "Abstract entities like numbers, software, and scientific laws are real in the sense that they have causal and explanatory roles that cannot be reduced to individual physical instances.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i6",
+        "title": "Jumps to Universality",
+        "description": "Some systems\u2014like universal computers\u2014reach a point where they can emulate any process of a given kind, making further improvements matters of efficiency rather than kind.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i7",
+        "title": "Universal Computers and Constructors",
+        "description": "Given the right knowledge and resources, universal computers and constructors can carry out any physically allowed computation or transformation.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i8",
+        "title": "People as Universal Explainers",
+        "description": "Humans are unique in being able to create explanations of arbitrary depth and scope, making them universal explainers whose only limits are knowledge and creativity.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i9",
+        "title": "Creativity over Induction",
+        "description": "New ideas are not mechanically derived from data; they are creative conjectures that are then tested, so inductive rules cannot replace imaginative explanation.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i10",
+        "title": "Beginning of Infinity",
+        "description": "If knowledge creation is open-ended, then any stage of progress is just the beginning of an unlimited sequence of further improvements in understanding and capability.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i11",
+        "title": "Optimism about Problems",
+        "description": "Problems are inevitable but solvable in principle, so rational optimism treats difficulties as prompts for knowledge-creation rather than signs of ultimate limits.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i12",
+        "title": "Multiverse Interpretation",
+        "description": "Quantum theory is best understood as describing a multiverse of branching histories, which explains interference and probability more naturally than single-universe views.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i13",
+        "title": "Anthropic Reasoning",
+        "description": "Anthropic explanations\u2014appealing to the conditions needed for observers to exist\u2014are legitimate only when embedded in detailed, testable physical theories.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i14",
+        "title": "Static vs Dynamic Societies",
+        "description": "Static societies seek to freeze traditions and suppress new ideas, while dynamic societies institutionalize criticism and change, enabling unbounded progress.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i15",
+        "title": "Rational and Anti-Rational Memes",
+        "description": "Cultural ideas can either encourage criticism and improvement or suppress them; anti-rational memes spread by blocking criticism rather than by being true.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i16",
+        "title": "Moral Knowledge as Explanatory",
+        "description": "Moral truths, if they exist, are discovered and improved through the same process of conjecture and criticism as scientific truths, not by authority or revelation.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i17",
+        "title": "Unsustainability as Knowledge Problem",
+        "description": "Resource and environmental limits are ultimately problems of inadequate knowledge about how to use resources better, not fixed ceilings on progress.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i18",
+        "title": "Beauty as Guide to Truth",
+        "description": "Aesthetic judgments in science\u2014like elegance and simplicity\u2014often correlate with deeper, more unified explanations, though they remain fallible guides.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i19",
+        "title": "Error-Correcting Institutions",
+        "description": "Good political and social institutions are those that make it easy to detect and correct errors through criticism, free speech, and checks and balances.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i20",
+        "title": "Explanation over Prediction",
+        "description": "Predictive success alone is not enough; theories must also explain why things happen, because shallow curve-fitting without explanation is fragile.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i21",
+        "title": "Universality of Reason",
+        "description": "Any universal explainer can in principle understand the explanations of any other, so reason is not confined to one culture or species.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i22",
+        "title": "Open-Ended Progress",
+        "description": "As long as we preserve traditions of criticism and creativity, we can expect unending improvement in science, technology, and morality, with each solved problem revealing better new problems.",
+        "importance": "foundation",
+        "depthTarget": 3
+      }
+    ]
+  },
+  {
+    "starterId": "starter_antifragile",
+    "title": "Antifragile: Things That Gain from Disorder",
+    "author": "Nassim Nicholas Taleb",
+    "description": "A framework for understanding systems that benefit from volatility, randomness, and stress, and for designing lives, portfolios, and institutions that gain from disorder.",
+    "coverImageUrl": "https://m.media-amazon.com/images/I/81MS6HSVdsL.jpg",
+    "thumbnailUrl": "https://m.media-amazon.com/images/I/81MS6HSVdsL.jpg",
+    "ideas": [
+      {
+        "id": "i1",
+        "title": "Fragile Robust Antifragile",
+        "description": "Fragile things are harmed by volatility, robust things resist it, and antifragile things actually benefit from shocks and variability.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i2",
+        "title": "Nonlinearity and Convexity",
+        "description": "When responses to stressors are nonlinear, small shocks can help while large ones harm, and convex payoff structures\u2014limited downside with large upside\u2014create antifragility to randomness.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i3",
+        "title": "Hormesis and Overcompensation",
+        "description": "Biological and social systems often overcompensate to small stressors\u2014like muscles growing stronger after being stressed\u2014illustrating hormesis when stress is applied in the right dose.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i4",
+        "title": "Randomness as Information",
+        "description": "Noise and volatility reveal hidden fragilities and help robust and antifragile strategies outcompete fragile ones, so randomness is a source of information, not just a nuisance.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i5",
+        "title": "Turkey Problem",
+        "description": "Apparent stability\u2014like a turkey being fed every day\u2014can hide growing fragility, so rare, extreme events can abruptly destroy systems that looked safe based on past data.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i6",
+        "title": "Redundancy as Insurance",
+        "description": "Redundancy\u2014extra reserves, slack, and backup systems\u2014is a feature, not a bug, because it allows systems to survive and benefit from shocks that would destroy optimized, lean designs.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i7",
+        "title": "Barbell Strategy",
+        "description": "A barbell approach combines extreme safety on one side with small, speculative bets on the other, avoiding medium risk and creating overall antifragility to shocks and errors in forecasting.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i8",
+        "title": "Optionality",
+        "description": "Having many options with limited downside and open-ended upside lets you benefit from randomness without needing accurate predictions about specific events.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i9",
+        "title": "Trial and Error",
+        "description": "Systematic trial-and-error with small, reversible bets is a powerful way to discover antifragile opportunities in uncertain domains.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i10",
+        "title": "Non-Predictive Decisions",
+        "description": "Taleb advocates judging decisions by their exposure to harm or benefit\u2014via payoff profiles\u2014rather than by whether predictions come true.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i11",
+        "title": "Iatrogenics",
+        "description": "Interventions, especially in medicine and policy, can cause more harm than the problem itself, so sometimes the antifragile choice is to do less or nothing.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i12",
+        "title": "Naive Interventionism",
+        "description": "Taleb calls 'fragilistas' those who add complex interventions and controls without understanding their limits, often increasing hidden fragility while claiming to stabilize systems.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i13",
+        "title": "Hidden Fragility in Complexity",
+        "description": "Layered financial instruments, overengineered technologies, and opaque regulations can hide fragility, making simple and transparent structures safer.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i14",
+        "title": "Scale and Small Units",
+        "description": "Smaller units\u2014city-states, local businesses, modular components\u2014are often more antifragile because failures are contained, while large, tightly coupled systems suffer from cascading breakdowns.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i15",
+        "title": "Decentralization and Local Knowledge",
+        "description": "Decentralized, bottom-up decision-making harnesses local knowledge and allows parallel experimentation, while centralized control magnifies errors and fragility.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i16",
+        "title": "Lindy Effect",
+        "description": "For non-perishable things like books or technologies, the longer they have survived, the longer they are expected to survive, making 'time-tested' options often more robust.",
+        "importance": "buildingBlock",
+        "depthTarget": 2
+      },
+      {
+        "id": "i17",
+        "title": "Via Negativa",
+        "description": "Removing sources of fragility\u2014like debt, excess complexity, or toxic habits\u2014is often more effective than adding new interventions, because what is absent cannot harm you.",
+        "importance": "foundation",
+        "depthTarget": 2
+      },
+      {
+        "id": "i18",
+        "title": "Skin in the Game",
+        "description": "Systems become fragile when decision-makers do not bear the consequences of their errors, so requiring 'skin in the game' aligns incentives and filters out harmful strategies over time.",
+        "importance": "foundation",
+        "depthTarget": 3
+      },
+      {
+        "id": "i19",
+        "title": "Ethics of Skin in the Game",
+        "description": "Ethically, no one should be able to expose others to large risks without bearing comparable risks themselves, making 'skin in the game' a moral principle, not just a heuristic.",
+        "importance": "buildingBlock",
+        "depthTarget": 3
+      },
+      {
+        "id": "i20",
+        "title": "Green Lumber Problem",
+        "description": "Success in complex domains often comes from exploiting payoff structures rather than fully understanding causal stories, as in traders who profit from patterns they cannot explain well.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i21",
+        "title": "Antifragile Careers",
+        "description": "Designing a career with multiple options, low fixed costs, and small experiments creates antifragility, whereas single-track, high-commitment paths are fragile to shocks.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i22",
+        "title": "Stoic Practices",
+        "description": "Stoic habits\u2014like rehearsing worst cases and lowering dependence on externals\u2014can make people emotionally antifragile by turning setbacks into training rather than trauma.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i23",
+        "title": "Barbells in Life and Innovation",
+        "description": "The barbell pattern\u2014extreme safety plus small, risky bets\u2014applies beyond finance to innovation, career, and personal projects, protecting the downside while keeping upside open.",
+        "importance": "enhancement",
+        "depthTarget": 2
+      },
+      {
+        "id": "i24",
+        "title": "Designing Antifragile Systems",
+        "description": "We can deliberately design systems to benefit from disorder by combining convex payoffs, redundancy, decentralization, skin in the game, and via negativa.",
+        "importance": "foundation",
+        "depthTarget": 3
+      }
+    ]
+  }
+]
