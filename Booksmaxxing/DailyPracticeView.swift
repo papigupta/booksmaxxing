@@ -24,6 +24,8 @@ struct DailyPracticeView: View {
     
     @State private var isGenerating = true
     @State private var generatedTest: Test?
+    @State private var activePracticeSession: PracticeSession?
+    @State private var activeAttempt: TestAttempt?
     @State private var errorMessage: String?
     @State private var showingTest = false
     @State private var showingPrimer = false
@@ -52,6 +54,15 @@ struct DailyPracticeView: View {
         case streak
         case bcal
         case celebration
+    }
+
+    private enum PracticeSessionStatus {
+        static let ready = "ready"
+        static let generating = "generating"
+        static let inProgress = "in_progress"
+        static let paused = "paused"
+        static let completed = "completed"
+        static let error = "error"
     }
     
     private var testGenerationService: TestGenerationService {
@@ -128,7 +139,8 @@ struct DailyPracticeView: View {
                             openAIService: openAIService,
                             onCompletion: handleTestCompletion,
                             onSubmitted: { _ in },
-                            onExit: { showingTest = false }
+                            onExit: { handlePracticeExit() },
+                            existingAttempt: activeAttempt
                         )
                     }
                 }
@@ -323,11 +335,12 @@ struct DailyPracticeView: View {
             
             // Start button
             VStack(spacing: DS.Spacing.md) {
-                Button(action: { showingTest = true }) {
+                Button(action: { startPracticeSession() }) {
                     Text("Start Practice")
                         .frame(maxWidth: .infinity)
                 }
                 .dsPalettePrimaryButton()
+                .disabled(generatedTest == nil || isGenerating)
                 
                 Button(action: { showingPrimer = true }) {
                     Text("Brush Up with Primer")
@@ -457,10 +470,12 @@ struct DailyPracticeView: View {
     private func generatePractice() async {
         isGenerating = true
         errorMessage = nil
-        
+
         do {
             let test: Test
             
+            var persistedSession: PracticeSession?
+
             if let lesson = selectedLesson {
                 print("DEBUG: Generating practice test for lesson \(lesson.lessonNumber)")
                 // Proactively prewarm ONLY the initial 8 for the next lesson while user works on this lesson.
@@ -478,29 +493,38 @@ struct DailyPracticeView: View {
 
                 // 0) Check for any existing session (ready/generating/error) to honor prefetch state
                 if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
-                    if existingSession.status == "ready", let existingTest = existingSession.test, (existingTest.questions ?? []).count >= 8 {
+                    if let existingTest = existingSession.test,
+                       (existingTest.questions ?? []).count >= 8,
+                       existingSession.status == PracticeSessionStatus.ready {
                         print("DEBUG: Found READY session with \((existingTest.questions ?? []).count) questions")
                         await MainActor.run {
-                            self.generatedTest = existingTest
-                            self.isGenerating = false
-                            self.hasPrefetchedExplanations = false
+                            self.applyLoadedSession(test: existingTest, session: existingSession)
                         }
                         return
-                    } else if existingSession.status == "generating" {
+                    } else if let existingTest = existingSession.test,
+                              (existingTest.questions ?? []).count >= 8,
+                              (existingSession.status == PracticeSessionStatus.inProgress || existingSession.status == PracticeSessionStatus.paused) {
+                        let stateLabel = existingSession.status == PracticeSessionStatus.inProgress ? "IN_PROGRESS" : "PAUSED"
+                        print("DEBUG: Found \(stateLabel) session with \((existingTest.questions ?? []).count) questions")
+                        await MainActor.run {
+                            self.applyLoadedSession(test: existingTest, session: existingSession)
+                        }
+                        return
+                    } else if existingSession.status == PracticeSessionStatus.generating {
                         print("DEBUG: Found GENERATING session; waiting for readiness…")
                         // Poll for up to ~40 seconds (batching can take longer)
                         var attempts = 0
                         while attempts < 40 {
                             try await Task.sleep(nanoseconds: 1_000_000_000)
                             if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
-                                if refreshed.status == "ready", let readyTest = refreshed.test, (readyTest.questions ?? []).count >= 8 {
+                                if refreshed.status == PracticeSessionStatus.ready,
+                                   let readyTest = refreshed.test,
+                                   (readyTest.questions ?? []).count >= 8 {
                                     await MainActor.run {
-                                        self.generatedTest = readyTest
-                                        self.isGenerating = false
-                                        self.hasPrefetchedExplanations = false
+                                        self.applyLoadedSession(test: readyTest, session: refreshed)
                                     }
                                     return
-                                } else if refreshed.status == "error" {
+                                } else if refreshed.status == PracticeSessionStatus.error {
                                     let msg = String(data: refreshed.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
                                     await MainActor.run {
                                         self.errorMessage = msg
@@ -513,7 +537,7 @@ struct DailyPracticeView: View {
                         }
                         // Timed out; proceed to generate inline as fallback
                         print("DEBUG: GENERATING session timed out; generating inline…")
-                    } else if existingSession.status == "error" {
+                    } else if existingSession.status == PracticeSessionStatus.error {
                         let msg = String(data: existingSession.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
                         await MainActor.run {
                             self.errorMessage = msg
@@ -529,9 +553,7 @@ struct DailyPracticeView: View {
                    (existingTest.questions ?? []).count >= 8 {
                     print("DEBUG: Reusing existing practice session with \((existingTest.questions ?? []).count) questions")
                     await MainActor.run {
-                        self.generatedTest = existingTest
-                        self.isGenerating = false
-                        self.hasPrefetchedExplanations = false
+                        self.applyLoadedSession(test: existingTest, session: existingSession)
                     }
                     return
                 }
@@ -649,6 +671,7 @@ struct DailyPracticeView: View {
                     session.test = test
                     self.modelContext.insert(session)
                     try self.modelContext.save()
+                    persistedSession = session
                 }
 
                 print("DEBUG: Generated and saved mixed test with \((test.questions ?? []).count) questions (\(freshTest.orderedQuestions.count) fresh + \(combined.count - freshTest.orderedQuestions.count) review)")
@@ -657,9 +680,7 @@ struct DailyPracticeView: View {
             }
             
             await MainActor.run {
-                self.generatedTest = test
-                self.isGenerating = false
-                self.hasPrefetchedExplanations = false
+                self.applyLoadedSession(test: test, session: persistedSession)
             }
         } catch {
             print("ERROR: Failed to generate practice: \(error)")
@@ -669,10 +690,88 @@ struct DailyPracticeView: View {
             }
         }
     }
-    
+
+    @MainActor
+    private func applyLoadedSession(test: Test, session: PracticeSession?) {
+        self.activePracticeSession = session
+        self.generatedTest = test
+        self.isGenerating = false
+        self.hasPrefetchedExplanations = false
+        restoreAttemptIfAvailable(for: test)
+    }
+
+    @MainActor
+    private func restoreAttemptIfAvailable(for test: Test) {
+        guard let attempt = findIncompleteAttempt(for: test) else {
+            self.activeAttempt = nil
+            return
+        }
+        self.activeAttempt = attempt
+        if activePracticeSession?.status == PracticeSessionStatus.inProgress {
+            self.showingTest = true
+        }
+    }
+
+    @MainActor
+    private func findIncompleteAttempt(for test: Test) -> TestAttempt? {
+        if let attempt = test.attempts?.last(where: { !$0.isComplete }) {
+            return attempt
+        }
+
+        let targetTestId = test.id
+        let descriptor = FetchDescriptor<TestAttempt>(
+            predicate: #Predicate<TestAttempt> { attempt in
+                attempt.testId == targetTestId
+            },
+            sortBy: [SortDescriptor(\.startedAt, order: .reverse)]
+        )
+        return try? modelContext.fetch(descriptor).first(where: { !$0.isComplete })
+    }
+
+    @MainActor
+    private func startPracticeSession() {
+        guard let test = generatedTest else { return }
+        guard let attempt = fetchOrCreateActiveAttempt(for: test) else { return }
+        activeAttempt = attempt
+        showingTest = true
+    }
+
+    @MainActor
+    private func fetchOrCreateActiveAttempt(for test: Test) -> TestAttempt? {
+        if let attempt = findIncompleteAttempt(for: test) {
+            updateCurrentSessionStatus(PracticeSessionStatus.inProgress)
+            return attempt
+        }
+
+        let attempt = TestAttempt(testId: test.id)
+        attempt.test = test
+        if test.attempts == nil { test.attempts = [] }
+        test.attempts?.append(attempt)
+        modelContext.insert(attempt)
+        try? modelContext.save()
+        updateCurrentSessionStatus(PracticeSessionStatus.inProgress)
+        return attempt
+    }
+
+    @MainActor
+    private func handlePracticeExit() {
+        showingTest = false
+        updateCurrentSessionStatus(PracticeSessionStatus.paused)
+    }
+
+    @MainActor
+    private func updateCurrentSessionStatus(_ status: String) {
+        guard let session = activePracticeSession else { return }
+        session.status = status
+        session.updatedAt = Date()
+        try? modelContext.save()
+    }
+
     private func handleTestCompletion(_ attempt: TestAttempt, _ didIncrementStreak: Bool) {
         completedAttempt = attempt
         showingTest = false
+        activeAttempt = nil
+        updateCurrentSessionStatus(PracticeSessionStatus.completed)
         
         // Fetch responses explicitly using the attemptId
         let attemptId = attempt.id
@@ -1032,10 +1131,13 @@ struct DailyPracticeView: View {
                     throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
                 }
                 // Invalidate existing session if present
-                if let existingSession = try await fetchExistingSession(for: primaryIdea.id, type: "lesson_practice") {
+                if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
                     await MainActor.run {
                         self.modelContext.delete(existingSession)
                         try? self.modelContext.save()
+                        self.activePracticeSession = nil
+                        self.activeAttempt = nil
+                        self.showingTest = false
                     }
                 }
 
@@ -1068,11 +1170,12 @@ struct DailyPracticeView: View {
         try await MainActor.run {
             let descriptor = FetchDescriptor<PracticeSession>(
                 predicate: #Predicate { s in
-                    s.ideaId == ideaId && s.type == type && s.status == "ready"
+                    s.ideaId == ideaId && s.type == type
                 },
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )
-            return try self.modelContext.fetch(descriptor).first
+            let sessions = try self.modelContext.fetch(descriptor)
+            return sessions.first(where: { $0.status == PracticeSessionStatus.ready })
         }
     }
 

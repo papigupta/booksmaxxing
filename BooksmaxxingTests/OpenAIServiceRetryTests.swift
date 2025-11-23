@@ -16,7 +16,7 @@ struct OpenAIServiceRetryTests {
             apiKey: "test",
             session: URLSession(configuration: .ephemeral),
             networkMonitor: StubNetwork(isConnected: true),
-            sleep: { _ in } // avoid real delay during tests
+            sleepHandler: { _ in } // avoid real delay during tests
         )
 
         let value: String = try await service.withRetry(maxAttempts: 3) {

@@ -7,7 +7,7 @@ struct TestGenerationServiceTests {
     private func makeService() throws -> TestGenerationService {
         let container = try ModelContainer(for: Book.self, Idea.self, Test.self, Question.self)
         let context = ModelContext(container)
-        let openAI = OpenAIService(apiKey: "test", session: .shared, networkMonitor: NetworkMonitor(), sleep: { _ in })
+        let openAI = OpenAIService(apiKey: "test", session: .shared, networkMonitor: NetworkMonitor(), sleepHandler: { _ in })
         return TestGenerationService(openAI: openAI, modelContext: context)
     }
 

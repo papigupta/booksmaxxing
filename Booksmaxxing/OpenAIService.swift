@@ -42,18 +42,18 @@ class OpenAIService {
     private let baseURL = "https://api.openai.com/v1"
     private let session: URLSession
     private let networkMonitor: NetworkStatusProviding
-    private let sleep: (UInt64) async throws -> Void
+    private let sleepHandler: (UInt64) async throws -> Void
     
     init(
         apiKey: String,
         session: URLSession,
         networkMonitor: NetworkStatusProviding,
-        sleep: @escaping (UInt64) async throws -> Void = Task.sleep
+        sleepHandler: @escaping (UInt64) async throws -> Void = OpenAIService.defaultSleepHandler
     ) {
         self.apiKey = apiKey
         self.session = session
         self.networkMonitor = networkMonitor
-        self.sleep = sleep
+        self.sleepHandler = sleepHandler
     }
     
     convenience init(apiKey: String) {
@@ -70,7 +70,17 @@ class OpenAIService {
         
         let defaultSession = URLSession(configuration: configuration)
         let monitor = NetworkMonitor()
-        self.init(apiKey: apiKey, session: defaultSession, networkMonitor: monitor, sleep: Task.sleep)
+        self.init(apiKey: apiKey, session: defaultSession, networkMonitor: monitor, sleepHandler: OpenAIService.defaultSleepHandler)
+    }
+
+    private static func defaultSleepHandler(_ duration: UInt64) async throws {
+        let capped = min(duration, UInt64(Int.max))
+        let deadline = DispatchTime.now() + .nanoseconds(Int(capped))
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            DispatchQueue.global().asyncAfter(deadline: deadline) {
+                continuation.resume()
+            }
+        }
     }
     
     // MARK: - Input Validation and Sanitization
@@ -414,7 +424,7 @@ class OpenAIService {
             if !networkMonitor.isConnected {
                 // Wait a bit for network to come back
                 logger.debug("Network offline, waiting for connectivity…")
-                    try? await sleep(2_000_000_000) // 2 seconds
+                    try? await sleepHandler(2_000_000_000) // 2 seconds
                     
                     // Check again
                     if !networkMonitor.isConnected {
@@ -456,7 +466,7 @@ class OpenAIService {
                     let jitter = Double.random(in: 0.5...1.5) // Add jitter to prevent thundering herd
                     let delay = exponentialDelay * jitter
                     self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
-                    try await sleep(UInt64(delay * 1_000_000_000))
+                    try await sleepHandler(UInt64(delay * 1_000_000_000))
                 } else {
                     self.logger.error("Max attempts reached, failing with error: \(String(describing: error))")
                 }
@@ -469,7 +479,7 @@ class OpenAIService {
                     let jitter = Double.random(in: 0.5...1.5)
                     let delay = exponentialDelay * jitter
                     self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
-                    try await sleep(UInt64(delay * 1_000_000_000))
+                    try await sleepHandler(UInt64(delay * 1_000_000_000))
                 }
             }
         }
