@@ -21,6 +21,7 @@ struct DailyPracticeHomepage: View {
     @State private var selectedIdea: Idea? = nil
     @State private var showingSafari = false
     @State private var safariURL: URL? = nil
+    @State private var stickyHeaderHeight: CGFloat = Layout.initialStickyHeaderHeight
     
     // Real lessons generated from book ideas
     @State private var practiceMilestones: [PracticeMilestone] = []
@@ -70,147 +71,176 @@ struct DailyPracticeHomepage: View {
         let seedColor = themeManager.seedColor(at: 0)
         let palette = PracticePalette(roles: roles, seedColor: seedColor, tokens: tokens)
         return NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: Layout.sectionSpacing) {
-                        topControls(palette: palette)
-                        heroSection(palette: palette)
-                        practiceTimelineSection(palette: palette)
-                    }
-                    .padding(.horizontal, Layout.horizontalPadding)
-                    .padding(.top, Layout.contentTopPadding)
-                    .padding(.bottom, Layout.bottomPadding)
-                }
-                .background(backgroundGradient(palette: palette, tokens: tokens).ignoresSafeArea())
-                .navigationBarHidden(true)
-                .id(refreshID)
-                .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
-                    if hasReviewItems {
-                        Button(action: {
-                            let reviewLesson = GeneratedLesson(
-                                lessonNumber: -1,
-                                title: "Review Practice",
-                                primaryIdeaId: "",
-                                primaryIdeaTitle: "Mixed Review",
-                                reviewIdeaIds: [],
-                                mistakeCorrections: [],
-                                questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
-                                estimatedMinutes: 10,
-                                isUnlocked: true,
-                                isCompleted: false
-                            )
-                            selectedLesson = reviewLesson
-                        }) { Text("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")") }
-                    }
-                    if DebugFlags.enableDevControls {
-                        Button("Force Curveball Due") {
-                            let bookId = book.id.uuidString
-                            curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
-                            refreshView()
+            GeometryReader { geometry in
+                ScrollViewReader { proxy in
+                    ZStack(alignment: .top) {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            practiceTimelineSection(palette: palette)
+                                .padding(.horizontal, Layout.horizontalPadding)
+                                .padding(.top, stickyHeaderHeight + Layout.timelineTopInset)
+                                .padding(.bottom, Layout.bottomPadding)
                         }
-                        Button("Force Spaced Follow‑up Due") {
-                            let bookId = book.id.uuidString
-                            let spacedService = SpacedFollowUpService(modelContext: modelContext)
-                            spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
-                            refreshView()
-                        }
-                    }
-                    Button("Cancel", role: .cancel) {}
-                }
-                .task {
-                    isLoading = true
-                    await loadPracticeData()
-                    await prefetchCurrentLessonIfNeeded()
-                    didInitialLoad = true
-                    isLoading = false
-                }
-                .onAppear {
-                    scrollToCurrentLesson(proxy: proxy)
-                    Task { await themeManager.activateTheme(for: book) }
-                    if !didInitialLoad {
-                        Task {
-                            isLoading = true
-                            await loadPracticeData()
-                            await prefetchCurrentLessonIfNeeded()
-                            didInitialLoad = true
-                            isLoading = false
-                        }
-                    }
-                }
-                .onChange(of: refreshID) { _, _ in
-                    Task { await loadPracticeData() }
-                }
-                .onChange(of: book.id) { _, _ in
-                    resetForNewBook()
-                }
-                .onChange(of: practiceMilestones) { _, _ in
-                    scrollToCurrentLesson(proxy: proxy)
-                }
-                .onChange(of: currentLessonNumber) { _, _ in
-                    scrollToCurrentLesson(proxy: proxy)
-                }
-                .fullScreenCover(item: $selectedLesson) { lesson in
-                    let totalIdeas = (book.ideas ?? []).count
-                    let presentedView: AnyView = {
-                        if lesson.lessonNumber > totalIdeas {
-                            return AnyView(
-                                DailyPracticeWithReviewView(
-                                    book: book,
-                                    openAIService: openAIService,
-                                    selectedLesson: lesson,
-                                    onPracticeComplete: {
-                                        print("DEBUG: ✅✅ Review practice complete")
-                                        completeLesson(lesson)
-                                        selectedLesson = nil
-                                        refreshView()
-                                    }
-                                )
-                            )
-                        } else {
-                            return AnyView(
-                                DailyPracticeView(
-                                    book: book,
-                                    openAIService: openAIService,
-                                    practiceType: .quick,
-                                    selectedLesson: lesson,
-                                    onPracticeComplete: {
-                                        print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
-                                        completeLesson(lesson)
-                                        selectedLesson = nil
-                                        refreshID = UUID()
-                                        print("DEBUG: ✅✅ Refreshing view after lesson completion")
-                                    }
-                                )
-                            )
-                        }
-                    }()
+                        .id(refreshID)
 
-                    if #available(iOS 17.0, *) {
-                        presentedView
-                            .presentationBackground(tokens.background)
-                    } else {
-                        presentedView
+                        stickyHeader(palette: palette, tokens: tokens, safeTopInset: geometry.safeAreaInsets.top)
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear
+                                        .preference(key: StickyHeaderHeightPreference.self, value: proxy.size.height)
+                                }
+                            )
                     }
-                }
-                .sheet(isPresented: $showingSafari) {
-                    if let safariURL {
-                        SafariView(url: safariURL)
-                    } else {
-                        EmptyView()
+                    .onPreferenceChange(StickyHeaderHeightPreference.self) { height in
+                        guard height > 0 else { return }
+                        Task { @MainActor in stickyHeaderHeight = height }
+                    }
+                    .background(backgroundGradient(palette: palette).ignoresSafeArea())
+                    .navigationBarHidden(true)
+                    .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
+                        if hasReviewItems {
+                            Button(action: {
+                                let reviewLesson = GeneratedLesson(
+                                    lessonNumber: -1,
+                                    title: "Review Practice",
+                                    primaryIdeaId: "",
+                                    primaryIdeaTitle: "Mixed Review",
+                                    reviewIdeaIds: [],
+                                    mistakeCorrections: [],
+                                    questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
+                                    estimatedMinutes: 10,
+                                    isUnlocked: true,
+                                    isCompleted: false
+                                )
+                                selectedLesson = reviewLesson
+                            }) { Text("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")") }
+                        }
+                        if DebugFlags.enableDevControls {
+                            Button("Force Curveball Due") {
+                                let bookId = book.id.uuidString
+                                curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                                refreshView()
+                            }
+                            Button("Force Spaced Follow‑up Due") {
+                                let bookId = book.id.uuidString
+                                let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                                spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
+                                refreshView()
+                            }
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    }
+                    .task {
+                        isLoading = true
+                        await loadPracticeData()
+                        await prefetchCurrentLessonIfNeeded()
+                        didInitialLoad = true
+                        isLoading = false
+                    }
+                    .onAppear {
+                        scrollToCurrentLesson(proxy: proxy)
+                        Task { await themeManager.activateTheme(for: book) }
+                        if !didInitialLoad {
+                            Task {
+                                isLoading = true
+                                await loadPracticeData()
+                                await prefetchCurrentLessonIfNeeded()
+                                didInitialLoad = true
+                                isLoading = false
+                            }
+                        }
+                    }
+                    .onChange(of: refreshID) { _, _ in
+                        Task { await loadPracticeData() }
+                    }
+                    .onChange(of: book.id) { _, _ in
+                        resetForNewBook()
+                    }
+                    .onChange(of: practiceMilestones) { _, _ in
+                        scrollToCurrentLesson(proxy: proxy)
+                    }
+                    .onChange(of: currentLessonNumber) { _, _ in
+                        scrollToCurrentLesson(proxy: proxy)
+                    }
+                    .fullScreenCover(item: $selectedLesson) { lesson in
+                        let totalIdeas = (book.ideas ?? []).count
+                        let presentedView: AnyView = {
+                            if lesson.lessonNumber > totalIdeas {
+                                return AnyView(
+                                    DailyPracticeWithReviewView(
+                                        book: book,
+                                        openAIService: openAIService,
+                                        selectedLesson: lesson,
+                                        onPracticeComplete: {
+                                            print("DEBUG: ✅✅ Review practice complete")
+                                            completeLesson(lesson)
+                                            selectedLesson = nil
+                                            refreshView()
+                                        }
+                                    )
+                                )
+                            } else {
+                                return AnyView(
+                                    DailyPracticeView(
+                                        book: book,
+                                        openAIService: openAIService,
+                                        practiceType: .quick,
+                                        selectedLesson: lesson,
+                                        onPracticeComplete: {
+                                            print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
+                                            completeLesson(lesson)
+                                            selectedLesson = nil
+                                            refreshID = UUID()
+                                            print("DEBUG: ✅✅ Refreshing view after lesson completion")
+                                        }
+                                    )
+                                )
+                            }
+                        }()
+
+                        if #available(iOS 17.0, *) {
+                            presentedView
+                                .presentationBackground(tokens.background)
+                        } else {
+                            presentedView
+                        }
+                    }
+                    .sheet(isPresented: $showingSafari) {
+                        if let safariURL {
+                            SafariView(url: safariURL)
+                        } else {
+                            EmptyView()
+                        }
                     }
                 }
             }
-            .navigationDestination(isPresented: $showingIdeaResponses) {
-                if let selectedIdea {
-                    IdeaResponsesView(idea: selectedIdea)
-                } else {
-                    EmptyView()
-                }
+        }
+        .navigationDestination(isPresented: $showingIdeaResponses) {
+            if let selectedIdea {
+                IdeaResponsesView(idea: selectedIdea)
+            } else {
+                EmptyView()
             }
         }
     }
     
     // MARK: - Header + Hero
+    private func stickyHeader(palette: PracticePalette, tokens: ThemeTokens, safeTopInset: CGFloat) -> some View {
+        let adjustedSafeInset = max(safeTopInset - Layout.safeInsetReduction, Layout.minimumSafeInset)
+
+        return VStack(spacing: Layout.headerSpacing) {
+            topControls(palette: palette)
+                .padding(.top, adjustedSafeInset)
+
+            heroSection(palette: palette)
+                .padding(.top, Layout.heroTopPadding)
+        }
+        .padding(.horizontal, Layout.horizontalPadding)
+        .padding(.bottom, Layout.sectionSpacing)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { stickyHeaderBackground(palette: palette, tokens: tokens) }
+        .overlay(alignment: .bottom) { stickyHeaderBottomFade(palette: palette) }
+    }
+
     private func topControls(palette: PracticePalette) -> some View {
         HStack {
             Button(action: handlePrimaryNavigationTap) {
@@ -229,31 +259,20 @@ struct DailyPracticeHomepage: View {
             .dsPaletteSecondaryIconButton(diameter: 38)
             .accessibilityLabel("More options")
         }
-        .padding(.top, Layout.safeAreaTopPadding)
     }
     
     private func heroSection(palette: PracticePalette) -> some View {
         VStack(alignment: .leading, spacing: Layout.heroSpacing) {
             HStack(alignment: .top, spacing: Layout.heroSpacing) {
-                ZStack {
-                    Circle()
-                        .fill(palette.seed.opacity(0.5))
-                        .frame(width: Layout.haloDiameter, height: Layout.haloDiameter)
-                        .blur(radius: Layout.haloBlur)
-                        .blendMode(.plusLighter)
-                        .allowsHitTesting(false)
-
-                    BookCoverView(
-                        thumbnailUrl: book.thumbnailUrl,
-                        coverUrl: book.coverImageUrl,
-                        isLargeView: true,
-                        cornerRadius: 12,
-                        targetSize: Layout.coverSize
-                    )
-                    .frame(width: Layout.coverSize.width, height: Layout.coverSize.height)
-                    .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 8)
-                }
+                BookCoverView(
+                    thumbnailUrl: book.thumbnailUrl,
+                    coverUrl: book.coverImageUrl,
+                    isLargeView: true,
+                    cornerRadius: 12,
+                    targetSize: Layout.coverSize
+                )
                 .frame(width: Layout.coverSize.width, height: Layout.coverSize.height)
+                .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 8)
 
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     Text(book.title)
@@ -281,6 +300,24 @@ struct DailyPracticeHomepage: View {
                 }
             }
         }
+    }
+
+    private func stickyHeaderBackground(palette: PracticePalette, tokens: ThemeTokens) -> some View {
+        palette.flatBackground
+            .ignoresSafeArea(edges: .top)
+    }
+
+    private func stickyHeaderBottomFade(palette: PracticePalette) -> some View {
+        LinearGradient(
+            colors: [
+                palette.flatBackground,
+                palette.flatBackground.opacity(0.0)
+            ],
+            startPoint: .bottom,
+            endPoint: .top
+        )
+        .frame(height: Layout.headerFadeHeight)
+        .allowsHitTesting(false)
     }
 
     private func amazonButton(palette: PracticePalette) -> some View {
@@ -361,15 +398,11 @@ struct DailyPracticeHomepage: View {
         }
     }
 
-    private func backgroundGradient(palette: PracticePalette, tokens: ThemeTokens) -> LinearGradient {
+    private func backgroundGradient(palette: PracticePalette) -> LinearGradient {
         LinearGradient(
-            colors: [
-                palette.seed.opacity(0.14),
-                palette.background,
-                palette.background
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
+            colors: [palette.flatBackground, palette.flatBackground],
+            startPoint: .top,
+            endPoint: .bottom
         )
     }
 
@@ -871,6 +904,7 @@ private struct PracticePalette {
     let primaryT50: Color
     let primaryT70: Color
     let background: Color
+    let flatBackground: Color
     let seed: Color
 
     init(roles: [PaletteRole], seedColor: Color?, tokens: ThemeTokens) {
@@ -879,6 +913,10 @@ private struct PracticePalette {
         primaryT50 = roles.color(role: .primary, tone: 50) ?? tokens.onSurface
         primaryT70 = roles.color(role: .primary, tone: 70) ?? tokens.onSurface
         background = tokens.background
+        flatBackground = roles.color(role: .primary, tone: 95)
+            ?? roles.color(role: .neutral, tone: 95)
+            ?? roles.color(role: .neutralVariant, tone: 95)
+            ?? tokens.background
         seed = seedColor
             ?? roles.color(role: .primary, tone: 90)
             ?? tokens.primary
@@ -916,15 +954,19 @@ struct PracticeMilestone: Identifiable, Equatable {
 
 private struct Layout {
     static let horizontalPadding: CGFloat = 28
-    static let contentTopPadding: CGFloat = 80
+    static let heroTopPadding: CGFloat = 8
+    static let minimumSafeInset: CGFloat = 12
+    static let safeInsetReduction: CGFloat = 24
     static let bottomPadding: CGFloat = 48
     static let sectionSpacing: CGFloat = 40
+    static let headerSpacing: CGFloat = 16
     static let heroSpacing: CGFloat = 20
     static let timelineSpacing: CGFloat = 24
+    static let timelineTopInset: CGFloat = 20
     static let coverSize = CGSize(width: 104, height: 160)
-    static let haloDiameter: CGFloat = 220
-    static let haloBlur: CGFloat = 120
-    static let safeAreaTopPadding: CGFloat = 8
+    static let headerBlurRadius: CGFloat = 20
+    static let headerFadeHeight: CGFloat = 60
+    static let initialStickyHeaderHeight: CGFloat = 320
     static let indicatorDiameter: CGFloat = 48
     static let presentIndicatorDiameter: CGFloat = 56
     static let indicatorColumnWidth: CGFloat = 60
@@ -937,6 +979,13 @@ private struct Layout {
     static let presentHorizontalPadding: CGFloat = 20
     static let presentVerticalPadding: CGFloat = 18
     static let pastVerticalPadding: CGFloat = 8
+}
+
+private struct StickyHeaderHeightPreference: PreferenceKey {
+    static var defaultValue: CGFloat = Layout.initialStickyHeaderHeight
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 private enum AmazonLinkBuilder {
