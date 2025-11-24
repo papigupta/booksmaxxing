@@ -897,7 +897,7 @@ private struct LessonCardView: View {
 
     private func blurRadius(for clarity: Double) -> CGFloat {
         let clamped = min(max(clarity, 0), 100)
-        return CGFloat((100 - clamped) / 100.0) * 20.0
+        return CGFloat((100 - clamped) / 100.0) * Layout.clarityBlurMaxRadius
     }
 }
 
@@ -977,6 +977,7 @@ private struct Layout {
     static let headerFadeHeight: CGFloat = 60
     static let headerBottomBorderWidth: CGFloat = 0.5
     static let initialStickyHeaderHeight: CGFloat = 320
+    static let clarityBlurMaxRadius: CGFloat = 10
     static let indicatorDiameter: CGFloat = 48
     static let presentIndicatorDiameter: CGFloat = 56
     static let indicatorColumnWidth: CGFloat = 60
