@@ -239,6 +239,7 @@ struct DailyPracticeHomepage: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { stickyHeaderBackground(palette: palette, tokens: tokens) }
         .overlay(alignment: .bottom) { stickyHeaderBottomFade(palette: palette) }
+        .overlay(alignment: .bottom) { stickyHeaderBottomBorder(palette: palette) }
     }
 
     private func topControls(palette: PracticePalette) -> some View {
@@ -318,6 +319,14 @@ struct DailyPracticeHomepage: View {
         )
         .frame(height: Layout.headerFadeHeight)
         .allowsHitTesting(false)
+    }
+
+    private func stickyHeaderBottomBorder(palette: PracticePalette) -> some View {
+        Rectangle()
+            .fill(palette.primaryT40)
+            .frame(height: Layout.headerBottomBorderWidth)
+            .padding(.horizontal, Layout.horizontalPadding)
+            .allowsHitTesting(false)
     }
 
     private func amazonButton(palette: PracticePalette) -> some View {
@@ -958,7 +967,7 @@ private struct Layout {
     static let minimumSafeInset: CGFloat = 12
     static let safeInsetReduction: CGFloat = 24
     static let bottomPadding: CGFloat = 48
-    static let sectionSpacing: CGFloat = 40
+    static let sectionSpacing: CGFloat = 24
     static let headerSpacing: CGFloat = 16
     static let heroSpacing: CGFloat = 20
     static let timelineSpacing: CGFloat = 24
@@ -966,6 +975,7 @@ private struct Layout {
     static let coverSize = CGSize(width: 104, height: 160)
     static let headerBlurRadius: CGFloat = 20
     static let headerFadeHeight: CGFloat = 60
+    static let headerBottomBorderWidth: CGFloat = 0.5
     static let initialStickyHeaderHeight: CGFloat = 320
     static let indicatorDiameter: CGFloat = 48
     static let presentIndicatorDiameter: CGFloat = 56
