@@ -5,13 +5,15 @@ import SwiftData
 class NavigationState: ObservableObject {
     @Published var shouldShowBookSelection = false
     @Published var selectedBookTitle: String? = nil
+    @Published var selectedBookID: UUID? = nil
     
     func navigateToBookSelection() {
         shouldShowBookSelection = true
     }
     
-    func navigateToBook(title: String) {
-        selectedBookTitle = title
+    func navigateToBook(_ book: Book) {
+        selectedBookID = book.id
+        selectedBookTitle = book.title
         shouldShowBookSelection = false
     }
     
@@ -22,18 +24,18 @@ class NavigationState: ObservableObject {
                 let bookService = BookService(modelContext: modelContext)
                 
                 // This will either find existing book or create new one
-                let _ = try bookService.findOrCreateBook(title: title, author: nil)
+                let created = try bookService.findOrCreateBook(title: title, author: nil)
                 print("DEBUG: Ensured book record exists for '\(title)' to enable navigation")
                 
                 // Now navigate
-                selectedBookTitle = title
-                shouldShowBookSelection = false
+                navigateToBook(created)
                 
             } catch {
                 print("ERROR: Failed to ensure book for navigation: \(error)")
                 // Fall back to regular navigation
                 selectedBookTitle = title
                 shouldShowBookSelection = false
+                selectedBookID = nil
             }
         }
     }
@@ -41,5 +43,6 @@ class NavigationState: ObservableObject {
     func reset() {
         shouldShowBookSelection = false
         selectedBookTitle = nil
+        selectedBookID = nil
     }
 }

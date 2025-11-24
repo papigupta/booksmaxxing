@@ -13,11 +13,15 @@ struct MainView: View {
     @State private var userProfile: UserProfile?
 
     private var activeBook: Book? {
+        if let selectedID = navigationState.selectedBookID,
+           let book = books.first(where: { $0.id == selectedID }) {
+            return book
+        }
         if let selectedTitle = navigationState.selectedBookTitle,
            let selectedBook = books.first(where: { $0.title == selectedTitle }) {
             return selectedBook
         }
-        return books.first
+        return nil
     }
     
     var body: some View {
@@ -32,6 +36,7 @@ struct MainView: View {
                     openAIService: openAIService,
                     isRootExperience: true
                 )
+                .id(book.id)
             } else {
                 ProgressView("Loading your library…")
             }
@@ -41,9 +46,9 @@ struct MainView: View {
                 updateNavigationState(for: profile, books: newBooks)
             }
         }
-        .onChange(of: navigationState.selectedBookTitle) { _, newValue in
-            guard let newValue else { return }
-            persistSelectedBook(title: newValue)
+        .onChange(of: navigationState.selectedBookID) { _, newID in
+            guard let newID, let book = books.first(where: { $0.id == newID }) else { return }
+            persistSelectedBook(book: book)
         }
         .onAppear {
             if !hasTrackedAppOpen {
@@ -51,8 +56,9 @@ struct MainView: View {
                 hasTrackedAppOpen = true
             }
             // Initialize selected book on first appear
-            if !books.isEmpty && navigationState.selectedBookTitle == nil {
-                navigationState.selectedBookTitle = books[0].title
+            if let first = books.first, navigationState.selectedBookID == nil {
+                navigationState.selectedBookID = first.id
+                navigationState.selectedBookTitle = first.title
             }
             
             // Run cleanup on app startup for all users
@@ -128,7 +134,7 @@ extension MainView {
 
     @MainActor
     private func ensureUserProfile() throws -> UserProfile {
-        var descriptor = FetchDescriptor<UserProfile>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
+        let descriptor = FetchDescriptor<UserProfile>(sortBy: [SortDescriptor(\.createdAt, order: .forward)])
         let profiles = try modelContext.fetch(descriptor)
         if let existing = profiles.first {
             if profiles.count > 1 {
@@ -151,27 +157,35 @@ extension MainView {
 
     @MainActor
     private func updateNavigationState(for profile: UserProfile, books: [Book]) {
+        if let currentID = navigationState.selectedBookID,
+           books.contains(where: { $0.id == currentID }) {
+            return
+        }
+
         if !profile.hasCompletedInitialBookSelection {
             navigationState.shouldShowBookSelection = true
             navigationState.selectedBookTitle = nil
+            navigationState.selectedBookID = nil
             return
         }
 
         navigationState.shouldShowBookSelection = false
 
         if let savedTitle = profile.lastOpenedBookTitle,
-           books.contains(where: { $0.title == savedTitle }) {
-            navigationState.selectedBookTitle = savedTitle
-        } else if navigationState.selectedBookTitle == nil, let first = books.first {
+           let savedBook = books.first(where: { $0.title == savedTitle }) {
+            navigationState.selectedBookID = savedBook.id
+            navigationState.selectedBookTitle = savedBook.title
+        } else if navigationState.selectedBookID == nil, let first = books.first {
+            navigationState.selectedBookID = first.id
             navigationState.selectedBookTitle = first.title
         }
     }
 
     @MainActor
-    private func persistSelectedBook(title: String) {
+    private func persistSelectedBook(book: Book) {
         do {
             let profile = try ensureUserProfile()
-            profile.lastOpenedBookTitle = title
+            profile.lastOpenedBookTitle = book.title
             if !profile.hasCompletedInitialBookSelection {
                 profile.hasCompletedInitialBookSelection = true
             }

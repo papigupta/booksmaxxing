@@ -13,9 +13,11 @@ struct NavigationStateTests {
     @Test
     func navigateToBookResetsSelectionFlag() {
         let nav = NavigationState()
+        let book = Book(title: "Sample")
         nav.shouldShowBookSelection = true
-        nav.navigateToBook(title: "Sample")
+        nav.navigateToBook(book)
         #expect(nav.selectedBookTitle == "Sample")
+        #expect(nav.selectedBookID == book.id)
         #expect(nav.shouldShowBookSelection == false)
     }
 

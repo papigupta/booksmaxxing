@@ -530,7 +530,7 @@ struct BookSelectionView: View {
             book.lastAccessed = Date()
             try? modelContext.save()
 
-            navigationState.navigateToBook(title: book.title)
+            navigationState.navigateToBook(book)
             selectionStatus = nil
             isProcessingSelection = false
         }
@@ -999,7 +999,7 @@ struct BookSelectionView: View {
                 extractionTask = Task(priority: .userInitiated) {
                     await extractionViewModel.loadOrExtractIdeas(from: metadata.title, metadata: metadata)
                     await MainActor.run {
-                        navigationState.navigateToBook(title: book.title)
+                        navigationState.navigateToBook(book)
                         selectionStatus = nil
                         isProcessingSelection = false
                         withAnimation(.easeOut(duration: 0.20)) { showExtractionLoader = false }

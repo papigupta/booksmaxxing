@@ -17,6 +17,10 @@ struct DailyPracticeHomepage: View {
     @State private var currentLessonNumber: Int = 0
     @State private var selectedLesson: GeneratedLesson? = nil
     @State private var refreshID = UUID()
+    @State private var showingIdeaResponses = false
+    @State private var selectedIdea: Idea? = nil
+    @State private var showingSafari = false
+    @State private var safariURL: URL? = nil
     
     // Real lessons generated from book ideas
     @State private var practiceMilestones: [PracticeMilestone] = []
@@ -29,7 +33,6 @@ struct DailyPracticeHomepage: View {
     @State private var didInitialLoad: Bool = false
     @State private var isLoading: Bool = false
     @State private var showingOverflow: Bool = false
-    @State private var showingBookOverview: Bool = false
     
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
@@ -60,59 +63,59 @@ struct DailyPracticeHomepage: View {
         self.isRootExperience = isRootExperience
     }
 
+
     var body: some View {
-        let theme = themeManager.currentTokens(for: colorScheme)
+        let tokens = themeManager.currentTokens(for: colorScheme)
+        let roles = themeManager.activeRoles
+        let seedColor = themeManager.seedColor(at: 0)
+        let palette = PracticePalette(roles: roles, seedColor: seedColor, tokens: tokens)
         return NavigationStack {
             ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: DS.Spacing.lg) {
-                        // Practice Path
-                        practicePathSection
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: Layout.sectionSpacing) {
+                        topControls(palette: palette)
+                        heroSection(palette: palette)
+                        practiceTimelineSection(palette: palette)
                     }
-                    .padding(.horizontal, DS.Spacing.xxl)
-                    .padding(.top, DS.Spacing.md)
+                    .padding(.horizontal, Layout.horizontalPadding)
+                    .padding(.top, Layout.contentTopPadding)
+                    .padding(.bottom, Layout.bottomPadding)
                 }
-                .id(refreshID)
+                .background(backgroundGradient(palette: palette, tokens: tokens).ignoresSafeArea())
                 .navigationBarHidden(true)
-                .background(theme.background)
-                .safeAreaInset(edge: .top) {
-                    headerSection
-                        .padding(.horizontal, DS.Spacing.xxl)
-                        .padding(.top, DS.Spacing.sm)
-                        .background(theme.background)
-                }
+                .id(refreshID)
                 .confirmationDialog("Options", isPresented: $showingOverflow, titleVisibility: .visible) {
-                if hasReviewItems {
-                    Button(action: {
-                        let reviewLesson = GeneratedLesson(
-                            lessonNumber: -1,
-                            title: "Review Practice",
-                            primaryIdeaId: "",
-                            primaryIdeaTitle: "Mixed Review",
-                            reviewIdeaIds: [],
-                            mistakeCorrections: [],
-                            questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
-                            estimatedMinutes: 10,
-                            isUnlocked: true,
-                            isCompleted: false
-                        )
-                        selectedLesson = reviewLesson
-                    }) { Text("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")") }
-                }
-                if DebugFlags.enableDevControls {
-                    Button("Force Curveball Due") {
-                        let bookId = book.id.uuidString
-                        curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
-                        refreshView()
+                    if hasReviewItems {
+                        Button(action: {
+                            let reviewLesson = GeneratedLesson(
+                                lessonNumber: -1,
+                                title: "Review Practice",
+                                primaryIdeaId: "",
+                                primaryIdeaTitle: "Mixed Review",
+                                reviewIdeaIds: [],
+                                mistakeCorrections: [],
+                                questionDistribution: QuestionDistribution(newQuestions: 0, reviewQuestions: 4, correctionQuestions: 0),
+                                estimatedMinutes: 10,
+                                isUnlocked: true,
+                                isCompleted: false
+                            )
+                            selectedLesson = reviewLesson
+                        }) { Text("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")") }
                     }
-                    Button("Force Spaced Follow‑up Due") {
-                        let bookId = book.id.uuidString
-                        let spacedService = SpacedFollowUpService(modelContext: modelContext)
-                        spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
-                        refreshView()
+                    if DebugFlags.enableDevControls {
+                        Button("Force Curveball Due") {
+                            let bookId = book.id.uuidString
+                            curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                            refreshView()
+                        }
+                        Button("Force Spaced Follow‑up Due") {
+                            let bookId = book.id.uuidString
+                            let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                            spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
+                            refreshView()
+                        }
                     }
-                }
-                Button("Cancel", role: .cancel) {}
+                    Button("Cancel", role: .cancel) {}
                 }
                 .task {
                     isLoading = true
@@ -124,22 +127,21 @@ struct DailyPracticeHomepage: View {
                 .onAppear {
                     scrollToCurrentLesson(proxy: proxy)
                     Task { await themeManager.activateTheme(for: book) }
-                    // Avoid duplicate loads that cause visible flicker
                     if !didInitialLoad {
                         Task {
                             isLoading = true
-                        await loadPracticeData()
-                        await prefetchCurrentLessonIfNeeded()
-                        didInitialLoad = true
-                        isLoading = false
+                            await loadPracticeData()
+                            await prefetchCurrentLessonIfNeeded()
+                            didInitialLoad = true
+                            isLoading = false
+                        }
                     }
-                }
                 }
                 .onChange(of: refreshID) { _, _ in
-                    // Force reload when refresh is triggered
-                    Task {
-                        await loadPracticeData()
-                    }
+                    Task { await loadPracticeData() }
+                }
+                .onChange(of: book.id) { _, _ in
+                    resetForNewBook()
                 }
                 .onChange(of: practiceMilestones) { _, _ in
                     scrollToCurrentLesson(proxy: proxy)
@@ -147,150 +149,250 @@ struct DailyPracticeHomepage: View {
                 .onChange(of: currentLessonNumber) { _, _ in
                     scrollToCurrentLesson(proxy: proxy)
                 }
-        .fullScreenCover(item: $selectedLesson) { lesson in
-            // If lesson number exceeds total ideas, treat as review-only session
-            let totalIdeas = (book.ideas ?? []).count
-            let presentedView: AnyView = {
-                if lesson.lessonNumber > totalIdeas {
-                    // Use the new review-enabled practice view
-                    return AnyView(
-                        DailyPracticeWithReviewView(
-                            book: book,
-                            openAIService: openAIService,
-                            selectedLesson: lesson,
-                            onPracticeComplete: {
-                                print("DEBUG: ✅✅ Review practice complete")
-                                // Mark this review-only lesson as completed so the next (17, 18, …) can appear
-                                completeLesson(lesson)
-                                selectedLesson = nil
-                                refreshView()
-                            }
-                        )
-                    )
+                .fullScreenCover(item: $selectedLesson) { lesson in
+                    let totalIdeas = (book.ideas ?? []).count
+                    let presentedView: AnyView = {
+                        if lesson.lessonNumber > totalIdeas {
+                            return AnyView(
+                                DailyPracticeWithReviewView(
+                                    book: book,
+                                    openAIService: openAIService,
+                                    selectedLesson: lesson,
+                                    onPracticeComplete: {
+                                        print("DEBUG: ✅✅ Review practice complete")
+                                        completeLesson(lesson)
+                                        selectedLesson = nil
+                                        refreshView()
+                                    }
+                                )
+                            )
+                        } else {
+                            return AnyView(
+                                DailyPracticeView(
+                                    book: book,
+                                    openAIService: openAIService,
+                                    practiceType: .quick,
+                                    selectedLesson: lesson,
+                                    onPracticeComplete: {
+                                        print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
+                                        completeLesson(lesson)
+                                        selectedLesson = nil
+                                        refreshID = UUID()
+                                        print("DEBUG: ✅✅ Refreshing view after lesson completion")
+                                    }
+                                )
+                            )
+                        }
+                    }()
+
+                    if #available(iOS 17.0, *) {
+                        presentedView
+                            .presentationBackground(tokens.background)
+                    } else {
+                        presentedView
+                    }
+                }
+                .sheet(isPresented: $showingSafari) {
+                    if let safariURL {
+                        SafariView(url: safariURL)
+                    } else {
+                        EmptyView()
+                    }
+                }
+            }
+            .navigationDestination(isPresented: $showingIdeaResponses) {
+                if let selectedIdea {
+                    IdeaResponsesView(idea: selectedIdea)
                 } else {
-                    // Use the regular lesson view
-                    return AnyView(
-                        DailyPracticeView(
-                            book: book,
-                            openAIService: openAIService,
-                            practiceType: .quick,
-                            selectedLesson: lesson,
-                            onPracticeComplete: {
-                                print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
-                                // Mark lesson as completed and unlock next lesson
-                                completeLesson(lesson)
-                                // Dismiss after completion
-                                selectedLesson = nil
-                                // Force refresh
-                                refreshID = UUID()
-                                print("DEBUG: ✅✅ Refreshing view after lesson completion")
-                            }
-                        )
+                    EmptyView()
+                }
+            }
+        }
+    }
+    
+    // MARK: - Header + Hero
+    private func topControls(palette: PracticePalette) -> some View {
+        HStack {
+            Button(action: handlePrimaryNavigationTap) {
+                DSIcon("book.closed.fill", size: 14)
+            }
+            .dsPaletteSecondaryIconButton(diameter: 38)
+            .accessibilityLabel("Book selection")
+
+            Spacer()
+
+            StreakIndicatorView()
+
+            Button(action: { showingOverflow = true }) {
+                DSIcon("ellipsis", size: 14)
+            }
+            .dsPaletteSecondaryIconButton(diameter: 38)
+            .accessibilityLabel("More options")
+        }
+        .padding(.top, Layout.safeAreaTopPadding)
+    }
+    
+    private func heroSection(palette: PracticePalette) -> some View {
+        VStack(alignment: .leading, spacing: Layout.heroSpacing) {
+            HStack(alignment: .top, spacing: Layout.heroSpacing) {
+                ZStack {
+                    Circle()
+                        .fill(palette.seed.opacity(0.5))
+                        .frame(width: Layout.haloDiameter, height: Layout.haloDiameter)
+                        .blur(radius: Layout.haloBlur)
+                        .blendMode(.plusLighter)
+                        .allowsHitTesting(false)
+
+                    BookCoverView(
+                        thumbnailUrl: book.thumbnailUrl,
+                        coverUrl: book.coverImageUrl,
+                        isLargeView: true,
+                        cornerRadius: 12,
+                        targetSize: Layout.coverSize
                     )
+                    .frame(width: Layout.coverSize.width, height: Layout.coverSize.height)
+                    .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 8)
                 }
-            }()
-            
-            if #available(iOS 17.0, *) {
-                presentedView
-                    .presentationBackground(theme.background)
-            } else {
-                presentedView
-            }
-        }
-        .fullScreenCover(isPresented: $showingBookOverview) {
-            BookOverviewModalView(bookTitle: book.title, openAIService: openAIService)
-        }
+                .frame(width: Layout.coverSize.width, height: Layout.coverSize.height)
+
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    Text(book.title)
+                        .font(DS.Typography.fraunces(size: 20, weight: .semibold))
+                        .tracking(DS.Typography.tightTracking(for: 20))
+                        .foregroundColor(palette.primaryT30)
+                        .multilineTextAlignment(.leading)
+
+                    if let author = book.author, !author.isEmpty {
+                        Text(author)
+                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                            .tracking(DS.Typography.tightTracking(for: 14))
+                            .foregroundColor(palette.primaryT40)
+                    }
+
+                    if let description = book.bookDescription, !description.isEmpty {
+                        Text(description)
+                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                            .tracking(DS.Typography.tightTracking(for: 14))
+                            .foregroundColor(palette.primaryT50)
+                            .lineLimit(5)
+                    }
+
+                    amazonButton(palette: palette)
+                }
             }
         }
     }
-    
-    // MARK: - Header Section
-    private var headerSection: some View {
-        let tokens = themeManager.currentTokens(for: colorScheme)
-        return VStack(alignment: .leading, spacing: 0) {
-            // Top row: back button • streak • overflow
-            HStack {
-                // Back to Book (icon-only, palette secondary)
-                Button(action: handlePrimaryNavigationTap) {
-                    DSIcon("book.closed.fill", size: 14)
-                }
-                .dsPaletteSecondaryIconButton(diameter: 38)
-                .accessibilityLabel("Back to Book")
 
-                Spacer()
-
-                // Streak indicator
-                StreakIndicatorView()
-
-                // Overflow actions trigger (palette secondary icon button)
-                Button(action: { showingOverflow = true }) {
-                    DSIcon("ellipsis", size: 14)
-                }
-                .dsPaletteSecondaryIconButton(diameter: 38)
-                .accessibilityLabel("More options")
+    private func amazonButton(palette: PracticePalette) -> some View {
+        Button(action: openAmazonLink) {
+            HStack(spacing: 4) {
+                Text("Buy on")
+                    .font(DS.Typography.caption)
+                    .foregroundColor(palette.primaryT40)
+                Text("Amazon")
+                    .font(DS.Typography.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(palette.primaryT40)
             }
-            .padding(.horizontal, DS.Spacing.xxs)
-            .padding(.bottom, DS.Spacing.md)
-
-            Text(book.title)
-                .font(DS.Typography.title2)
-                .tracking(DS.Typography.tightTracking(for: 20))
-                .foregroundColor(
-                    themeManager.activeRoles.color(role: .primary, tone: 30)
-                    ?? tokens.onSurface
-                )
-                .lineLimit(3)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, DS.Spacing.sm)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(palette.background.opacity(0.6))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundColor(palette.primaryT70)
+            )
         }
-        .background(tokens.surface)
+        .buttonStyle(.plain)
     }
     
-    // MARK: - Practice Path Section
-    private var practicePathSection: some View {
-        let theme = themeManager.currentTokens(for: colorScheme)
-        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            if practiceMilestones.isEmpty {
+    private func practiceTimelineSection(palette: PracticePalette) -> some View {
+        VStack(alignment: .leading, spacing: Layout.timelineSpacing) {
+            if isLoading && practiceMilestones.isEmpty {
                 HStack(spacing: DS.Spacing.sm) {
                     ProgressView()
                     Text("Loading lessons…")
                         .font(DS.Typography.body)
-                        .foregroundColor(theme.onSurface.opacity(0.7))
+                        .foregroundColor(palette.primaryT40.opacity(0.8))
                 }
-                .padding()
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, DS.Spacing.md)
+            } else if practiceMilestones.isEmpty {
+                Text("No lessons yet. Start practicing to unlock your timeline.")
+                    .font(DS.Typography.body)
+                    .foregroundColor(palette.primaryT40)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
             } else {
-                LazyVStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                VStack(alignment: .leading, spacing: Layout.timelineSpacing) {
                     ForEach(Array(practiceMilestones.enumerated()), id: \.element.id) { index, milestone in
-                        VStack(spacing: DS.Spacing.sm) {
-                            MilestoneNode(
-                                milestone: milestone,
-                                lesson: nil, // No longer pre-generating lessons
-                                onTap: {
-                                    handleMilestoneTap(milestone: milestone)
-                                }
-                            )
-                            .id(milestone.id)
-
-                            // Connection line (except for last item)
-                            if index < practiceMilestones.count - 1 {
-                                Rectangle()
-                                    .fill(milestone.isCompleted ? DS.Colors.black : DS.Colors.gray300)
-                                    .frame(width: 2, height: 30)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        LessonCardView(
+                            milestone: milestone,
+                            palette: palette,
+                            showConnector: index < practiceMilestones.count - 1,
+                            onTap: { handleLessonSelection(milestone) }
+                        )
+                        .id(milestone.id)
                     }
                 }
-                .padding(.vertical, DS.Spacing.md)
             }
         }
     }
 
+    private func openAmazonLink() {
+        guard let url = AmazonLinkBuilder.url(for: book) else { return }
+        safariURL = url
+        showingSafari = true
+    }
+
+    private func resetForNewBook() {
+        practiceMilestones = []
+        currentLessonNumber = 0
+        selectedLesson = nil
+        showingIdeaResponses = false
+        showingOverflow = false
+        refreshID = UUID()
+
+        Task {
+            await themeManager.activateTheme(for: book)
+            await loadPracticeData()
+            await prefetchCurrentLessonIfNeeded()
+        }
+    }
+
+    private func backgroundGradient(palette: PracticePalette, tokens: ThemeTokens) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                palette.seed.opacity(0.14),
+                palette.background,
+                palette.background
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private func handleLessonSelection(_ milestone: PracticeMilestone) {
+        if milestone.isCurrent {
+            handleMilestoneTap(milestone: milestone)
+        } else if let idea = milestone.idea {
+            selectedIdea = idea
+            showingIdeaResponses = true
+        }
+    }
+
+    private func lessonMetrics(for idea: Idea, bookId: String) -> LessonMetrics {
+        let coverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
+        let clarityValue: Double? = coverage.totalQuestionsSeen > 0 ? coverage.currentAccuracy : nil
+        let attempts = (idea.tests ?? []).flatMap { $0.attempts ?? [] }
+        let totalBCal = attempts.reduce(0) { $0 + max(0, $1.brainCalories) }
+        return LessonMetrics(clarityPercent: clarityValue, brainCalories: totalBCal)
+    }
+
     private func handlePrimaryNavigationTap() {
-        if isRootExperience {
-            showingBookOverview = true
-        } else {
+        navigationState.navigateToBookSelection()
+        if !isRootExperience {
             dismiss()
         }
     }
@@ -298,11 +400,8 @@ struct DailyPracticeHomepage: View {
     // MARK: - Helper Methods
     private func handleMilestoneTap(milestone: PracticeMilestone) {
         print("DEBUG: Tapped on lesson \(milestone.id), isCurrent: \(milestone.isCurrent), isCompleted: \(milestone.isCompleted)")
-        let totalIdeas = (book.ideas ?? []).count
-        if milestone.id > totalIdeas {
-            // Review-only lesson: create a placeholder GeneratedLesson and present review view
+        if milestone.isReviewPractice {
             print("DEBUG: Starting review-only session for lesson \(milestone.id)")
-            // Ensure a StoredLesson exists so we can mark completion
             let _ = lessonStorage.getOrCreateReviewLesson(bookId: book.id.uuidString, lessonNumber: milestone.id, book: book)
             let tempLesson = GeneratedLesson(
                 lessonNumber: milestone.id,
@@ -317,35 +416,39 @@ struct DailyPracticeHomepage: View {
                 isCompleted: false
             )
             selectedLesson = tempLesson
-        } else {
-            // Normal idea lesson
-            let bookId = book.id.uuidString
-            guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
-                print("ERROR: Could not get lesson info for lesson \(milestone.id)")
-                return
-            }
-            if lessonInfo.isUnlocked {
-                print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
-                let emptyMistakeCorrections: [(ideaId: String, concepts: [String])] = []
-                let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
-                let primaryIdeaId = sortedIdeas[milestone.id - 1].id
-                let tempLesson = GeneratedLesson(
-                    lessonNumber: milestone.id,
-                    title: "Lesson \(milestone.id): \(lessonInfo.title)",
-                    primaryIdeaId: primaryIdeaId,
-                    primaryIdeaTitle: lessonInfo.title,
-                    reviewIdeaIds: [],
-                    mistakeCorrections: emptyMistakeCorrections,
-                    questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
-                    estimatedMinutes: 10,
-                    isUnlocked: true,
-                    isCompleted: lessonInfo.isCompleted
-                )
-                selectedLesson = tempLesson
-            } else {
-                print("DEBUG: Lesson \(milestone.id) is not unlocked")
-            }
+            return
         }
+
+        guard let idea = milestone.idea else {
+            print("ERROR: Milestone \(milestone.id) missing idea reference")
+            return
+        }
+
+        let bookId = book.id.uuidString
+        guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
+            print("ERROR: Could not get lesson info for lesson \(milestone.id)")
+            return
+        }
+
+        guard lessonInfo.isUnlocked else {
+            print("DEBUG: Lesson \(milestone.id) is not unlocked")
+            return
+        }
+
+        print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
+        let tempLesson = GeneratedLesson(
+            lessonNumber: milestone.id,
+            title: "Lesson \(milestone.id): \(lessonInfo.title)",
+            primaryIdeaId: idea.id,
+            primaryIdeaTitle: idea.title,
+            reviewIdeaIds: [],
+            mistakeCorrections: [],
+            questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
+            estimatedMinutes: 10,
+            isUnlocked: true,
+            isCompleted: lessonInfo.isCompleted
+        )
+        selectedLesson = tempLesson
     }
     
     private func scrollToCurrentLesson(proxy: ScrollViewProxy) {
@@ -431,15 +534,26 @@ struct DailyPracticeHomepage: View {
         print("DEBUG: Retrieved \(lessonInfos.count) lesson infos from LessonStorage")
         
         // Convert to milestones for UI
-        var milestones = lessonInfos.enumerated().map { index, info in
+        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
+        var milestones: [PracticeMilestone] = []
+        for info in lessonInfos {
+            guard info.lessonNumber - 1 < sortedIdeas.count else { continue }
+            let idea = sortedIdeas[info.lessonNumber - 1]
+            let metrics = lessonMetrics(for: idea, bookId: bookId)
             let isCurrent = info.lessonNumber == currentLessonNumber && info.isUnlocked && !info.isCompleted
             print("DEBUG: Creating milestone - Lesson \(info.lessonNumber): \(info.title), Unlocked: \(info.isUnlocked), Completed: \(info.isCompleted), Current: \(isCurrent)")
-            return PracticeMilestone(
+            let milestone = PracticeMilestone(
                 id: info.lessonNumber,
                 title: info.title,
                 isCompleted: info.isCompleted,
-                isCurrent: isCurrent
+                isCurrent: isCurrent,
+                isReviewPractice: false,
+                clarityPercent: metrics.clarityPercent,
+                brainCalories: metrics.brainCalories,
+                idea: idea,
+                isUnlocked: info.isUnlocked
             )
+            milestones.append(milestone)
         }
 
         // Load review queue stats for this specific book (after ensuring curveballs/spacedfollowups queued)
@@ -482,7 +596,12 @@ struct DailyPracticeHomepage: View {
                         id: rl.lessonNumber,
                         title: "Review Practice",
                         isCompleted: rl.isCompleted,
-                        isCurrent: false
+                        isCurrent: false,
+                        isReviewPractice: true,
+                        clarityPercent: nil,
+                        brainCalories: 0,
+                        idea: nil,
+                        isUnlocked: true
                     )
                 )
             }
@@ -501,7 +620,12 @@ struct DailyPracticeHomepage: View {
                         id: nextId,
                         title: "Review Practice",
                         isCompleted: false,
-                        isCurrent: true
+                        isCurrent: true,
+                        isReviewPractice: true,
+                        clarityPercent: nil,
+                        brainCalories: 0,
+                        idea: nil,
+                        isUnlocked: true
                     )
                 )
                 currentLessonNumber = nextId
@@ -550,154 +674,313 @@ struct DailyPracticeHomepage: View {
         prefetcher.prefetchLesson(book: book, lessonNumber: number)
     }
 
-    // MARK: - Quick Prefill to Avoid Flicker
-    private func quickPrefillMilestones() {
-        let lessonInfos = lessonStorage.getAllLessonInfo(book: book)
-        var currentLessonNumber = 1
-        if let firstIncomplete = lessonInfos.first(where: { !$0.isCompleted && $0.isUnlocked }) {
-            currentLessonNumber = firstIncomplete.lessonNumber
-        } else if let last = lessonInfos.last {
-            currentLessonNumber = min(last.lessonNumber + 1, lessonInfos.count)
-        }
-        self.practiceMilestones = lessonInfos.map { info in
-            PracticeMilestone(
-                id: info.lessonNumber,
-                title: info.title,
-                isCompleted: info.isCompleted,
-                isCurrent: info.lessonNumber == currentLessonNumber && info.isUnlocked && !info.isCompleted
-            )
-        }
-    }
 }
 
-private struct BookOverviewModalView: View {
-    let bookTitle: String
-    let openAIService: OpenAIService
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            BookOverviewView(
-                bookTitle: bookTitle,
-                openAIService: openAIService,
-                bookService: BookService(modelContext: modelContext),
-                onClose: { dismiss() }
-            )
-        }
-    }
-}
-
-// MARK: - Supporting Views
-private struct MilestoneNode: View {
+// MARK: - Supporting Views & Helpers
+private struct LessonCardView: View {
     let milestone: PracticeMilestone
-    let lesson: GeneratedLesson?
+    let palette: PracticePalette
+    let showConnector: Bool
     let onTap: () -> Void
-    
-    @EnvironmentObject var themeManager: ThemeManager
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        let theme = themeManager.currentTokens(for: colorScheme)
-        Button(action: onTap) {
-            HStack(spacing: DS.Spacing.md) {
-                // Milestone circle
-                ZStack {
-                    Circle()
-                        .fill(circleColor(theme))
-                        .frame(width: 60, height: 60)
-                        .overlay(
-                            Circle()
-                                .stroke(strokeColor(theme), lineWidth: milestone.isCurrent ? 3 : 1)
-                        )
-                        .scaleEffect(milestone.isCurrent ? 1.1 : 1.0)
-                        .animation(.easeInOut(duration: 0.3), value: milestone.isCurrent)
-                    
-                    // Icon or lesson number
-                    if milestone.isCompleted {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(theme.onSecondary)
-                    } else if milestone.isCurrent {
+        VStack(alignment: .leading, spacing: Layout.connectorSpacing) {
+            Button(action: onTap) {
+                content
+            }
+            .buttonStyle(.plain)
+
+            if showConnector {
+                Rectangle()
+                    .fill(palette.seed)
+                    .frame(width: Layout.connectorWidth, height: Layout.connectorHeight)
+                    .padding(.leading, Layout.indicatorColumnWidth / 2 - Layout.connectorWidth / 2)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch milestone.state {
+        case .past:
+            pastCard
+        case .present:
+            presentCard
+        case .future:
+            futureCard
+        }
+    }
+
+    private var pastCard: some View {
+        HStack(alignment: .center, spacing: Layout.cardSpacing) {
+            indicatorCircle(icon: "checkmark")
+                .frame(width: Layout.indicatorColumnWidth)
+
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                lessonLabel(color: palette.primaryT40)
+                Text(milestone.title)
+                    .font(DS.Typography.bodyBold)
+                    .foregroundColor(palette.primaryT30)
+                    .multilineTextAlignment(.leading)
+
+                metricsRow
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, Layout.pastVerticalPadding)
+    }
+
+    private var presentCard: some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: Layout.presentCornerRadius, style: .continuous)
+                .fill(palette.seed.opacity(0.2))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Layout.presentCornerRadius, style: .continuous)
+                        .stroke(palette.seed, lineWidth: 1.5)
+                )
+                .shadow(color: palette.seed.opacity(0.25), radius: 12, x: 0, y: 10)
+
+            HStack(alignment: .center, spacing: Layout.cardSpacing) {
+                Circle()
+                    .fill(palette.seed)
+                    .frame(width: Layout.presentIndicatorDiameter, height: Layout.presentIndicatorDiameter)
+                    .overlay(
                         Image(systemName: "play.fill")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(theme.onPrimary)
-                    } else {
-                        Text("\(milestone.id)")
-                            .font(DS.Typography.bodyBold)
-                            .foregroundColor(theme.onSurface.opacity(0.6))
-                    }
-                }
-                
-                // Lesson info
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    Text("Lesson \(milestone.id)")
-                        .font(DS.Typography.caption)
-                        .foregroundColor(theme.onSurface.opacity(0.7))
-                    
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(palette.background)
+                    )
+                    .frame(width: Layout.indicatorColumnWidth)
+
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    lessonLabel(color: palette.primaryT40)
                     Text(milestone.title)
                         .font(DS.Typography.bodyBold)
-                        .foregroundColor(milestone.isCurrent ? theme.onPrimaryContainer : (milestone.isCompleted ? theme.onSecondaryContainer : theme.onSurface.opacity(0.7)))
+                        .foregroundColor(palette.primaryT30)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
                 }
-                
-                Spacer()
-                
-                // Status indicator
-                if milestone.isCurrent {
-                    Text("START")
-                        .font(DS.Typography.small)
-                        .fontWeight(.bold)
-                        .foregroundColor(theme.onPrimary)
-                        .padding(.horizontal, DS.Spacing.sm)
-                        .padding(.vertical, DS.Spacing.xs)
-                        .background(theme.primary)
-                        .cornerRadius(12)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Layout.presentHorizontalPadding)
+            .padding(.vertical, Layout.presentVerticalPadding)
+        }
+    }
+
+    private var futureCard: some View {
+        HStack(alignment: .center, spacing: Layout.cardSpacing) {
+            Circle()
+                .fill(palette.seed.opacity(0.2))
+                .frame(width: Layout.indicatorDiameter, height: Layout.indicatorDiameter)
+                .overlay(
+                    Text("\(milestone.id)")
+                        .font(DS.Typography.bodyBold)
+                        .foregroundColor(palette.primaryT30.opacity(0.33))
+                )
+                .frame(width: Layout.indicatorColumnWidth)
+
+            Text(milestone.title)
+                .font(DS.Typography.body)
+                .foregroundColor(palette.primaryT30.opacity(0.33))
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, Layout.pastVerticalPadding)
+    }
+
+    @ViewBuilder
+    private var metricsRow: some View {
+        let hasClarity = (milestone.clarityPercent ?? 0) > 0
+        let hasBcal = milestone.brainCalories > 0
+        if hasClarity || hasBcal {
+            HStack(spacing: Layout.metricsSpacing) {
+                if let clarity = milestone.clarityPercent, clarity >= 0 {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(palette.primaryT40)
+                            .frame(width: 14, height: 14)
+                            .blur(radius: blurRadius(for: clarity))
+                        HStack(spacing: 2) {
+                            Text("\(Int(clarity))%")
+                                .font(DS.Typography.caption)
+                                .fontWeight(.semibold)
+                            Text("clarity")
+                                .font(DS.Typography.caption)
+                                .fontWeight(.regular)
+                        }
+                        .foregroundColor(palette.primaryT40)
+                    }
+                }
+
+                if hasBcal {
+                    HStack(spacing: 6) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(palette.primaryT40)
+                        HStack(spacing: 2) {
+                            Text("\(milestone.brainCalories)")
+                                .font(DS.Typography.caption)
+                                .fontWeight(.semibold)
+                            Text("bCals burned")
+                                .font(DS.Typography.caption)
+                                .fontWeight(.regular)
+                        }
+                        .foregroundColor(palette.primaryT40)
+                    }
                 }
             }
-            .padding(DS.Spacing.md)
-            .background(milestone.isCurrent ? theme.primaryContainer.opacity(0.25) : Color.clear)
-            .cornerRadius(12)
+        }
+    }
+
+    private func lessonLabel(color: Color) -> some View {
+        Text("Lesson \(milestone.id)")
+            .font(DS.Typography.caption)
+            .foregroundColor(color)
+    }
+
+    private func indicatorCircle(icon: String) -> some View {
+        Circle()
+            .fill(palette.seed.opacity(0.2))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(milestone.isCurrent ? theme.outline : Color.clear, lineWidth: 1)
+                Circle()
+                    .stroke(palette.seed, lineWidth: 1.5)
             )
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .buttonStyle(PlainButtonStyle())
-        .disabled(!milestone.isCompleted && !milestone.isCurrent)
+            .frame(width: Layout.indicatorDiameter, height: Layout.indicatorDiameter)
+            .overlay(
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(palette.primaryT40)
+            )
+            .frame(width: Layout.indicatorColumnWidth)
     }
-    
-    private func circleColor(_ theme: ThemeTokens) -> Color {
-        if milestone.isCompleted {
-            return theme.secondary
-        } else if milestone.isCurrent {
-            return theme.primary
-        } else {
-            return theme.surfaceVariant
-        }
-    }
-    
-    private func strokeColor(_ theme: ThemeTokens) -> Color {
-        if milestone.isCompleted {
-            return theme.onSecondary.opacity(0.3)
-        } else if milestone.isCurrent {
-            return theme.onPrimary.opacity(0.3)
-        } else {
-            return theme.outline
-        }
+
+    private func blurRadius(for clarity: Double) -> CGFloat {
+        let clamped = min(max(clarity, 0), 100)
+        return CGFloat((100 - clamped) / 100.0) * 20.0
     }
 }
 
-// MARK: - Data Models
-struct PracticeMilestone: Equatable {
+enum LessonCardState {
+    case past
+    case present
+    case future
+}
+
+private struct PracticePalette {
+    let primaryT30: Color
+    let primaryT40: Color
+    let primaryT50: Color
+    let primaryT70: Color
+    let background: Color
+    let seed: Color
+
+    init(roles: [PaletteRole], seedColor: Color?, tokens: ThemeTokens) {
+        primaryT30 = roles.color(role: .primary, tone: 30) ?? tokens.onSurface
+        primaryT40 = roles.color(role: .primary, tone: 40) ?? tokens.onSurface
+        primaryT50 = roles.color(role: .primary, tone: 50) ?? tokens.onSurface
+        primaryT70 = roles.color(role: .primary, tone: 70) ?? tokens.onSurface
+        background = tokens.background
+        seed = seedColor
+            ?? roles.color(role: .primary, tone: 90)
+            ?? tokens.primary
+    }
+}
+
+private struct LessonMetrics {
+    let clarityPercent: Double?
+    let brainCalories: Int
+}
+
+struct PracticeMilestone: Identifiable, Equatable {
     let id: Int
     let title: String
     var isCompleted: Bool
     var isCurrent: Bool
+    let isReviewPractice: Bool
+    let clarityPercent: Double?
+    let brainCalories: Int
+    let idea: Idea?
+    let isUnlocked: Bool
+
+    var state: LessonCardState {
+        if isCurrent { return .present }
+        return isCompleted ? .past : .future
+    }
+
+    static func == (lhs: PracticeMilestone, rhs: PracticeMilestone) -> Bool {
+        lhs.id == rhs.id &&
+        lhs.isCompleted == rhs.isCompleted &&
+        lhs.isCurrent == rhs.isCurrent &&
+        lhs.isReviewPractice == rhs.isReviewPractice
+    }
+}
+
+private struct Layout {
+    static let horizontalPadding: CGFloat = 28
+    static let contentTopPadding: CGFloat = 80
+    static let bottomPadding: CGFloat = 48
+    static let sectionSpacing: CGFloat = 40
+    static let heroSpacing: CGFloat = 20
+    static let timelineSpacing: CGFloat = 24
+    static let coverSize = CGSize(width: 104, height: 160)
+    static let haloDiameter: CGFloat = 220
+    static let haloBlur: CGFloat = 120
+    static let safeAreaTopPadding: CGFloat = 8
+    static let indicatorDiameter: CGFloat = 48
+    static let presentIndicatorDiameter: CGFloat = 56
+    static let indicatorColumnWidth: CGFloat = 60
+    static let cardSpacing: CGFloat = 16
+    static let connectorHeight: CGFloat = 16
+    static let connectorWidth: CGFloat = 2
+    static let connectorSpacing: CGFloat = 6
+    static let metricsSpacing: CGFloat = 20
+    static let presentCornerRadius: CGFloat = 36
+    static let presentHorizontalPadding: CGFloat = 20
+    static let presentVerticalPadding: CGFloat = 18
+    static let pastVerticalPadding: CGFloat = 8
+}
+
+private enum AmazonLinkBuilder {
+    static func url(for book: Book) -> URL? {
+        let region = Locale.current.region?.identifier ?? "US"
+        let domain = domain(for: region)
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "www.amazon\(domain)"
+        components.path = "/s"
+        let query = [book.title, book.author].compactMap { $0 }.joined(separator: " ")
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        components.queryItems = [
+            URLQueryItem(name: "k", value: trimmed),
+            URLQueryItem(name: "i", value: "stripbooks-intl-ship")
+        ]
+        return components.url
+    }
+
+    private static func domain(for region: String) -> String {
+        switch region.uppercased() {
+        case "CA": return ".ca"
+        case "GB", "UK": return ".co.uk"
+        case "AU": return ".com.au"
+        case "IN": return ".in"
+        case "FR": return ".fr"
+        case "DE": return ".de"
+        case "ES": return ".es"
+        case "IT": return ".it"
+        case "JP": return ".co.jp"
+        case "BR": return ".com.br"
+        case "MX": return ".com.mx"
+        case "NL": return ".nl"
+        case "SE": return ".se"
+        case "AE": return ".ae"
+        case "SG": return ".sg"
+        default: return ".com"
+        }
+    }
 }
 
 enum PracticeType {
-    case quick      // 1 new + 2 review, ~5-10 min
-    case focused    // 2 new + 3 review, ~15-20 min  
-    case review     // Only review items, variable length
+    case quick
+    case focused
+    case review
 }
