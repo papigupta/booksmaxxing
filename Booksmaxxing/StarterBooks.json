@@ -1,132 +1,166 @@
 [
   {
-    "starterId": "starter_demon_haunted_world",
-    "title": "The Demon-Haunted World: Science as a Candle in the Dark",
-    "author": "Carl Sagan",
-    "description": "A defense of scientific thinking and skepticism that shows how the methods of science and everyday 'baloney detection' protect us from pseudoscience, superstition, and manipulation.",
-    "coverImageUrl": "https://m.media-amazon.com/images/I/61Cwip6BFuL._AC_UF1000,1000_QL80_.jpg",
-    "thumbnailUrl": "https://m.media-amazon.com/images/I/61Cwip6BFuL._AC_UF1000,1000_QL80_.jpg",
+    "starterId": "starter_seeing_like_a_state",
+    "title": "Seeing Like a State",
+    "author": "James C. Scott",
+    "description": "A critique of high-modernist state planning, showing how attempts to make societies 'legible' often fail because they ignore local knowledge, complexity, and real human practices.",
+    "coverImageUrl": "https://m.media-amazon.com/images/I/71QBiANdU-L._AC_UF1000,1000_QL80_.jpg",
+    "thumbnailUrl": "https://m.media-amazon.com/images/I/71QBiANdU-L._AC_UF1000,1000_QL80_.jpg",
     "ideas": [
-      {
-        "id": "i1",
-        "title": "Scientific Method",
-        "description": "A systematic way of forming hypotheses, testing them against evidence, and revising them, designed to expose and correct error over time.",
-        "importance": "foundation",
-        "depthTarget": 3
-      },
-      {
-        "id": "i2",
-        "title": "Skepticism as a Tool",
-        "description": "A habit of withholding belief until claims survive questioning and evidence checks, used to avoid being fooled rather than to dismiss everything.",
-        "importance": "foundation",
-        "depthTarget": 3
-      },
-      {
-        "id": "i3",
-        "title": "Pattern-Seeking and Pareidolia",
-        "description": "The mind\u2019s tendency to see meaningful patterns and faces in random noise, which explains phenomena like the 'face on Mars' and many false positives.",
-        "importance": "buildingBlock",
-        "depthTarget": 2
-      },
-      {
-        "id": "i4",
-        "title": "Extraordinary Claims Principle",
-        "description": "The rule that extraordinary claims require extraordinary evidence, because the more a claim clashes with established knowledge, the stronger the proof needed.",
-        "importance": "foundation",
-        "depthTarget": 3
-      },
-      {
-        "id": "i5",
-        "title": "Aliens and UFO Claims",
-        "description": "A case study in how anecdotes, blurry photos, and missing evidence fall short of the standards needed to justify belief in extraterrestrial visitors.",
-        "importance": "buildingBlock",
-        "depthTarget": 2
-      },
-      {
-        "id": "i6",
-        "title": "Hallucinations and Perception Limits",
-        "description": "The idea that vivid experiences can be generated entirely by the brain, showing why first-person reports alone are not reliable proof of external events.",
-        "importance": "buildingBlock",
-        "depthTarget": 2
-      },
-      {
-        "id": "i7",
-        "title": "Science vs Pseudoscience",
-        "description": "A distinction based on testability, openness to refutation, and peer criticism versus reliance on anecdotes, ad hoc excuses, and isolation from scrutiny.",
-        "importance": "foundation",
-        "depthTarget": 3
-      },
-      {
-        "id": "i8",
-        "title": "Baloney Detection Kit",
-        "description": "A practical checklist for evaluating claims, including checking sources, seeking independent confirmation, using Occam\u2019s razor, and looking for falsification tests.",
-        "importance": "foundation",
-        "depthTarget": 3
-      },
-      {
-        "id": "i9",
-        "title": "Falsifiability and Burden of Proof",
-        "description": "The idea that meaningful claims must expose themselves to possible disproof, and that the claimant\u2014not the skeptic\u2014bears the burden of providing evidence.",
-        "importance": "buildingBlock",
-        "depthTarget": 3
-      },
-      {
-        "id": "i10",
-        "title": "Unfalsifiable Claims",
-        "description": "Claims like the 'invisible dragon in my garage' that are protected from any possible test, making them scientifically empty even if emotionally compelling.",
-        "importance": "buildingBlock",
-        "depthTarget": 2
-      },
-      {
-        "id": "i11",
-        "title": "Pseudoscience Tactics",
-        "description": "Common moves such as cherry-picking data, moving goalposts, attacking critics, and invoking conspiracy to explain away failures instead of revising the claim.",
-        "importance": "buildingBlock",
-        "depthTarget": 2
-      },
-      {
-        "id": "i12",
-        "title": "Evidence-Based Medicine",
-        "description": "The view that treatments\u2014whether conventional or 'alternative'\u2014must be judged by controlled trials and data, not by tradition or testimonials alone.",
-        "importance": "buildingBlock",
-        "depthTarget": 2
-      },
-      {
-        "id": "i13",
-        "title": "Superstition and Moral Panics",
-        "description": "How fear plus ignorance of natural causes can lead to witch hunts and persecutions, showing the social cost of demon-haunted thinking.",
-        "importance": "enhancement",
-        "depthTarget": 2
-      },
-      {
-        "id": "i14",
-        "title": "Science and Moral Responsibility",
-        "description": "The idea that although knowledge itself is neutral, scientists and citizens share responsibility for how technologies\u2014from nukes to biotech\u2014are developed and used.",
-        "importance": "buildingBlock",
-        "depthTarget": 2
-      },
-      {
-        "id": "i15",
-        "title": "Curiosity and No Dumb Questions",
-        "description": "A cultural norm that questions should be welcomed, not punished, especially in children, because curiosity is the engine of scientific progress.",
-        "importance": "enhancement",
-        "depthTarget": 2
-      },
-      {
-        "id": "i16",
-        "title": "Skeptical Citizenship",
-        "description": "Applying the same critical habits used in science to politics, media, and advertising, so that citizens are harder to manipulate by propaganda or spin.",
-        "importance": "foundation",
-        "depthTarget": 3
-      },
-      {
-        "id": "i17",
-        "title": "Skepticism and Wonder Together",
-        "description": "The stance that rigorous doubt and childlike awe are compatible: understanding more about reality deepens wonder instead of killing it.",
-        "importance": "enhancement",
-        "depthTarget": 2
-      }
-    ]
+        {
+              "id": "i1",
+              "title": "State Legibility",
+              "description": "States simplify complex societies into standardized categories—surveys, maps, surnames—to make populations manageable and taxable, but these simplifications distort reality.",
+              "importance": "foundation",
+              "depthTarget": 3
+            },
+            {
+              "id": "i2",
+              "title": "High-Modernist Ideology",
+              "description": "A belief in scientific, technical, top-down design as the superior way to organize society, marked by confidence in expertise and an urge to redesign social life for efficiency.",
+              "importance": "foundation",
+              "depthTarget": 3
+            },
+            {
+              "id": "i3",
+              "title": "Authoritarian State Power",
+              "description": "High-modernist schemes require a powerful state that can override local practices, enforce simplifications, and compel participation, often leading to coercion.",
+              "importance": "buildingBlock",
+              "depthTarget": 3
+            },
+            {
+              "id": "i4",
+              "title": "Weak Civil Society Preconditions",
+              "description": "Top-down planning succeeds only when civil society is weak, preventing local communities from resisting reforms that destroy their lived systems of cooperation.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i5",
+              "title": "Case Study: Scientific Forestry",
+              "description": "German forestry replaced messy natural forests with tidy monoculture grids to maximize timber yield, but ignored ecological complexity, causing long-term collapse.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i6",
+              "title": "Monoculture of Simplification",
+              "description": "Large-scale rationalization creates order that is easy for planners to read but fragile, because diverse, local, adaptive systems are replaced with rigid uniformity.",
+              "importance": "foundation",
+              "depthTarget": 2
+            },
+            {
+              "id": "i7",
+              "title": "Case Study: The Village as a Grid",
+              "description": "States replace organically evolved settlements with geometric layouts, ignoring the social networks embedded in irregular patterns that support cooperation and survival.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i8",
+              "title": "Case Study: Agriculture Collectivization",
+              "description": "Soviet collectivization imposed uniform farms and quotas, destroying local farming knowledge, incentives, and tacit skills—leading to inefficiency and famine.",
+              "importance": "foundation",
+              "depthTarget": 3
+            },
+            {
+              "id": "i9",
+              "title": "Case Study: Ujamaa Villagization",
+              "description": "Tanzania forcibly relocated dispersed farmers into planned villages, ignoring ecological logic behind old settlement patterns and crippling agricultural productivity.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i10",
+              "title": "Simplified Subjects",
+              "description": "To implement large schemes, states reduce citizens to thin categories—worker, farmer, taxpayer—ignoring real motives, skills, identities, and relationships.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i11",
+              "title": "Local Practical Knowledge (Mētis)",
+              "description": "Mētis is contextual, experience-based know-how that enables people to navigate environments successfully; it cannot be fully captured by formal rules.",
+              "importance": "foundation",
+              "depthTarget": 3
+            },
+            {
+              "id": "i12",
+              "title": "Limits of Technical Knowledge",
+              "description": "Formal, scientific knowledge offers models and abstractions but fails when applied without the lived understanding that local actors possess.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i13",
+              "title": "Resistance of Local Practices",
+              "description": "Traditional arrangements often persist or reappear because they encode mētis—social learning that planners wrongly interpret as irrational or backward.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i14",
+              "title": "Unintended Consequences",
+              "description": "Large-scale simplifications produce unpredictable failures because planners cannot anticipate interactions within complex social and ecological systems.",
+              "importance": "foundation",
+              "depthTarget": 2
+            },
+            {
+              "id": "i15",
+              "title": "Thin vs Thick Descriptions",
+              "description": "States rely on thin, surface-level categories, while real understanding of social life requires thick, contextual, richly descriptive knowledge.",
+              "importance": "enhancement",
+              "depthTarget": 2
+            },
+            {
+              "id": "i16",
+              "title": "Human Agency in Planned Systems",
+              "description": "People adapt, circumvent, and reinterpret imposed rules, turning planned systems into something different from what designers intended.",
+              "importance": "enhancement",
+              "depthTarget": 2
+            },
+            {
+              "id": "i17",
+              "title": "Fragility of Large Schemes",
+              "description": "Top-down plans create brittle systems that fail catastrophically when real-world variation and local improvisation are suppressed.",
+              "importance": "buildingBlock",
+              "depthTarget": 3
+            },
+            {
+              "id": "i18",
+              "title": "Role of Feedback and Adaptation",
+              "description": "Healthy systems include feedback loops that allow for correction and local experimentation, something large centralized schemes suppress.",
+              "importance": "buildingBlock",
+              "depthTarget": 2
+            },
+            {
+              "id": "i19",
+              "title": "Pluralism over Uniformity",
+              "description": "Diverse, decentralized, small-scale solutions outperform single grand designs because they can evolve, fail safely, and incorporate local knowledge.",
+              "importance": "foundation",
+              "depthTarget": 2
+            },
+            {
+              "id": "i20",
+              "title": "Failures of High-Modernist Urbanism",
+              "description": "City plans like Brasília or Le Corbusier’s Radiant City imposed geometric order but ignored how people actually interact, creating lifeless, impractical environments.",
+              "importance": "enhancement",
+              "depthTarget": 2
+            },
+            {
+              "id": "i21",
+              "title": "Complexity of Real Social Systems",
+              "description": "Organic social orders evolve through countless small adjustments; no planner can anticipate all the tacit knowledge embedded in these patterns.",
+              "importance": "foundation",
+              "depthTarget": 3
+            },
+            {
+              "id": "i22",
+              "title": "Cautions for Reformers",
+              "description": "Effective reform requires humility, experimentation, and local participation, not sweeping transformations based on abstract models.",
+              "importance": "enhancement",
+              "depthTarget": 2
+            }    ]
   },
   {
     "starterId": "starter_thinking_fast_slow",
@@ -479,7 +513,7 @@
   },
   {
     "starterId": "starter_beginning_infinity",
-    "title": "The Beginning of Infinity: Explanations that Transform the World",
+    "title": "The Beginning of Infinity",
     "author": "David Deutsch",
     "description": "A philosophy of knowledge and progress arguing that good explanations, open-ended criticism, and human creativity can lead to unbounded scientific, technological, and moral improvement.",
     "coverImageUrl": "https://m.media-amazon.com/images/I/818fIMXxgOL.jpg",
@@ -643,7 +677,7 @@
   },
   {
     "starterId": "starter_antifragile",
-    "title": "Antifragile: Things That Gain from Disorder",
+    "title": "Antifragile",
     "author": "Nassim Nicholas Taleb",
     "description": "A framework for understanding systems that benefit from volatility, randomness, and stress, and for designing lives, portfolios, and institutions that gain from disorder.",
     "coverImageUrl": "https://m.media-amazon.com/images/I/81MS6HSVdsL.jpg",
