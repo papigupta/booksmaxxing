@@ -68,7 +68,8 @@ struct DailyPracticeHomepage: View {
     var body: some View {
         let tokens = themeManager.currentTokens(for: colorScheme)
         let roles = themeManager.activeRoles
-        let seedColor = themeManager.seedColor(at: 0)
+        // Favor the second extracted seed color for current lesson accents, falling back gracefully
+        let seedColor = themeManager.seedColor(at: 1) ?? themeManager.seedColor(at: 0)
         let palette = PracticePalette(roles: roles, seedColor: seedColor, tokens: tokens)
         return NavigationStack {
             GeometryReader { geometry in
@@ -276,25 +277,29 @@ struct DailyPracticeHomepage: View {
                 .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 8)
 
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    Text(book.title)
-                        .font(DS.Typography.fraunces(size: 20, weight: .semibold))
-                        .tracking(DS.Typography.tightTracking(for: 20))
-                        .foregroundColor(palette.primaryT30)
-                        .multilineTextAlignment(.leading)
+                    VStack(alignment: .leading, spacing: Layout.titleAuthorSpacing) {
+                        Text(book.title)
+                            .font(DS.Typography.fraunces(size: 20, weight: .semibold))
+                            .tracking(DS.Typography.tightTracking(for: 20))
+                            .foregroundColor(palette.primaryT30)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(1)
 
-                    if let author = book.author, !author.isEmpty {
-                        Text(author)
-                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
-                            .tracking(DS.Typography.tightTracking(for: 14))
-                            .foregroundColor(palette.primaryT40)
+                        if let author = book.author, !author.isEmpty {
+                            Text(author)
+                                .font(DS.Typography.fraunces(size: 14, weight: .regular))
+                                .tracking(DS.Typography.tightTracking(for: 14))
+                                .foregroundColor(palette.primaryT40)
+                                .lineLimit(1)
+                        }
                     }
 
                     if let description = book.bookDescription, !description.isEmpty {
                         Text(description)
-                            .font(DS.Typography.fraunces(size: 14, weight: .regular))
-                            .tracking(DS.Typography.tightTracking(for: 14))
+                            .font(DS.Typography.fraunces(size: 12, weight: .regular))
+                            .tracking(DS.Typography.tightTracking(for: 12))
                             .foregroundColor(palette.primaryT50)
-                            .lineLimit(5)
+                            .lineLimit(6)
                     }
 
                     amazonButton(palette: palette)
@@ -340,8 +345,8 @@ struct DailyPracticeHomepage: View {
                     .fontWeight(.semibold)
                     .foregroundColor(palette.primaryT40)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .background(palette.background.opacity(0.6))
             .clipShape(Capsule())
             .overlay(
@@ -784,7 +789,7 @@ private struct LessonCardView: View {
 
             HStack(alignment: .center, spacing: Layout.cardSpacing) {
                 Circle()
-                    .fill(palette.seed)
+                    .fill(palette.playButtonFill)
                     .frame(width: Layout.presentIndicatorDiameter, height: Layout.presentIndicatorDiameter)
                     .overlay(
                         Image(systemName: "play.fill")
@@ -915,6 +920,7 @@ private struct PracticePalette {
     let background: Color
     let flatBackground: Color
     let seed: Color
+    let playButtonFill: Color
 
     init(roles: [PaletteRole], seedColor: Color?, tokens: ThemeTokens) {
         primaryT30 = roles.color(role: .primary, tone: 30) ?? tokens.onSurface
@@ -929,6 +935,8 @@ private struct PracticePalette {
         seed = seedColor
             ?? roles.color(role: .primary, tone: 90)
             ?? tokens.primary
+        let tertiary30 = roles.color(role: .tertiary, tone: 30)
+        playButtonFill = tertiary30 ?? seed
     }
 }
 
@@ -990,6 +998,7 @@ private struct Layout {
     static let presentHorizontalPadding: CGFloat = 20
     static let presentVerticalPadding: CGFloat = 18
     static let pastVerticalPadding: CGFloat = 8
+    static let titleAuthorSpacing: CGFloat = 4
 }
 
 private struct StickyHeaderHeightPreference: PreferenceKey {
