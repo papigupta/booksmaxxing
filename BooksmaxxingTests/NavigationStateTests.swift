@@ -6,8 +6,12 @@ struct NavigationStateTests {
     @Test
     func navigateToBookSelectionTogglesFlag() {
         let nav = NavigationState()
+        nav.selectedBookTitle = "Temp"
+        nav.selectedBookID = UUID()
         nav.navigateToBookSelection()
         #expect(nav.shouldShowBookSelection == true)
+        #expect(nav.selectedBookTitle == nil)
+        #expect(nav.selectedBookID == nil)
     }
 
     @Test

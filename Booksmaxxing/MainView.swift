@@ -157,6 +157,10 @@ extension MainView {
 
     @MainActor
     private func updateNavigationState(for profile: UserProfile, books: [Book]) {
+        if navigationState.shouldShowBookSelection {
+            return
+        }
+
         if let currentID = navigationState.selectedBookID,
            books.contains(where: { $0.id == currentID }) {
             return

@@ -34,6 +34,10 @@ struct DailyPracticeHomepage: View {
     @State private var didInitialLoad: Bool = false
     @State private var isLoading: Bool = false
     @State private var showingOverflow: Bool = false
+    @State private var showingBookSelectionLab: Bool = false
+    @State private var showingExperiments: Bool = false
+    @State private var experimentsPreset: ThemePreset = .system
+    @State private var showingDeleteAlert: Bool = false
     
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
@@ -115,18 +119,29 @@ struct DailyPracticeHomepage: View {
                                 selectedLesson = reviewLesson
                             }) { Text("Review Practice\(reviewQueueCount.map { " (\($0))" } ?? "")") }
                         }
-                        if DebugFlags.enableDevControls {
-                            Button("Force Curveball Due") {
-                                let bookId = book.id.uuidString
-                                curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
-                                refreshView()
-                            }
-                            Button("Force Spaced Follow‑up Due") {
-                                let bookId = book.id.uuidString
-                                let spacedService = SpacedFollowUpService(modelContext: modelContext)
-                                spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
-                                refreshView()
-                            }
+                        Button("Force Curveball Due") {
+                            let bookId = book.id.uuidString
+                            curveballService.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
+                            refreshView()
+                        }
+                        Button("Force Spaced Follow-up Due") {
+                            let bookId = book.id.uuidString
+                            let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                            spacedService.forceAllSpacedFollowUpsDue(bookId: bookId, bookTitle: book.title)
+                            refreshView()
+                        }
+                        Button("Refresh from Cloud") {
+                            CloudSyncRefresh(modelContext: modelContext).warmFetches()
+                        }
+                        Button("Book Selection Lab") { showingBookSelectionLab = true }
+                        Button("Reset add-book tooltip") {
+                            UserDefaults.standard.set(false, forKey: BookSelectionEducationKeys.addBookTipAcknowledged)
+                        }
+                        if DebugFlags.enableThemeLab {
+                            Button("Experiments") { showingExperiments = true }
+                        }
+                        Button("Delete this book", role: .destructive) {
+                            showingDeleteAlert = true
                         }
                         Button("Cancel", role: .cancel) {}
                     }
@@ -212,6 +227,13 @@ struct DailyPracticeHomepage: View {
                             EmptyView()
                         }
                     }
+                    .sheet(isPresented: $showingBookSelectionLab) {
+                        BookSelectionDevToolsView(openAIService: openAIService)
+                    }
+                    .sheet(isPresented: $showingExperiments) {
+                        ThemeLabView(preset: $experimentsPreset)
+                            .environmentObject(themeManager)
+                    }
                 }
             }
         }
@@ -222,8 +244,16 @@ struct DailyPracticeHomepage: View {
                 EmptyView()
             }
         }
+        .alert("Delete \"\(book.title)\"?", isPresented: $showingDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                deleteCurrentBook()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently delete all data and progress for this book, including generated questions, practice sessions, coverage, review queue, primers, and your answers. This action cannot be undone.")
+        }
     }
-    
+
     // MARK: - Header + Hero
     private func stickyHeader(palette: PracticePalette, tokens: ThemeTokens, safeTopInset: CGFloat) -> some View {
         let adjustedSafeInset = max(safeTopInset - Layout.safeInsetReduction, Layout.minimumSafeInset)
@@ -395,6 +425,19 @@ struct DailyPracticeHomepage: View {
         guard let url = AmazonLinkBuilder.url(for: book) else { return }
         safariURL = url
         showingSafari = true
+    }
+    
+    private func deleteCurrentBook() {
+        let service = BookService(modelContext: modelContext)
+        do {
+            try service.deleteBookAndAllData(book: book)
+            navigationState.navigateToBookSelection()
+            if !isRootExperience {
+                dismiss()
+            }
+        } catch {
+            print("DEBUG: Failed to delete book from DailyPracticeHomepage: \(error)")
+        }
     }
 
     private func resetForNewBook() {

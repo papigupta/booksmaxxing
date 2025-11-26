@@ -14,10 +14,7 @@ struct BookOverviewView: View {
     @State private var didPrefetchLesson1 = false
     @State private var showingDeleteAlert = false
     @State private var showDeletionToast = false
-    @State private var showingBookSelectionLab = false
-    @State private var showingExperiments = false
     @State private var showingOverflow = false
-    @State private var experimentsPreset: ThemePreset = .system
     @EnvironmentObject var navigationState: NavigationState
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject var streakManager: StreakManager
@@ -185,13 +182,6 @@ struct BookOverviewView: View {
         }
         .sheet(isPresented: $showingProfile) {
             ProfileView(authManager: authManager)
-        }
-        .sheet(isPresented: $showingBookSelectionLab) {
-            BookSelectionDevToolsView(openAIService: openAIService)
-        }
-        .sheet(isPresented: $showingExperiments) {
-            ThemeLabView(preset: $experimentsPreset)
-                .environmentObject(themeManager)
         }
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $navigateToOnboarding) {
@@ -446,18 +436,6 @@ struct BookOverviewView: View {
                 let count = stats.totalMCQs + stats.totalOpenEnded
                 if count > 0 {
                     Button("Review Practice (\(count))") { showingDailyPractice = true }
-                }
-                if DebugFlags.enableDevControls {
-                    Button("Refresh from Cloud") { CloudSyncRefresh(modelContext: modelContext).warmFetches() }
-                    Button("Force Curveball Due") {
-                        let service = CurveballService(modelContext: modelContext)
-                        service.forceAllCurveballsDue(bookId: bookId, bookTitle: book.title)
-                    }
-                    Button("Book Selection Lab") { showingBookSelectionLab = true }
-                    Button("Reset add-book tooltip") {
-                        UserDefaults.standard.set(false, forKey: BookSelectionEducationKeys.addBookTipAcknowledged)
-                    }
-                    if DebugFlags.enableThemeLab { Button("Experiments") { showingExperiments = true } }
                 }
                 Button("Reset Today's Streak", role: .destructive) {
                     let didReset = streakManager.resetTodayActivity()

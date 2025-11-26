@@ -8,6 +8,8 @@ class NavigationState: ObservableObject {
     @Published var selectedBookID: UUID? = nil
     
     func navigateToBookSelection() {
+        selectedBookID = nil
+        selectedBookTitle = nil
         shouldShowBookSelection = true
     }
     
