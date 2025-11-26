@@ -38,6 +38,7 @@ struct DailyPracticeHomepage: View {
     @State private var showingExperiments: Bool = false
     @State private var experimentsPreset: ThemePreset = .system
     @State private var showingDeleteAlert: Bool = false
+    @State private var pendingScrollTask: Task<Void, Never>? = nil
     
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
@@ -153,7 +154,7 @@ struct DailyPracticeHomepage: View {
                         isLoading = false
                     }
                     .onAppear {
-                        scrollToCurrentLesson(proxy: proxy)
+                        scheduleScrollIfNeeded(proxy: proxy, animated: false)
                         Task { await themeManager.activateTheme(for: book) }
                         if !didInitialLoad {
                             Task {
@@ -172,10 +173,13 @@ struct DailyPracticeHomepage: View {
                         resetForNewBook()
                     }
                     .onChange(of: practiceMilestones) { _, _ in
-                        scrollToCurrentLesson(proxy: proxy)
+                        scheduleScrollIfNeeded(proxy: proxy)
                     }
                     .onChange(of: currentLessonNumber) { _, _ in
-                        scrollToCurrentLesson(proxy: proxy)
+                        scheduleScrollIfNeeded(proxy: proxy)
+                    }
+                    .onChange(of: stickyHeaderHeight) { _, _ in
+                        scheduleScrollIfNeeded(proxy: proxy, animated: false)
                     }
                     .fullScreenCover(item: $selectedLesson) { lesson in
                         let totalIdeas = (book.ideas ?? []).count
@@ -251,6 +255,10 @@ struct DailyPracticeHomepage: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will permanently delete all data and progress for this book, including generated questions, practice sessions, coverage, review queue, primers, and your answers. This action cannot be undone.")
+        }
+        .onDisappear {
+            pendingScrollTask?.cancel()
+            pendingScrollTask = nil
         }
     }
 
@@ -541,15 +549,46 @@ struct DailyPracticeHomepage: View {
         selectedLesson = tempLesson
     }
     
-    private func scrollToCurrentLesson(proxy: ScrollViewProxy) {
-        if let currentMilestone = practiceMilestones.first(where: { $0.isCurrent }) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    let anchor: UnitPoint = currentMilestone.id > 3 ? .center : .top
-                    proxy.scrollTo(currentMilestone.id, anchor: anchor)
+    private func scheduleScrollIfNeeded(proxy: ScrollViewProxy, animated: Bool = true) {
+        guard shouldAutoScroll else { return }
+        scrollToCurrentLesson(proxy: proxy, animated: animated)
+    }
+
+    private var shouldAutoScroll: Bool {
+        guard let currentId = practiceMilestones.first(where: { $0.isCurrent })?.id,
+              currentId > 3 else {
+            return false
+        }
+
+        let firstThree = practiceMilestones.filter { $0.id <= 3 }
+        guard firstThree.count == 3 else { return false }
+        return firstThree.allSatisfy { $0.isCompleted }
+    }
+
+    private func scrollToCurrentLesson(proxy: ScrollViewProxy, animated: Bool = true) {
+        pendingScrollTask?.cancel()
+
+        guard let target = (practiceMilestones.first(where: { $0.isCurrent }) ?? practiceMilestones.first)?.id else {
+            return
+        }
+
+        pendingScrollTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard !Task.isCancelled else { return }
+
+            let anchor = anchorPoint(for: target)
+            if animated {
+                withAnimation(.easeInOut(duration: 0.45)) {
+                    proxy.scrollTo(target, anchor: anchor)
                 }
+            } else {
+                proxy.scrollTo(target, anchor: anchor)
             }
         }
+    }
+
+    private func anchorPoint(for lessonId: Int) -> UnitPoint {
+        lessonId <= 2 ? .top : UnitPoint(x: 0.5, y: 0.6)
     }
     
     // MARK: - Lesson Management
