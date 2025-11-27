@@ -106,4 +106,19 @@ extension Color {
         return nil
         #endif
     }
+
+    func toOKLCH() -> OKLCH? {
+        #if canImport(UIKit)
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard ui.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        #elseif canImport(AppKit)
+        guard let rgb = NSColor(self).usingColorSpace(.deviceRGB) else { return nil }
+        let r = rgb.redComponent
+        let g = rgb.greenComponent
+        let b = rgb.blueComponent
+        #endif
+        let lab = rgbToOKLab(r: Double(r), g: Double(g), b: Double(b))
+        return okLabToOKLCH(lab)
+    }
 }

@@ -61,6 +61,15 @@ struct ThemeEngine {
         let neutral = roles.first(where: { $0.name == "Neutral" })!
 
         let isLight = (mode == .light)
+        func accentColor(hue: Double, fallback: Color) -> Color {
+            let referenceTone = isLight ? color(of: "Primary", tone: 50) : color(of: "Primary", tone: 60)
+            if let base = referenceTone.toOKLCH() {
+                let lightness = min(max(base.L, 0.35), 0.85)
+                let chroma = min(max(base.C * 1.25, 0.12), 0.22)
+                return oklchToSRGBClamped(OKLCH(L: lightness, C: chroma, h: hue))
+            }
+            return fallback
+        }
         let bg = isLight ? color(of: "Neutral", tone: 98) : color(of: "Neutral", tone: 8)
         let surface = bg
         let surfaceVariant = isLight ? color(of: "Neutral", tone: 94) : color(of: "Neutral", tone: 14)
@@ -87,6 +96,8 @@ struct ThemeEngine {
         // Outlines/Dividers
         let outline = isLight ? color(of: "Neutral Variant", tone: 50) : color(of: "Neutral Variant", tone: 60)
         let divider = isLight ? color(of: "Neutral Variant", tone: 90) : color(of: "Neutral Variant", tone: 20)
+        let success = accentColor(hue: 135, fallback: Color.green)
+        let error = accentColor(hue: 25, fallback: Color.red)
 
         return ThemeTokens(
             background: bg,
@@ -106,7 +117,9 @@ struct ThemeEngine {
             tertiaryContainer: tertiaryContainer,
             onTertiaryContainer: onTertiaryContainer,
             outline: outline,
-            divider: divider
+            divider: divider,
+            success: success,
+            error: error
         )
     }
 }

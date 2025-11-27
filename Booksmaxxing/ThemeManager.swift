@@ -21,7 +21,9 @@ final class ThemeManager: ObservableObject {
         tertiaryContainer: DS.Colors.gray100,
         onTertiaryContainer: DS.Colors.primaryText,
         outline: DS.Colors.subtleBorder,
-        divider: DS.Colors.divider
+        divider: DS.Colors.divider,
+        success: Color.green,
+        error: DS.Colors.destructive
     )
 
     @Published private(set) var tokensDark: ThemeTokens? = nil

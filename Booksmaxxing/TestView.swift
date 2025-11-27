@@ -12,6 +12,7 @@ import AppKit
 struct QuestionFeedback {
     let isCorrect: Bool
     let correctAnswer: String?
+    let correctAnswerDetail: String?
     // For OEQ, this is the 280-char author feedback line.
     let explanation: String
     // One-line Why (<=140 chars), for all types
@@ -545,6 +546,7 @@ struct TestView: View {
         return QuestionFeedback(
             isCorrect: evaluation.isCorrect,
             correctAnswer: evaluation.correctAnswer,
+            correctAnswerDetail: formattedCorrectAnswer(for: question, evaluation: evaluation),
             explanation: evaluation.feedback,
             why: normalizedWhy,
             pointsEarned: evaluation.pointsEarned,
@@ -552,6 +554,26 @@ struct TestView: View {
             isOpenEnded: isOpenEnded,
             isWhyPending: pendingWhy
         )
+    }
+
+    private func formattedCorrectAnswer(for question: Question, evaluation: QuestionEvaluation) -> String? {
+        guard question.type != .openEnded else { return nil }
+        if let indices = question.correctAnswers, !indices.isEmpty {
+            let options = question.options ?? []
+            let formatted = indices.compactMap { idx -> String? in
+                guard idx >= 0 else { return nil }
+                let order = "\(idx + 1)."
+                let text = idx < options.count ? options[idx] : ""
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return order
+                }
+                return "\(idx + 1). \(text)"
+            }
+            if formatted.isEmpty { return nil }
+            if question.type == .mcq { return formatted.first }
+            return formatted.joined(separator: "\n")
+        }
+        return evaluation.correctAnswer
     }
 
     private func triggerAnswerHaptic(isCorrect: Bool) {
@@ -1083,19 +1105,82 @@ struct FeedbackFullScreen: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
 
-    private var statusLabel: (text: String, color: Color) {
-        let ratio = feedback.maxPoints > 0 ? Double(feedback.pointsEarned) / Double(feedback.maxPoints) : 0
-        switch ratio {
-        case let r where r >= 0.70: return ("On Track", .green)
-        case let r where r >= 0.50: return ("Close", .orange)
-        default: return ("Off Track", .red)
+    private enum HeroState {
+        case mcqCorrect, mcqIncorrect, oeqBad, oeqOkay, oeqGood, oeqGreat
+    }
+
+    private let heroIconSize: CGFloat = 64
+    private let haloSize: CGFloat = 128
+    private let haloBlur: CGFloat = 100
+    private let feedbackLineSpacing: CGFloat = 4
+    private let feedbackTracking: CGFloat = -0.48
+
+    private var scoreRatio: Double {
+        guard feedback.maxPoints > 0 else { return 0 }
+        return min(max(Double(feedback.pointsEarned) / Double(feedback.maxPoints), 0), 1)
+    }
+
+    private var heroState: HeroState {
+        if !feedback.isOpenEnded {
+            return feedback.isCorrect ? .mcqCorrect : .mcqIncorrect
         }
+        switch scoreRatio {
+        case ..<0.40: return .oeqBad
+        case ..<0.70: return .oeqOkay
+        case ..<0.90: return .oeqGood
+        default: return .oeqGreat
+        }
+    }
+
+    private var heroCopy: String {
+        switch heroState {
+        case .mcqCorrect: return "Clean hit. This one’s locked."
+        case .mcqIncorrect: return "Missed it. Let’s shore this idea up."
+        case .oeqBad: return "Start over—the core idea’s missing."
+        case .oeqOkay: return "Pieces are there, but the logic’s fuzzy."
+        case .oeqGood: return "Solid push—tighten the details."
+        case .oeqGreat: return "Crushed it—clear, vivid reasoning."
+        }
+    }
+
+    private var heroIsPositive: Bool {
+        switch heroState {
+        case .mcqCorrect, .oeqGood, .oeqGreat:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var iconName: String {
+        heroIsPositive ? "checkmark.circle.fill" : "xmark.circle.fill"
+    }
+
+    private var accentColor: Color {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return heroIsPositive ? theme.success : theme.error
+    }
+
+    private var pointsLine: String {
+        return "\(feedback.pointsEarned)/\(feedback.maxPoints) pts"
+    }
+
+    private var trimmedWhy: String? {
+        trimmed(feedback.why)
+    }
+
+    private var exemplarText: String? {
+        guard feedback.isOpenEnded else { return nil }
+        return trimmed(feedback.correctAnswer)
+    }
+
+    private var shouldShowSummary: Bool {
+        feedback.isOpenEnded && heroIsPositive && !displayRows.isEmpty
     }
 
     private var feedbackSegments: [(label: String, body: String)] {
         func normalize(_ s: String) -> String {
             var t = s
-            // Normalize common model prefixes and inject separators for parsing
             let pairs: [(String, String)] = [
                 ("BL/Polish:", " | Polish:"),
                 ("BL/Do:", " | Do:"),
@@ -1136,7 +1221,6 @@ struct FeedbackFullScreen: View {
     }
 
     private var displayRows: [(title: String, body: String)] {
-        // Map segments into a simple 3-line structure: Summary, What to fix/What worked, Next step
         var dict: [String: String] = [:]
         for seg in feedbackSegments {
             let label = friendlyLabel(seg.label)
@@ -1153,107 +1237,24 @@ struct FeedbackFullScreen: View {
     }
 
     var body: some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
         VStack(spacing: 0) {
-            // Content
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                    // Header
-                    HStack(spacing: DS.Spacing.md) {
-                        // Show explicit correctness with check/x icon for all question types
-                        DSIcon(feedback.isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill", size: 36)
-                            .foregroundStyle(feedback.isCorrect ? .green : .red)
-                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            Text(feedback.isCorrect ? "Correct" : "Incorrect")
-                                .font(DS.Typography.headline)
-                                .foregroundStyle(DS.Colors.primaryText)
-                        }
-                        Spacer()
-                        Text(statusLabel.text)
-                            .font(DS.Typography.captionBold)
-                            .foregroundStyle(statusLabel.color)
-                            .padding(.horizontal, DS.Spacing.xs)
-                            .padding(.vertical, 2)
-                            .overlay(
-                                Capsule().stroke(statusLabel.color, lineWidth: DS.BorderWidth.thin)
-                            )
-                    }
-                    
-                    // Author Feedback (micro, ≤280 chars for OEQ)
-                    if !feedback.explanation.isEmpty {
-                        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                            Text("Author Feedback")
-                                .font(DS.Typography.captionBold)
-                                .foregroundStyle(DS.Colors.primaryText)
-                            ForEach(Array(displayRows.enumerated()), id: \.offset) { _, row in
-                                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                                    Text(row.title)
-                                        .font(DS.Typography.captionBold)
-                                        .foregroundStyle(DS.Colors.primaryText)
-                                    Text(row.body)
-                                        .font(DS.Typography.body)
-                                        .foregroundStyle(DS.Colors.secondaryText)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
-                    }
-
-                    // Why? (<=140 chars), always eligible for both MCQ/OEQ if present
-                    if let why = feedback.why, !why.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            Text("Why?")
-                                .font(DS.Typography.captionBold)
-                                .foregroundStyle(DS.Colors.primaryText)
-                            Text(String(why.prefix(140)))
-                                .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    } else if !feedback.isOpenEnded && feedback.isWhyPending {
-                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            Text("Why?")
-                                .font(DS.Typography.captionBold)
-                                .foregroundStyle(DS.Colors.primaryText)
-                            HStack(spacing: DS.Spacing.xs) {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Fetching explanation…")
-                                    .font(DS.Typography.body)
-                                    .foregroundStyle(DS.Colors.secondaryText)
-                            }
-                        }
-                    }
-                    
-                    // Exemplar for OEQ (collapsed), or Correct Answer for objective items
-                    if feedback.isOpenEnded, let exemplar = feedback.correctAnswer, !exemplar.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                            Text("Author’s Exemplar")
-                                .font(DS.Typography.captionBold)
-                                .foregroundStyle(DS.Colors.primaryText)
-                            Text(exemplar)
-                                .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    } else if !feedback.isOpenEnded, !feedback.isCorrect, let correct = feedback.correctAnswer {
-                        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                            Text("Correct Answer")
-                                .font(DS.Typography.captionBold)
-                                .foregroundStyle(DS.Colors.primaryText)
-                            Text(correct)
-                                .font(DS.Typography.body)
-                                .foregroundStyle(DS.Colors.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                VStack(spacing: DS.Spacing.xl) {
+                    heroSection(theme: theme)
+                    VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                        summarySection(theme: theme)
+                        correctAnswerSection(theme: theme)
+                        whySection(theme: theme)
+                        exemplarSection(theme: theme)
                     }
                 }
                 .padding(.horizontal, DS.Spacing.xxl)
                 .padding(.vertical, DS.Spacing.lg)
             }
-            
+
             DSDivider()
-            
-            // Primary action
+
             HStack {
                 Spacer()
                 Button(action: onPrimaryAction) {
@@ -1264,7 +1265,125 @@ struct FeedbackFullScreen: View {
             .padding(.horizontal, DS.Spacing.xxl)
             .padding(.vertical, DS.Spacing.md)
         }
-        .background(themeManager.currentTokens(for: colorScheme).background.ignoresSafeArea())
+        .background(theme.background.ignoresSafeArea())
+    }
+
+    private func heroSection(theme: ThemeTokens) -> some View {
+        VStack(spacing: DS.Spacing.md) {
+            ZStack {
+                Circle()
+                    .fill(accentColor.opacity(0.7))
+                    .frame(width: haloSize, height: haloSize)
+                    .blur(radius: haloBlur)
+                Image(systemName: iconName)
+                    .font(.system(size: heroIconSize, weight: .bold))
+                    .foregroundColor(accentColor)
+            }
+            .frame(width: haloSize, height: haloSize)
+            .frame(maxWidth: .infinity)
+
+            Text(heroCopy)
+                .font(DS.Typography.headline)
+                .multilineTextAlignment(.center)
+                .foregroundColor(theme.onSurface)
+                .lineSpacing(4)
+                .tracking(DS.Typography.headlineTracking)
+
+            Text(pointsLine)
+                .font(DS.Typography.captionBold)
+                .foregroundColor(theme.onSurface.opacity(0.7))
+        }
+    }
+
+    @ViewBuilder
+    private func summarySection(theme: ThemeTokens) -> some View {
+        if shouldShowSummary, !displayRows.isEmpty {
+            feedbackContainer(theme: theme) {
+                ForEach(Array(displayRows.enumerated()), id: \.offset) { _, row in
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        Text(row.title)
+                            .font(DS.Typography.captionBold)
+                            .foregroundColor(theme.onSurface)
+                        styledFeedbackText(row.body, theme: theme)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func correctAnswerSection(theme: ThemeTokens) -> some View {
+        if !feedback.isOpenEnded,
+           !heroIsPositive,
+           let answer = trimmed(feedback.correctAnswerDetail ?? feedback.correctAnswer) {
+            feedbackContainer(theme: theme, title: "Correct answer") {
+                styledFeedbackText(answer, theme: theme)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func whySection(theme: ThemeTokens) -> some View {
+        if let why = trimmedWhy {
+            feedbackContainer(theme: theme, title: "Why") {
+                styledFeedbackText(why, theme: theme)
+            }
+        } else if !feedback.isOpenEnded && feedback.isWhyPending {
+            feedbackContainer(theme: theme, title: "Why") {
+                HStack(spacing: DS.Spacing.sm) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Fetching explanation…")
+                        .font(DS.Typography.caption)
+                        .foregroundColor(theme.onSurface.opacity(0.6))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func exemplarSection(theme: ThemeTokens) -> some View {
+        if let exemplar = exemplarText {
+            feedbackContainer(theme: theme, title: "10/10 answer") {
+                styledFeedbackText(exemplar, theme: theme)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func feedbackContainer(theme: ThemeTokens, title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            if let title = title {
+                Text(title)
+                    .font(DS.Typography.captionBold)
+                    .foregroundColor(theme.onSurface)
+            }
+            content()
+        }
+        .padding(DS.Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(theme.surfaceVariant)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(theme.outline.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private func styledFeedbackText(_ text: String, theme: ThemeTokens) -> some View {
+        Text(text)
+            .font(DS.Typography.body)
+            .foregroundColor(theme.onSurface.opacity(0.85))
+            .lineSpacing(feedbackLineSpacing)
+            .tracking(feedbackTracking)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func trimmed(_ text: String?) -> String? {
+        guard let value = text?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+        return value
     }
 }
 

@@ -49,4 +49,8 @@ struct ThemeTokens {
     // Outlines/Dividers
     let outline: Color
     let divider: Color
+
+    // Semantic accents
+    let success: Color
+    let error: Color
 }
