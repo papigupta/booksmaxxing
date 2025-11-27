@@ -274,7 +274,7 @@ struct TestResultsView: View {
     }
     
     private func completeTest() {
-        // Mistake queueing is owned by the lesson flow (DailyPracticeView)
+        // Mistake queueing is owned by the lesson flow (DailyPracticeTooltip)
         updateIdeaCoverage()
         onContinue(attempt)
     }

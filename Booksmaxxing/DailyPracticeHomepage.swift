@@ -16,6 +16,7 @@ struct DailyPracticeHomepage: View {
     
     @State private var currentLessonNumber: Int = 0
     @State private var selectedLesson: GeneratedLesson? = nil
+    @State private var tooltipLesson: GeneratedLesson? = nil
     @State private var refreshID = UUID()
     @State private var showingIdeaResponses = false
     @State private var selectedIdea: Idea? = nil
@@ -81,7 +82,7 @@ struct DailyPracticeHomepage: View {
                 ScrollViewReader { proxy in
                     ZStack(alignment: .top) {
                         ScrollView(.vertical, showsIndicators: false) {
-                            practiceTimelineSection(palette: palette)
+                            practiceTimelineSection(palette: palette, proxy: proxy)
                                 .padding(.horizontal, Layout.horizontalPadding)
                                 .padding(.top, stickyHeaderHeight + Layout.timelineTopInset)
                                 .padding(.bottom, Layout.bottomPadding)
@@ -182,46 +183,21 @@ struct DailyPracticeHomepage: View {
                         scheduleScrollIfNeeded(proxy: proxy, animated: false)
                     }
                     .fullScreenCover(item: $selectedLesson) { lesson in
-                        let totalIdeas = (book.ideas ?? []).count
-                        let presentedView: AnyView = {
-                            if lesson.lessonNumber > totalIdeas {
-                                return AnyView(
-                                    DailyPracticeWithReviewView(
-                                        book: book,
-                                        openAIService: openAIService,
-                                        selectedLesson: lesson,
-                                        onPracticeComplete: {
-                                            print("DEBUG: ✅✅ Review practice complete")
-                                            completeLesson(lesson)
-                                            selectedLesson = nil
-                                            refreshView()
-                                        }
-                                    )
-                                )
-                            } else {
-                                return AnyView(
-                                    DailyPracticeView(
-                                        book: book,
-                                        openAIService: openAIService,
-                                        practiceType: .quick,
-                                        selectedLesson: lesson,
-                                        onPracticeComplete: {
-                                            print("DEBUG: ✅✅ onPracticeComplete callback triggered for lesson \(lesson.lessonNumber)")
-                                            completeLesson(lesson)
-                                            selectedLesson = nil
-                                            refreshID = UUID()
-                                            print("DEBUG: ✅✅ Refreshing view after lesson completion")
-                                        }
-                                    )
-                                )
+                        let reviewView = DailyPracticeWithReviewView(
+                            book: book,
+                            openAIService: openAIService,
+                            selectedLesson: lesson,
+                            onPracticeComplete: {
+                                print("DEBUG: ✅✅ Review practice complete")
+                                completeLesson(lesson)
+                                selectedLesson = nil
+                                refreshView()
                             }
-                        }()
-
+                        )
                         if #available(iOS 17.0, *) {
-                            presentedView
-                                .presentationBackground(tokens.background)
+                            reviewView.presentationBackground(tokens.background)
                         } else {
-                            presentedView
+                            reviewView
                         }
                     }
                     .sheet(isPresented: $showingSafari) {
@@ -260,6 +236,7 @@ struct DailyPracticeHomepage: View {
             pendingScrollTask?.cancel()
             pendingScrollTask = nil
         }
+        .animation(.easeInOut(duration: 0.25), value: tooltipLesson?.lessonNumber)
     }
 
     // MARK: - Header + Hero
@@ -394,7 +371,7 @@ struct DailyPracticeHomepage: View {
         .buttonStyle(.plain)
     }
     
-    private func practiceTimelineSection(palette: PracticePalette) -> some View {
+    private func practiceTimelineSection(palette: PracticePalette, proxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: Layout.timelineSpacing) {
             if isLoading && practiceMilestones.isEmpty {
                 HStack(spacing: DS.Spacing.sm) {
@@ -414,17 +391,53 @@ struct DailyPracticeHomepage: View {
             } else {
                 VStack(alignment: .leading, spacing: Layout.timelineSpacing) {
                     ForEach(Array(practiceMilestones.enumerated()), id: \.element.id) { index, milestone in
-                        LessonCardView(
-                            milestone: milestone,
-                            palette: palette,
-                            showConnector: index < practiceMilestones.count - 1,
-                            onTap: { handleLessonSelection(milestone) }
-                        )
-                        .id(milestone.id)
+                        VStack(alignment: .leading, spacing: 4) {
+                            let hasNext = index < practiceMilestones.count - 1
+                            let isTooltipActive = tooltipLesson?.lessonNumber == milestone.id
+
+                            LessonCardView(
+                                milestone: milestone,
+                                palette: palette,
+                                showConnector: isTooltipActive ? false : hasNext,
+                                onTap: { handleLessonSelection(milestone, proxy: proxy) }
+                            )
+                            .id(milestone.id)
+
+                            if isTooltipActive, let activeLesson = tooltipLesson {
+                                DailyPracticeTooltip(
+                                    book: book,
+                                    openAIService: openAIService,
+                                    lesson: activeLesson,
+                                    fillColor: palette.seed.opacity(0.2),
+                                    strokeColor: palette.seed,
+                                    onPracticeComplete: {
+                                        completeLesson(activeLesson)
+                                        tooltipLesson = nil
+                                    }
+                                )
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.96, anchor: .top)
+                                        .combined(with: .opacity),
+                                    removal: .opacity
+                                ))
+
+                                if hasNext {
+                                    connectorView(palette: palette)
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func connectorView(palette: PracticePalette) -> some View {
+        Rectangle()
+            .fill(palette.seed)
+            .frame(width: Layout.connectorWidth, height: Layout.connectorHeight)
+            .padding(.leading, Layout.indicatorColumnWidth / 2 - Layout.connectorWidth / 2)
     }
 
     private func openAmazonLink() {
@@ -450,6 +463,7 @@ struct DailyPracticeHomepage: View {
         practiceMilestones = []
         currentLessonNumber = 0
         selectedLesson = nil
+        tooltipLesson = nil
         showingIdeaResponses = false
         showingOverflow = false
         refreshID = UUID()
@@ -469,9 +483,9 @@ struct DailyPracticeHomepage: View {
         )
     }
 
-    private func handleLessonSelection(_ milestone: PracticeMilestone) {
-        if milestone.isCurrent {
-            handleMilestoneTap(milestone: milestone)
+    private func handleLessonSelection(_ milestone: PracticeMilestone, proxy: ScrollViewProxy) {
+        if milestone.isCurrent || milestone.isCompleted {
+            handleMilestoneTap(milestone: milestone, proxy: proxy)
         } else if let idea = milestone.idea {
             selectedIdea = idea
             showingIdeaResponses = true
@@ -495,12 +509,12 @@ struct DailyPracticeHomepage: View {
     }
     
     // MARK: - Helper Methods
-    private func handleMilestoneTap(milestone: PracticeMilestone) {
+    private func handleMilestoneTap(milestone: PracticeMilestone, proxy: ScrollViewProxy) {
         print("DEBUG: Tapped on lesson \(milestone.id), isCurrent: \(milestone.isCurrent), isCompleted: \(milestone.isCompleted)")
         if milestone.isReviewPractice {
             print("DEBUG: Starting review-only session for lesson \(milestone.id)")
             let _ = lessonStorage.getOrCreateReviewLesson(bookId: book.id.uuidString, lessonNumber: milestone.id, book: book)
-            let tempLesson = GeneratedLesson(
+            let reviewLesson = GeneratedLesson(
                 lessonNumber: milestone.id,
                 title: "Review Practice",
                 primaryIdeaId: "review_session",
@@ -512,7 +526,8 @@ struct DailyPracticeHomepage: View {
                 isUnlocked: true,
                 isCompleted: false
             )
-            selectedLesson = tempLesson
+            tooltipLesson = nil
+            selectedLesson = reviewLesson
             return
         }
 
@@ -532,10 +547,26 @@ struct DailyPracticeHomepage: View {
             return
         }
 
-        print("DEBUG: Starting lesson generation for lesson \(milestone.id)")
-        let tempLesson = GeneratedLesson(
+        let resolvedLesson = lessonTemplate(for: milestone, fallbackTitle: lessonInfo.title, idea: idea, isCompleted: lessonInfo.isCompleted)
+        let isSameLesson = tooltipLesson?.lessonNumber == resolvedLesson.lessonNumber
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+            tooltipLesson = isSameLesson ? nil : resolvedLesson
+        }
+
+        if !isSameLesson && milestone.id > 3 {
+            focusLesson(milestone.id, proxy: proxy)
+        }
+    }
+
+    private func lessonTemplate(for milestone: PracticeMilestone, fallbackTitle: String, idea: Idea, isCompleted: Bool) -> GeneratedLesson {
+        if let generated = generatedLessons.first(where: { $0.lessonNumber == milestone.id }) {
+            return generated
+        }
+
+        return GeneratedLesson(
             lessonNumber: milestone.id,
-            title: "Lesson \(milestone.id): \(lessonInfo.title)",
+            title: "Lesson \(milestone.id): \(fallbackTitle)",
             primaryIdeaId: idea.id,
             primaryIdeaTitle: idea.title,
             reviewIdeaIds: [],
@@ -543,9 +574,8 @@ struct DailyPracticeHomepage: View {
             questionDistribution: QuestionDistribution(newQuestions: 8, reviewQuestions: 0, correctionQuestions: 0),
             estimatedMinutes: 10,
             isUnlocked: true,
-            isCompleted: lessonInfo.isCompleted
+            isCompleted: isCompleted
         )
-        selectedLesson = tempLesson
     }
     
     private func scheduleScrollIfNeeded(proxy: ScrollViewProxy, animated: Bool = true) {
@@ -589,6 +619,12 @@ struct DailyPracticeHomepage: View {
     private func anchorPoint(for lessonId: Int) -> UnitPoint {
         lessonId <= 2 ? .top : UnitPoint(x: 0.5, y: 0.6)
     }
+
+    private func focusLesson(_ lessonId: Int, proxy: ScrollViewProxy) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            proxy.scrollTo(lessonId, anchor: anchorPoint(for: lessonId))
+        }
+    }
     
     // MARK: - Lesson Management
     private func completeLesson(_ lesson: GeneratedLesson) {
@@ -600,6 +636,7 @@ struct DailyPracticeHomepage: View {
         lessonStorage.markLessonCompleted(bookId: bookId, lessonNumber: lesson.lessonNumber, book: book)
         // Count toward daily streak (idempotent per day)
         streakManager.markActivity()
+        tooltipLesson = nil
         
         // Note: We're NOT using mastery for completion anymore
         // Completion = user attempted all questions, regardless of accuracy
@@ -760,6 +797,8 @@ struct DailyPracticeHomepage: View {
             }
         }
 
+        let plannedLessons = lessonGenerator.generateLessonsForBook(book)
+
         await MainActor.run {
             print("DEBUG: Setting practiceMilestones array with \(milestones.count) milestones")
             self.practiceMilestones = milestones
@@ -772,6 +811,7 @@ struct DailyPracticeHomepage: View {
             print("🎯 REVIEW BUTTON DEBUG: count=\(totalReviewItems), hasReviewItems=\(totalReviewItems > 0)")
             
             self.currentLessonNumber = currentLessonNumber
+            self.generatedLessons = plannedLessons
             
             print("DEBUG: Loaded \(milestones.count) lesson infos from \(ideas.count) ideas")
             print("DEBUG: Current lesson: \(currentLessonNumber)")
@@ -866,7 +906,6 @@ private struct LessonCardView: View {
                     RoundedRectangle(cornerRadius: Layout.presentCornerRadius, style: .continuous)
                         .stroke(palette.seed, lineWidth: 1.5)
                 )
-                .shadow(color: palette.seed.opacity(0.25), radius: 12, x: 0, y: 10)
 
             HStack(alignment: .center, spacing: Layout.cardSpacing) {
                 Circle()

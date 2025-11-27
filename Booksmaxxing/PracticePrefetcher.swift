@@ -68,7 +68,7 @@ final class PracticePrefetcher {
             }()
 
             do {
-                // Build mixed test similar to DailyPracticeView.generatePractice()
+                // Build mixed test similar to DailyPracticeTooltip.generatePractice()
                 let testGen = TestGenerationService(openAI: openAIService, modelContext: modelContext)
 
                 // Generate fresh 8 questions for the primary idea
