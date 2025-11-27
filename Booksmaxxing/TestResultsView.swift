@@ -48,7 +48,7 @@ struct TestResultsView: View {
                     // Score display
                     HStack(spacing: DS.Spacing.xl) {
                         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            Text("Accuracy")
+                            Text("Clarity")
                                 .font(DS.Typography.captionBold)
                                 .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface.opacity(0.7))
                             Text("\(accuracyPercentage)%")

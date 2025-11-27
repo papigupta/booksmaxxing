@@ -1128,7 +1128,7 @@ private struct BookStatsView: View {
     }
 
     private var statsText: Text {
-        // Accuracy from coverage
+        // Accuracy from coverage (shown to user as Clarity)
         let bookIdentifier = book.id.uuidString
         let descriptor = FetchDescriptor<IdeaCoverage>(
             predicate: #Predicate { $0.bookId == bookIdentifier }
@@ -1156,7 +1156,7 @@ private struct BookStatsView: View {
         // New copy with underlines matching the screenshot
         // - underline: "mastered X"
         // - underline: "BCal Brain Calories"
-        // - underline: "accuracy is Y%"
+        // - underline: "clarity is Y%"
         // - underline: "distracted Z times"
         return Text("Out of which you have ")
             + Text("mastered \(masteredIdeas)").underline()
@@ -1165,7 +1165,7 @@ private struct BookStatsView: View {
             + Text("\(totalBCal) Brain Calories").underline()
             + Text(" using this book. ")
             + Text("Your ")
-            + Text("accuracy is \(accuracyRounded)%").underline()
+            + Text("clarity is \(accuracyRounded)%").underline()
             + Text(". ")
             + Text("And you have been ")
             + Text("distracted \(totalPauses) times").underline()

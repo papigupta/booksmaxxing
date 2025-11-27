@@ -23,6 +23,13 @@ Booksmaxxing/
 
 ## 🧠 Core Concept: The Learning Journey
 
+### Clarity (User-Facing Accuracy Metric)
+We present the learner's answer quality to users as **Clarity**, but the underlying
+data structures, migrations, and analytics still use the historical "accuracy"
+field names. This avoids risky persistence migrations while keeping the UI copy
+aligned with the new branding. When you see `accuracy*` identifiers in code, read
+them as the data backing the user-visible Clarity metric.
+
 ### The 4-Level Mastery System
 1. **Level 0 - Thought Dump**: Unfiltered, free-form thinking about the concept
 2. **Level 1 - Use**: Practical application of the idea

@@ -661,7 +661,7 @@ struct DailyPracticeWithReviewView: View {
         sessionBCal = attempt.brainCalories
         let stats = CognitiveStatsService(modelContext: modelContext)
         stats.addBCalToToday(sessionBCal)
-        // Accuracy rollup
+        // Accuracy rollup (displayed to the user as Clarity)
         sessionTotal = (attempt.responses ?? []).count
         sessionCorrect = (attempt.responses ?? []).filter { $0.isCorrect }.count
         stats.addAnswers(correct: sessionCorrect, total: sessionTotal)
@@ -799,7 +799,7 @@ private struct ReviewTestResultsView: View {
                         .font(DS.Typography.headline)
                         .foregroundColor(t.onSurface)
                     
-                    Text("\(percentage)% Accuracy")
+                    Text("\(percentage)% Clarity")
                         .font(DS.Typography.body)
                         .foregroundColor(t.onSurface.opacity(0.7))
                 }

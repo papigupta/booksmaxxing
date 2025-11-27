@@ -4,7 +4,7 @@ struct BrainCaloriesView: View {
     // BCal
     let sessionBCal: Int
     let todayBCalTotal: Int
-    // Accuracy
+    // Accuracy (surfaced to users as "Clarity" – see PROJECT_OVERVIEW.md)
     let sessionCorrect: Int
     let sessionTotal: Int
     let todayCorrect: Int
@@ -50,12 +50,12 @@ struct BrainCaloriesView: View {
 
                     metricCard(
                         iconName: "dot.scope",
-                        title: "Accuracy",
+                        title: "Clarity",
                         subtitle: "Knowledge retained",
                         valueText: "\(todayAccuracyPercentInt)%",
-                        goalText: "Goal \(goalAccuracyPercent)%",
+                        goalText: "Goal \(goalAccuracyPercent)% Clarity",
                         progress: cardAccuracyProgress,
-                        progressDescription: "\(todayAccuracyPercentInt)% of \(goalAccuracyPercent)% target",
+                        progressDescription: "\(todayAccuracyPercentInt)% of \(goalAccuracyPercent)% clarity target",
                         color: .blue,
                         rows: [
                             ("This session", sessionAccuracyText),
@@ -99,7 +99,7 @@ struct BrainCaloriesView: View {
                 .font(DS.Typography.title2)
                 .foregroundStyle(theme.onSurface)
 
-            Text("Close every ring to keep your brain sharp—burn calories, stay accurate, and remain distraction-free.")
+            Text("Close every ring to keep your brain sharp—burn calories, stay clear, and remain distraction-free.")
                 .font(DS.Typography.caption)
                 .foregroundStyle(theme.onSurface.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)
@@ -129,8 +129,8 @@ struct BrainCaloriesView: View {
                 RingLegendItem(
                     iconName: "dot.scope",
                     color: .blue,
-                    title: "Accuracy",
-                    detail: "\(todayAccuracyPercentInt)% of \(goalAccuracyPercent)%",
+                    title: "Clarity",
+                    detail: "\(todayAccuracyPercentInt)% of \(goalAccuracyPercent)% clarity goal",
                     textColor: theme.onSurface,
                     secondaryColor: theme.onSurface.opacity(0.7)
                 )

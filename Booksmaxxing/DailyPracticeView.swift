@@ -934,7 +934,7 @@ struct DailyPracticeView: View {
         sessionBCal = session
         let stats = CognitiveStatsService(modelContext: modelContext)
         stats.addBCalToToday(session)
-        // Accuracy
+        // Accuracy (feeds the user-facing Clarity metric)
         sessionTotal = (attempt.responses ?? []).count
         sessionCorrect = (attempt.responses ?? []).filter { $0.isCorrect }.count
         stats.addAnswers(correct: sessionCorrect, total: sessionTotal)
