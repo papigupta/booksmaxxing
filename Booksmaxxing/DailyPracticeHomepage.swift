@@ -481,6 +481,7 @@ struct DailyPracticeHomepage: View {
 
     private func lessonMetrics(for idea: Idea, bookId: String) -> LessonMetrics {
         let coverage = coverageService.getCoverage(for: idea.id, bookId: bookId)
+        // Clarity is just the coverage accuracy percentage shown to the user
         let clarityValue: Double? = coverage.totalQuestionsSeen > 0 ? coverage.currentAccuracy : nil
         let attempts = (idea.tests ?? []).flatMap { $0.attempts ?? [] }
         let totalBCal = attempts.reduce(0) { $0 + max(0, $1.brainCalories) }

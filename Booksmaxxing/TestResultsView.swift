@@ -25,6 +25,7 @@ struct TestResultsView: View {
         result.masteryAchieved != .none
     }
 
+    // Accuracy metric stored in data but presented to the user as "Clarity"
     private var accuracyPercentage: Int {
         guard result.totalQuestions > 0 else { return 0 }
         let ratio = (Double(result.correctCount) / Double(result.totalQuestions)) * 100
