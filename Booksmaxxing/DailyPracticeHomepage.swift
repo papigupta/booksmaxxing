@@ -1010,10 +1010,7 @@ private struct PracticePalette {
         primaryT50 = roles.color(role: .primary, tone: 50) ?? tokens.onSurface
         primaryT70 = roles.color(role: .primary, tone: 70) ?? tokens.onSurface
         background = tokens.background
-        flatBackground = roles.color(role: .primary, tone: 95)
-            ?? roles.color(role: .neutral, tone: 95)
-            ?? roles.color(role: .neutralVariant, tone: 95)
-            ?? tokens.background
+        flatBackground = roles.practiceBackgroundColor(fallback: tokens)
         seed = seedColor
             ?? roles.color(role: .primary, tone: 90)
             ?? tokens.primary

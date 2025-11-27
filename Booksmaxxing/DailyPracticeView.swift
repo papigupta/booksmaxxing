@@ -93,8 +93,9 @@ struct DailyPracticeView: View {
     
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
+        let practiceBackground = themeManager.activeRoles.practiceBackgroundColor(fallback: theme)
         return ZStack(alignment: .topLeading) {
-            theme.background.ignoresSafeArea()
+            practiceBackground.ignoresSafeArea()
             
             NavigationStack {
                 VStack(spacing: DS.Spacing.lg) {

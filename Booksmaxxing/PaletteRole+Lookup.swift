@@ -17,4 +17,12 @@ extension Array where Element == PaletteRole {
         let nearest = role.tones.min(by: { abs($0.tone - tone) < abs($1.tone - tone) })
         return nearest?.color
     }
+
+    /// Shared helper for everyday practice contexts so surfaces look consistent.
+    func practiceBackgroundColor(fallback tokens: ThemeTokens) -> Color {
+        color(role: .primary, tone: 95)
+            ?? color(role: .neutral, tone: 95)
+            ?? color(role: .neutralVariant, tone: 95)
+            ?? tokens.background
+    }
 }
