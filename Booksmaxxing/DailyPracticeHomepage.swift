@@ -277,7 +277,6 @@ struct DailyPracticeHomepage: View {
         .padding(.bottom, Layout.sectionSpacing)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { stickyHeaderBackground(palette: palette, tokens: tokens) }
-        .overlay(alignment: .bottom) { stickyHeaderBottomFade(palette: palette) }
         .overlay(alignment: .bottom) { stickyHeaderBottomBorder(palette: palette) }
     }
 
