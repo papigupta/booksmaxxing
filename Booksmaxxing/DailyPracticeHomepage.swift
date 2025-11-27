@@ -40,6 +40,7 @@ struct DailyPracticeHomepage: View {
     @State private var experimentsPreset: ThemePreset = .system
     @State private var showingDeleteAlert: Bool = false
     @State private var pendingScrollTask: Task<Void, Never>? = nil
+    @AppStorage(DevPreferenceKeys.showPreviousQuestionButton) private var showPreviousQuestionButton: Bool = false
     
     private var lessonStorage: LessonStorageService {
         LessonStorageService(modelContext: modelContext)
@@ -141,6 +142,9 @@ struct DailyPracticeHomepage: View {
                         }
                         if DebugFlags.enableThemeLab {
                             Button("Experiments") { showingExperiments = true }
+                        }
+                        Button(showPreviousQuestionButton ? "Hide Previous Question Button" : "Show Previous Question Button") {
+                            showPreviousQuestionButton.toggle()
                         }
                         Button("Delete this book", role: .destructive) {
                             showingDeleteAlert = true

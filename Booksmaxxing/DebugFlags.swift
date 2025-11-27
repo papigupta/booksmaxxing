@@ -18,3 +18,7 @@ enum DebugFlags {
     // When enabled, OpenAIService will allow up to 3 connections per host; otherwise it remains 1.
     static let enableParallelOpenAI: Bool = true
 }
+
+enum DevPreferenceKeys {
+    static let showPreviousQuestionButton = "Dev.ShowPreviousQuestionButton"
+}

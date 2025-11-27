@@ -39,6 +39,7 @@ struct TestView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(DevPreferenceKeys.showPreviousQuestionButton) private var showPreviousQuestionButton: Bool = false
     
     @State private var currentQuestionIndex = 0
     @State private var responses: [UUID: String] = [:]
@@ -91,39 +92,37 @@ struct TestView: View {
         let theme = themeManager.currentTokens(for: colorScheme)
         return NavigationStack {
             VStack(spacing: 0) {
-                HStack(alignment: .center) {
-                    Button("Exit") {
-                        handleExitTapped()
+                HStack(alignment: .center, spacing: DS.Spacing.sm) {
+                    Button(action: handleExitTapped) {
+                        DSIcon("multiply", size: 14)
                     }
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(theme.onSurface)
+                    .dsPaletteSecondaryIconButton(diameter: 38)
+                    .accessibilityLabel("Exit test")
 
                     Spacer()
 
-                    Text(idea.title)
-                        .font(DS.Typography.title2)
-                        .foregroundStyle(theme.onSurface)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-
-                    Spacer()
-
-                    Button("Primer") {
-                        showingPrimer = true
+                    Button(action: { showingPrimer = true }) {
+                        Text("Primer")
                     }
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(theme.onSurface)
+                    .dsPaletteSecondaryButton()
                 }
                 .padding(.horizontal, DS.Spacing.xxl)
-                .padding(.top, DS.Spacing.sm)
-                .padding(.bottom, DS.Spacing.md)
+                .padding(.top, DS.Spacing.md)
+                .padding(.bottom, DS.Spacing.lg)
 
                 // Progress Bar
-                ProgressBar(progress: progress, currentQuestion: currentQuestionIndex + 1, totalQuestions: (test.questions ?? []).count)
+                ProgressBar(progress: progress)
                     .padding(.horizontal, DS.Spacing.xxl)
                     .padding(.bottom, DS.Spacing.md)
 
                 DSDivider()
+                
+                if let question = currentQuestion {
+                    QuestionMetadataRow(question: question)
+                        .padding(.horizontal, DS.Spacing.xxl)
+                        .padding(.top, DS.Spacing.xl)
+                        .padding(.bottom, DS.Spacing.xl)
+                }
                 
                 // Question Content
                 ZStack {
@@ -131,13 +130,12 @@ struct TestView: View {
                         if let question = currentQuestion {
                             QuestionView(
                                 question: question,
-                                questionNumber: currentQuestionIndex + 1,
                                 response: binding(for: question),
                                 selectedOptions: bindingForOptions(question),
                                 isDisabled: showingFeedback,
                                 onActivity: { markActivity() }
                             )
-                            .padding(.vertical, DS.Spacing.lg)
+                            .padding(.bottom, DS.Spacing.lg)
                         }
                     }
                     .padding(.horizontal, DS.Spacing.xxl)
@@ -150,7 +148,7 @@ struct TestView: View {
                 
                 // Navigation Controls
                 HStack(spacing: DS.Spacing.md) {
-                    if currentQuestionIndex > 0 {
+                    if showPreviousQuestionButton && currentQuestionIndex > 0 {
                         Button(action: previousQuestion) {
                             HStack(spacing: DS.Spacing.xs) {
                                 DSIcon("chevron.left", size: 16)
@@ -195,7 +193,7 @@ struct TestView: View {
                 .padding(.horizontal, DS.Spacing.xxl)
                 .padding(.vertical, DS.Spacing.md)
             }
-            .background(theme.background)
+            .background(theme.surface)
             .navigationBarHidden(true)
             .onAppear {
                 initializeAttempt()
@@ -903,43 +901,19 @@ extension TestView {
 
 struct QuestionView: View {
     let question: Question
-    let questionNumber: Int
     @Binding var response: String
     @Binding var selectedOptions: Set<Int>
     let isDisabled: Bool
     let onActivity: () -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-            // Question Header
-            HStack(alignment: .top, spacing: DS.Spacing.md) {
-                VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                    Text("Question \(questionNumber)")
-                        .font(DS.Typography.captionBold)
-                        .foregroundStyle(DS.Colors.secondaryText)
-                    
-                    HStack(spacing: DS.Spacing.xs) {
-                        DifficultyBadge(difficulty: question.difficulty)
-                        // For curveball or spacedfollowup questions, show 'Retrieval' and a badge
-                        if question.isCurveball {
-                            RetrievalBadge()
-                            CurveballBadge()
-                        } else if question.isSpacedFollowUp {
-                            RetrievalBadge()
-                            SpacedFollowUpBadge()
-                        } else {
-                            BloomBadge(category: question.bloomCategory)
-                        }
-                    }
-                }
-                
-                Spacer()
-            }
-            
+        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
             // Question Text
             Text(question.questionText)
-                .font(DS.Typography.body)
+                .font(DS.Typography.fraunces(size: 18, weight: .semibold))
+                .tracking(DS.Typography.tightTracking(for: 18))
                 .foregroundStyle(DS.Colors.primaryText)
+                .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
             
             // Answer Input
@@ -968,29 +942,37 @@ struct MCQOptions: View {
         let theme = themeManager.currentTokens(for: colorScheme)
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                let isSelected = selectedOptions.contains(index)
+                let selectionAnimation = Animation.interpolatingSpring(mass: 0.8, stiffness: 150, damping: 18, initialVelocity: 0)
                 Button(action: {
                     if !isDisabled {
-                        selectedOptions = [index]
+                        withAnimation(selectionAnimation) {
+                            selectedOptions = [index]
+                        }
                     }
                 }) {
-                    HStack(spacing: DS.Spacing.md) {
-                        Image(systemName: selectedOptions.contains(index) ? "circle.inset.filled" : "circle")
-                            .font(.system(size: 20))
-                            .foregroundStyle(selectedOptions.contains(index) ? theme.primary : theme.onSurface.opacity(0.4))
-                        
+                    let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    ZStack(alignment: .leading) {
+                        shape
+                            .fill(isSelected ? theme.primaryContainer.opacity(0.5) : theme.surfaceVariant)
+                            .overlay(
+                                shape.strokeBorder(isSelected ? theme.primary : Color.clear, lineWidth: 1.5)
+                            )
+                            .animation(selectionAnimation, value: isSelected)
+
                         Text(option)
                             .font(DS.Typography.body)
+                            .tracking(DS.Typography.tightTracking(for: 16))
                             .foregroundStyle(theme.onSurface)
                             .multilineTextAlignment(.leading)
+                            .lineSpacing(4)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, DS.Spacing.lg)
+                            .padding(.horizontal, DS.Spacing.lg)
                     }
-                    .padding(DS.Spacing.md)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(selectedOptions.contains(index) ? theme.primaryContainer.opacity(0.35) : theme.surfaceVariant)
-                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(shape)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -1059,19 +1041,17 @@ struct OpenEndedInput: View {
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            Text("Your response (2-4 sentences)")
-                .font(DS.Typography.caption)
-                .foregroundStyle(theme.onSurface.opacity(0.7))
-            
             TextEditor(text: $response)
                 .font(DS.Typography.body)
+                .tracking(DS.Typography.tightTracking(for: 16))
+                .lineSpacing(4)
                 .foregroundStyle(theme.onSurface)
                 .scrollContentBackground(.hidden)
                 .background(.clear)
                 .frame(minHeight: 120)
                 .padding(DS.Spacing.md)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(theme.surfaceVariant)
                 )
                 .disabled(isDisabled)
@@ -1292,46 +1272,64 @@ struct FeedbackFullScreen: View {
 
 struct ProgressBar: View {
     let progress: Double
-    let currentQuestion: Int
-    let totalQuestions: Int
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
     
+    private let barHeight: CGFloat = 8
+    private let barCornerRadius: CGFloat = 4
+    
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
+        let palette = themeManager.activeRoles
         let clampedProgress: Double = {
             guard progress.isFinite else { return 0 }
             return min(max(progress, 0), 1)
         }()
+        let trackColor = palette.color(role: .neutral, tone: 90)
+            ?? palette.color(role: .neutralVariant, tone: 90)
+            ?? palette.color(role: .primary, tone: 90)
+            ?? theme.surfaceVariant
+        let fillColor = palette.color(role: .tertiary, tone: 40)
+            ?? palette.color(role: .primary, tone: 40)
+            ?? theme.tertiary
 
-        VStack(spacing: DS.Spacing.xs) {
-            HStack {
-                let safeTotal = max(totalQuestions, 1)
-                let safeCurrent = min(max(currentQuestion, 1), safeTotal)
-                Text("Question \(safeCurrent) of \(safeTotal)")
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(theme.onSurface.opacity(0.7))
-                
-                Spacer()
-                
-                Text("\(Int(clampedProgress * 100))%")
-                    .font(DS.Typography.captionBold)
-                    .foregroundStyle(theme.onSurface)
+        GeometryReader { geometry in
+            let width = max(0, geometry.size.width * clampedProgress)
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: barCornerRadius, style: .continuous)
+                    .fill(trackColor)
+                    .frame(height: barHeight)
+
+                RoundedRectangle(cornerRadius: barCornerRadius, style: .continuous)
+                    .fill(fillColor)
+                    .frame(width: width, height: barHeight)
+                    .animation(.easeInOut(duration: 0.3), value: progress)
             }
+        }
+        .frame(height: barHeight)
+    }
+}
+
+struct QuestionMetadataRow: View {
+    let question: Question
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: DS.Spacing.xs) {
+            DifficultyBadge(difficulty: question.difficulty)
             
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(theme.surfaceVariant)
-                        .frame(height: 4)
-                    
-                    Rectangle()
-                        .fill(theme.primary)
-                        .frame(width: max(0, geometry.size.width * clampedProgress), height: 4)
-                        .animation(.easeInOut(duration: 0.3), value: progress)
+            Spacer()
+            
+            HStack(spacing: DS.Spacing.xs) {
+                if question.isCurveball {
+                    RetrievalBadge()
+                    CurveballBadge()
+                } else if question.isSpacedFollowUp {
+                    RetrievalBadge()
+                    SpacedFollowUpBadge()
+                } else {
+                    BloomBadge(category: question.bloomCategory)
                 }
             }
-            .frame(height: 4)
         }
     }
 }
@@ -1345,10 +1343,10 @@ struct DifficultyBadge: View {
         Text(difficulty.rawValue)
             .font(DS.Typography.caption)
             .foregroundStyle(colorForDifficulty)
-            .padding(.horizontal, DS.Spacing.xs)
-            .padding(.vertical, 2)
+            .padding(.horizontal, DS.Spacing.xs + 3)
+            .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                Capsule()
                     .fill(colorForDifficulty.opacity(0.12))
             )
     }
@@ -1369,10 +1367,10 @@ struct BloomBadge: View {
         Text(category.rawValue)
             .font(DS.Typography.caption)
             .foregroundStyle(DS.Colors.secondaryText)
-            .padding(.horizontal, DS.Spacing.xs)
-            .padding(.vertical, 2)
+            .padding(.horizontal, DS.Spacing.xs + 3)
+            .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                Capsule()
                     .fill(DS.Colors.secondaryText.opacity(0.08))
             )
     }
@@ -1383,10 +1381,10 @@ struct RetrievalBadge: View {
         Text("Retrieval")
             .font(DS.Typography.caption)
             .foregroundStyle(DS.Colors.secondaryText)
-            .padding(.horizontal, DS.Spacing.xs)
-            .padding(.vertical, 2)
+            .padding(.horizontal, DS.Spacing.xs + 3)
+            .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                Capsule()
                     .fill(DS.Colors.secondaryText.opacity(0.08))
             )
             .accessibilityLabel("Retrieval")
@@ -1398,12 +1396,14 @@ struct CurveballBadge: View {
         Text("CB")
             .font(DS.Typography.captionBold)
             .foregroundStyle(Color.black)
-            .padding(.horizontal, DS.Spacing.xs)
-            .padding(.vertical, 2)
-            .background(Color.yellow.opacity(0.9))
-            .cornerRadius(3)
+            .padding(.horizontal, DS.Spacing.xs + 3)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color.yellow.opacity(0.9))
+            )
             .overlay(
-                Rectangle()
+                Capsule()
                     .stroke(Color.yellow, lineWidth: DS.BorderWidth.thin)
             )
             .accessibilityLabel("Curveball")
@@ -1415,12 +1415,14 @@ struct SpacedFollowUpBadge: View {
         Text("SPFU")
             .font(DS.Typography.captionBold)
             .foregroundStyle(Color.black)
-            .padding(.horizontal, DS.Spacing.xs)
-            .padding(.vertical, 2)
-            .background(Color.blue.opacity(0.9))
-            .cornerRadius(3)
+            .padding(.horizontal, DS.Spacing.xs + 3)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color.blue.opacity(0.9))
+            )
             .overlay(
-                Rectangle()
+                Capsule()
                     .stroke(Color.blue, lineWidth: DS.BorderWidth.thin)
             )
             .accessibilityLabel("Spaced Follow-up")
