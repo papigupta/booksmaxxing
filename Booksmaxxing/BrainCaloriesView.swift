@@ -28,56 +28,7 @@ struct BrainCaloriesView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.xxl) {
-                header
-
-                ringsSection
-
-                VStack(spacing: DS.Spacing.lg) {
-                    metricCard(
-                        iconName: "brain.head.profile",
-                        title: "Brain Calories",
-                        subtitle: "Mental load burned today",
-                        valueText: "\(todayBCalTotal) BCal",
-                        goalText: "Goal \(bcalGoal) BCal",
-                        progress: cardBcalProgress,
-                        progressDescription: "\(todayBCalTotal) / \(bcalGoal) BCal",
-                        color: .red,
-                        rows: [
-                            ("This session", "\(sessionBCal) BCal"),
-                            ("Today total", "\(todayBCalTotal) BCal")
-                        ]
-                    )
-
-                    metricCard(
-                        iconName: "dot.scope",
-                        title: "Clarity",
-                        subtitle: "Knowledge retained",
-                        valueText: "\(todayAccuracyPercentInt)%",
-                        goalText: "Goal \(goalAccuracyPercent)% Clarity",
-                        progress: cardAccuracyProgress,
-                        progressDescription: "\(todayAccuracyPercentInt)% of \(goalAccuracyPercent)% clarity target",
-                        color: .blue,
-                        rows: [
-                            ("This session", sessionAccuracyText),
-                            ("Today total", todayAccuracyText)
-                        ]
-                    )
-
-                    metricCard(
-                        iconName: "bell.slash",
-                        title: "Attention",
-                        subtitle: "Stay in the zone",
-                        valueText: "\(todayAttentionPercent)%",
-                        goalText: "0 distractions",
-                        progress: cardAttentionProgress,
-                        progressDescription: "\(todayAttentionPercent)% focus today",
-                        color: .green,
-                        rows: [
-                            ("This session", sessionAttentionText),
-                            ("Today total", todayAttentionText)
-                        ]
-                    )
-                }
+                ringsHeroCard
 
                 HStack {
                     Spacer()
@@ -88,7 +39,7 @@ struct BrainCaloriesView: View {
             .padding(.horizontal, DS.Spacing.xl)
             .padding(.vertical, DS.Spacing.xxl)
         }
-        .background(theme.background.ignoresSafeArea())
+        .background(practiceBackground.ignoresSafeArea())
         .onAppear { animateRings() }
         .onChange(of: animationSignature) { _ in animateRings() }
     }
@@ -106,40 +57,44 @@ struct BrainCaloriesView: View {
         }
     }
 
-    private var ringsSection: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-            TripleRingsView(
+    private var ringsHeroCard: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xxl) {
+            header
+
+            ActivityRingsView(
                 bcalProgress: animatedBcalProgress,
                 accuracyProgress: animatedAccuracyProgress,
                 attentionProgress: animatedAttentionProgress
             )
             .frame(maxWidth: .infinity)
-            .padding(.top, DS.Spacing.md)
 
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                RingLegendItem(
+                ActivityMetricRow(
                     iconName: "brain.head.profile",
                     color: .red,
                     title: "Brain Calories",
-                    detail: "\(todayBCalTotal) / \(bcalGoal) BCal",
+                    valueText: "\(todayBCalTotal) BCal",
+                    detailLines: bcalDetailLines,
                     textColor: theme.onSurface,
                     secondaryColor: theme.onSurface.opacity(0.7)
                 )
 
-                RingLegendItem(
+                ActivityMetricRow(
                     iconName: "dot.scope",
                     color: .blue,
                     title: "Clarity",
-                    detail: "\(todayAccuracyPercentInt)% of \(goalAccuracyPercent)% clarity goal",
+                    valueText: "\(todayAccuracyPercentInt)%",
+                    detailLines: clarityDetailLines,
                     textColor: theme.onSurface,
                     secondaryColor: theme.onSurface.opacity(0.7)
                 )
 
-                RingLegendItem(
+                ActivityMetricRow(
                     iconName: "bell.slash",
                     color: .green,
                     title: "Attention",
-                    detail: todayAttentionSummary,
+                    valueText: "\(todayAttentionPercent)%",
+                    detailLines: attentionDetailLines,
                     textColor: theme.onSurface,
                     secondaryColor: theme.onSurface.opacity(0.7)
                 )
@@ -147,75 +102,6 @@ struct BrainCaloriesView: View {
         }
         .padding(DS.Spacing.xl)
         .brainCardBackground(theme: theme, cornerRadius: 32, fill: theme.surface)
-    }
-
-    private func metricCard(
-        iconName: String,
-        title: String,
-        subtitle: String,
-        valueText: String,
-        goalText: String,
-        progress: Double,
-        progressDescription: String,
-        color: Color,
-        rows: [(label: String, value: String)]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-            HStack(alignment: .top, spacing: DS.Spacing.lg) {
-                RingIconBadge(systemName: iconName, color: color)
-
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                    Text(title)
-                        .font(DS.Typography.headline)
-                        .foregroundStyle(theme.onSurface)
-
-                    Text(subtitle)
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(theme.onSurface.opacity(0.7))
-                }
-
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: DS.Spacing.xs) {
-                    Text(valueText)
-                        .font(DS.Typography.title2)
-                        .foregroundStyle(theme.onSurface)
-
-                    Text(goalText)
-                        .font(DS.Typography.caption)
-                        .foregroundStyle(theme.onSurface.opacity(0.6))
-                }
-            }
-
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                MetricProgressBar(progress: progress, color: color, trackColor: theme.divider.opacity(0.4))
-
-                Text(progressDescription)
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(theme.onSurface.opacity(0.6))
-            }
-
-            VStack(spacing: DS.Spacing.sm) {
-                ForEach(rows.indices, id: \.self) { index in
-                    let row = rows[index]
-                    HStack {
-                        Text(row.label)
-                            .font(DS.Typography.caption)
-                            .foregroundStyle(theme.onSurface.opacity(0.6))
-                        Spacer()
-                        Text(row.value)
-                            .font(DS.Typography.bodyBold)
-                            .foregroundStyle(theme.onSurface)
-                    }
-
-                    if index != rows.count - 1 {
-                        DSDivider()
-                    }
-                }
-            }
-        }
-        .padding(DS.Spacing.xl)
-        .brainCardBackground(theme: theme)
     }
 
     private var todayAccuracyPercentRaw: Double {
@@ -247,6 +133,41 @@ struct BrainCaloriesView: View {
 
     private var todayAttentionSummary: String {
         "\(todayAttentionPercent)% focus • \(todayAttentionText)"
+    }
+
+    private func percentText(for progress: Double) -> String {
+        let percentValue = Int(round(max(progress, 0) * 100))
+        return "\(percentValue)%"
+    }
+
+    private var bcalDetailLines: [String] {
+        var lines: [String] = [
+            "\(todayBCalTotal) / \(bcalGoal) BCal today",
+            "\(percentText(for: ringBcalProgress)) of your BCal goal"
+        ]
+        if sessionBCal > 0 {
+            lines.append("This session \(sessionBCal) BCal")
+        }
+        return lines
+    }
+
+    private var clarityDetailLines: [String] {
+        var lines: [String] = ["\(todayAccuracyPercentInt)% of \(goalAccuracyPercent)% clarity goal"]
+        if todayTotal > 0 {
+            lines.append(todayAccuracyText)
+        }
+        if sessionTotal > 0 {
+            lines.append("Session: \(sessionAccuracyText)")
+        }
+        return lines
+    }
+
+    private var attentionDetailLines: [String] {
+        var lines: [String] = [todayAttentionSummary]
+        if sessionPauses > 0 {
+            lines.append("Session: \(sessionAttentionText)")
+        }
+        return lines
     }
 
     private var cardBcalProgress: Double {
@@ -283,6 +204,10 @@ struct BrainCaloriesView: View {
         themeManager.currentTokens(for: colorScheme)
     }
 
+    private var practiceBackground: Color {
+        themeManager.activeRoles.practiceBackgroundColor(fallback: theme)
+    }
+
     private func animateRings() {
         animatedBcalProgress = 0
         animatedAccuracyProgress = 0
@@ -312,43 +237,186 @@ struct BrainCaloriesView: View {
 
 // MARK: - Triple Rings View
 
-struct TripleRingsView: View {
+private struct ActivityRingsView: View {
     let bcalProgress: Double
     let accuracyProgress: Double
     let attentionProgress: Double
 
-    private let outerSize: CGFloat = 210
-    private let middleSize: CGFloat = 170
-    private let innerSize: CGFloat = 130
+    private let outerSize: CGFloat = 250
     private let ringLineWidth: CGFloat = 26
-    private let startAngle = Angle(degrees: -10) // start near 350° like Apple rings
+    private let laneSpacing: CGFloat = 12
+    private let startAngle = Angle(degrees: -90)
+
+    private var ringOffset: CGFloat { (ringLineWidth + laneSpacing) * 2 }
+    private var middleSize: CGFloat { outerSize - ringOffset }
+    private var innerSize: CGFloat { middleSize - ringOffset }
 
     var body: some View {
         ZStack {
-            ringView(progress: bcalProgress, color: .red, circleSize: outerSize, iconName: "brain.head.profile")
-                .frame(width: outerSize, height: outerSize)
+            ActivityRingLayer(
+                progress: bcalProgress,
+                style: .brainCalories,
+                diameter: outerSize,
+                lineWidth: ringLineWidth,
+                startAngle: startAngle
+            )
 
-            ringView(progress: accuracyProgress, color: .blue, circleSize: middleSize, iconName: "dot.scope")
-                .frame(width: middleSize, height: middleSize)
+            ActivityRingLayer(
+                progress: accuracyProgress,
+                style: .clarity,
+                diameter: middleSize,
+                lineWidth: ringLineWidth,
+                startAngle: startAngle
+            )
 
-            ringView(progress: attentionProgress, color: .green, circleSize: innerSize, iconName: "bell.slash")
-                .frame(width: innerSize, height: innerSize)
+            ActivityRingLayer(
+                progress: attentionProgress,
+                style: .attention,
+                diameter: innerSize,
+                lineWidth: ringLineWidth,
+                startAngle: startAngle
+            )
         }
-        .frame(height: outerSize)
+        .frame(width: outerSize, height: outerSize)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Today’s rings progress")
+        .accessibilityValue(accessibilitySummary)
+        .accessibilityHint("Shows progress for Brain Calories, Clarity, and Attention goals today.")
     }
 
-    private func ringView(progress: Double, color: Color, circleSize: CGFloat, iconName: String) -> some View {
-        MultiLoopRing(progress: progress, color: color, lineWidth: ringLineWidth, startAngle: startAngle)
-            .overlay(alignment: .center) {
-                RingGlyph(
-                    systemName: iconName,
-                    ringColor: color,
-                    circleSize: circleSize,
-                    lineWidth: ringLineWidth,
-                    angle: .degrees(-90)
-                )
-            }
+    private var accessibilitySummary: String {
+        "Brain Calories \(percentString(for: bcalProgress)), Clarity \(percentString(for: accuracyProgress)), Attention \(percentString(for: attentionProgress))"
     }
+
+    private func percentString(for progress: Double) -> String {
+        let percent = Int(round(max(progress, 0) * 100))
+        return "\(percent)%"
+    }
+}
+
+private struct ActivityRingLayer: View {
+    let progress: Double
+    let style: ActivityRingStyle
+    let diameter: CGFloat
+    let lineWidth: CGFloat
+    let startAngle: Angle
+
+    private var trimmedProgress: Double { min(max(progress, 0), 1) }
+    private var overflow: Double { max(progress - 1, 0) }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(style.trackColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .frame(width: diameter, height: diameter)
+
+            Circle()
+                .trim(from: 0, to: CGFloat(trimmedProgress))
+                .stroke(style.gradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(startAngle)
+                .frame(width: diameter, height: diameter)
+                .shadow(color: style.shadowColor, radius: 9, x: 0, y: 4)
+
+            ActivityRingTip(
+                progress: trimmedProgress,
+                diameter: diameter,
+                lineWidth: lineWidth,
+                startAngle: startAngle,
+                color: style.tipColor
+            )
+
+            if overflow > 0 {
+                Circle()
+                    .stroke(style.gradient, lineWidth: lineWidth * 0.6)
+                    .frame(width: diameter + 12, height: diameter + 12)
+                    .blur(radius: 14)
+                    .opacity(min(0.45, 0.25 + overflow * 0.2))
+            }
+        }
+    }
+}
+
+private struct ActivityRingTip: View {
+    let progress: Double
+    let diameter: CGFloat
+    let lineWidth: CGFloat
+    let startAngle: Angle
+    let color: Color
+
+    var body: some View {
+        Group {
+            if progress > 0 {
+                Circle()
+                    .fill(color)
+                    .frame(width: lineWidth * 0.7, height: lineWidth * 0.7)
+                    .shadow(color: color.opacity(0.6), radius: 5, x: 0, y: 2)
+                    .offset(tipOffset)
+            }
+        }
+    }
+
+    private var tipOffset: CGSize {
+        let angle = startAngle + .degrees(progress * 360)
+        let radius = (diameter / 2) - (lineWidth / 2)
+        let x = CGFloat(cos(angle.radians)) * radius
+        let y = CGFloat(sin(angle.radians)) * radius
+        return CGSize(width: x, height: y)
+    }
+}
+
+private struct ActivityRingStyle {
+    let gradient: AngularGradient
+    let trackColor: Color
+    let shadowColor: Color
+    let tipColor: Color
+
+    static let brainCalories = ActivityRingStyle(
+        gradient: AngularGradient(
+            gradient: Gradient(colors: [
+                Color(red: 1.0, green: 0.47, blue: 0.36),
+                Color(red: 0.94, green: 0.17, blue: 0.33),
+                Color(red: 1.0, green: 0.47, blue: 0.36)
+            ]),
+            center: .center,
+            startAngle: .degrees(-120),
+            endAngle: .degrees(240)
+        ),
+        trackColor: Color(red: 1.0, green: 0.41, blue: 0.34).opacity(0.22),
+        shadowColor: Color(red: 0.88, green: 0.12, blue: 0.31).opacity(0.4),
+        tipColor: .white
+    )
+
+    static let clarity = ActivityRingStyle(
+        gradient: AngularGradient(
+            gradient: Gradient(colors: [
+                Color(red: 0.45, green: 0.76, blue: 1.0),
+                Color(red: 0.14, green: 0.44, blue: 0.93),
+                Color(red: 0.45, green: 0.76, blue: 1.0)
+            ]),
+            center: .center,
+            startAngle: .degrees(-120),
+            endAngle: .degrees(240)
+        ),
+        trackColor: Color(red: 0.18, green: 0.45, blue: 0.93).opacity(0.18),
+        shadowColor: Color(red: 0.1, green: 0.32, blue: 0.75).opacity(0.35),
+        tipColor: .white
+    )
+
+    static let attention = ActivityRingStyle(
+        gradient: AngularGradient(
+            gradient: Gradient(colors: [
+                Color(red: 0.45, green: 0.92, blue: 0.47),
+                Color(red: 0.0, green: 0.66, blue: 0.36),
+                Color(red: 0.45, green: 0.92, blue: 0.47)
+            ]),
+            center: .center,
+            startAngle: .degrees(-120),
+            endAngle: .degrees(240)
+        ),
+        trackColor: Color(red: 0.0, green: 0.62, blue: 0.31).opacity(0.16),
+        shadowColor: Color(red: 0.0, green: 0.58, blue: 0.28).opacity(0.45),
+        tipColor: .white
+    )
 }
 
 private struct RingIconBadge: View {
@@ -374,174 +442,39 @@ private struct RingIconBadge: View {
     }
 }
 
-private struct RingGlyph: View {
-    let systemName: String
-    let ringColor: Color
-    let circleSize: CGFloat
-    let lineWidth: CGFloat
-    let angle: Angle
-
-    var body: some View {
-        Image(systemName: systemName)
-            .font(.system(size: 20, weight: .semibold))
-            .foregroundStyle(Color.white)
-            .shadow(color: ringColor.opacity(0.7), radius: 3, x: 0, y: 0)
-            .offset(iconOffset)
-    }
-
-    private var iconOffset: CGSize {
-        let radius = Double((circleSize / 2) - (lineWidth / 2) - 6)
-        let radians = angle.radians
-        let x = cos(radians) * radius
-        let y = sin(radians) * radius
-        return CGSize(width: CGFloat(x), height: CGFloat(y))
-    }
-}
-
-private struct RingTipHighlight: View {
-    let radius: CGFloat
-    let lineWidth: CGFloat
-    let color: Color
-    let progress: Double
-    let startAngle: Angle
-
-    @ViewBuilder
-    var body: some View {
-        let loops = max(progress, 0)
-        if loops > 0 {
-            let fractional = loops - floor(loops)
-            let tipFraction = fractional > 0 ? fractional : 1
-            let tipAngle = startAngle.degrees + (tipFraction * 360)
-            let radians = tipAngle * .pi / 180
-            let offsetRadius = max(radius - (lineWidth / 2), 0)
-            let offset = CGSize(
-                width: CGFloat(cos(radians) * Double(offsetRadius)),
-                height: CGFloat(sin(radians) * Double(offsetRadius))
-            )
-
-            Circle()
-                .fill(color)
-                .frame(width: lineWidth, height: lineWidth)
-                .shadow(color: color.opacity(0.65), radius: 5, x: 0, y: 0)
-                .offset(offset)
-        }
-    }
-}
-
-private struct MultiLoopRing: View {
-    let progress: Double
-    let color: Color
-    let lineWidth: CGFloat
-    let startAngle: Angle
-
-    private var loops: Double { max(progress, 0) }
-    private var fullLoops: Int { Int(loops) }
-    private var remainder: Double { loops - Double(fullLoops) }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let diameter = min(proxy.size.width, proxy.size.height)
-            let radius = diameter / 2
-            ZStack {
-                Circle()
-                    .stroke(color.opacity(0.18), lineWidth: lineWidth)
-
-                if fullLoops > 0 {
-                    ForEach(0..<fullLoops, id: \.self) { index in
-                        ringStroke(amount: 1)
-                            .opacity(loopOpacity(for: index))
-                    }
-                }
-
-                if remainder > 0 {
-                    ringStroke(amount: remainder)
-                }
-            }
-            .overlay(
-                RingTipHighlight(
-                    radius: radius,
-                    lineWidth: lineWidth,
-                    color: color,
-                    progress: loops,
-                    startAngle: startAngle
-                )
-            )
-        }
-    }
-
-    private func ringStroke(amount: Double) -> some View {
-        let gradient = AngularGradient(
-            gradient: Gradient(colors: [color.opacity(0.8), color]),
-            center: .center,
-            startAngle: startAngle,
-            endAngle: startAngle + .degrees(360)
-        )
-
-        return Circle()
-            .trim(from: 0, to: min(amount, 1.0))
-            .stroke(
-                gradient,
-                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-            )
-            .rotationEffect(startAngle)
-            .shadow(color: color.opacity(0.55), radius: 6, x: 0, y: 0)
-    }
-
-    private func loopOpacity(for index: Int) -> Double {
-        let base: Double = 0.6
-        return min(1.0, base + (Double(index) * 0.15))
-    }
-}
-
-private struct RingLegendItem: View {
+private struct ActivityMetricRow: View {
     let iconName: String
     let color: Color
     let title: String
-    let detail: String
+    let valueText: String
+    let detailLines: [String]
     let textColor: Color
     let secondaryColor: Color
 
     var body: some View {
-        HStack(spacing: DS.Spacing.lg) {
+        HStack(alignment: .top, spacing: DS.Spacing.lg) {
             RingIconBadge(systemName: iconName, color: color)
 
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                Text(title)
-                    .font(DS.Typography.bodyEmphasized)
-                    .foregroundStyle(textColor)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(DS.Typography.bodyEmphasized)
+                        .foregroundStyle(textColor)
 
-                Text(detail)
-                    .font(DS.Typography.caption)
-                    .foregroundStyle(secondaryColor)
-            }
+                    Spacer()
 
-            Spacer()
-        }
-    }
-}
+                    Text(valueText)
+                        .font(DS.Typography.bodyBold)
+                        .foregroundStyle(textColor)
+                }
 
-private struct MetricProgressBar: View {
-    let progress: Double
-    let color: Color
-    let trackColor: Color
-
-    private var clampedProgress: Double {
-        min(max(progress, 0), 1)
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Rectangle()
-                    .fill(trackColor)
-                    .frame(height: 8)
-
-                Rectangle()
-                    .fill(color)
-                    .frame(width: geometry.size.width * CGFloat(clampedProgress), height: 8)
+                ForEach(detailLines, id: \.self) { line in
+                    Text(line)
+                        .font(DS.Typography.caption)
+                        .foregroundStyle(secondaryColor)
+                }
             }
         }
-        .frame(height: 8)
     }
 }
 
@@ -579,25 +512,20 @@ private extension View {
     .environmentObject(ThemeManager())
 }
 
-// MARK: - Accuracy Ring View
-
-struct AccuracyRingView: View {
-    let valuePercent: Double   // 0–100
-    let goalPercent: Double    // e.g., 80
-
-    var progress: Double { min(valuePercent / max(goalPercent, 1.0), 1.0) }
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(DS.Colors.tertiaryBackground, lineWidth: 14)
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(Color.blue, style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            Text("\(Int(round(min(valuePercent, 100))))%")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(DS.Colors.black)
-        }
-    }
+#Preview("BrainCaloriesView – Dark") {
+    BrainCaloriesView(
+        sessionBCal: 120,
+        todayBCalTotal: 180,
+        sessionCorrect: 6,
+        sessionTotal: 10,
+        todayCorrect: 12,
+        todayTotal: 18,
+        goalAccuracyPercent: 90,
+        sessionPauses: 0,
+        todayPauses: 1,
+        todayAttentionPercent: 85,
+        onContinue: {}
+    )
+    .environmentObject(ThemeManager())
+    .preferredColorScheme(.dark)
 }
