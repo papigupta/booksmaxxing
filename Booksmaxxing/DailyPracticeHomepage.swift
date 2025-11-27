@@ -136,6 +136,13 @@ struct DailyPracticeHomepage: View {
                         Button("Refresh from Cloud") {
                             CloudSyncRefresh(modelContext: modelContext).warmFetches()
                         }
+                        if streakManager.isLitToday {
+                            Button("Reset today's streak") {
+                                if streakManager.resetTodayActivity() {
+                                    refreshView()
+                                }
+                            }
+                        }
                         Button("Book Selection Lab") { showingBookSelectionLab = true }
                         Button("Reset add-book tooltip") {
                             UserDefaults.standard.set(false, forKey: BookSelectionEducationKeys.addBookTipAcknowledged)
