@@ -11,10 +11,12 @@ struct AuthView: View {
             Spacer()
 
             VStack(spacing: 8) {
-                Text("Welcome to Booksmaxxing")
-                    .font(.largeTitle).bold()
+                welcomeTitle
+                    .multilineTextAlignment(.center)
+                    .tracking(DS.Typography.tightTracking(for: welcomeTitleSize))
                 Text("Sign in to sync with iCloud")
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
 
             if !authManager.iCloudAccountAvailable {
@@ -95,6 +97,17 @@ struct AuthView: View {
             authManager.checkICloudAccountStatus()
         }
     }
+}
+
+private extension AuthView {
+    var welcomeTitle: Text {
+        Text("Welcome to ")
+            .font(DS.Typography.fraunces(size: welcomeTitleSize, weight: .light))
+        + Text("Booksmaxxing")
+            .font(DS.Typography.fraunces(size: welcomeTitleSize, weight: .black))
+    }
+
+    var welcomeTitleSize: CGFloat { 34 }
 }
 
 #if DEBUG
