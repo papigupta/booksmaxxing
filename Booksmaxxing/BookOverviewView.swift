@@ -449,7 +449,8 @@ struct BookOverviewView: View {
             }
             Button("Profile") { showingProfile = true }
             Button("Debug Info") { showingDebugInfo = true }
-            Button("Log out", role: .destructive) {
+            let logoutTitle = authManager.isGuestSession ? "Exit guest mode" : "Log out"
+            Button(logoutTitle, role: .destructive) {
                 authManager.signOut()
                 navigationState.shouldShowBookSelection = false
             }

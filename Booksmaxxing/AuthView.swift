@@ -70,8 +70,19 @@ struct AuthView: View {
             .frame(height: 48)
             .padding(.horizontal)
 
-            Text("")
-                .frame(height: 1) // Spacer shim to keep spacing consistent
+            VStack(spacing: 4) {
+                Button(action: { authManager.startGuestSession() }) {
+                    Text("Continue as guest")
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+                Text("Progress stays on this device")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
             HStack(spacing: 4) {
                 Text("By continuing, you agree to our")

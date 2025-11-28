@@ -6,22 +6,31 @@ import CloudKit
 final class AuthManager: NSObject, ObservableObject {
     @Published private(set) var userIdentifier: String?
     @Published private(set) var isSignedIn: Bool = false
+    @Published private(set) var isGuestSession: Bool = false
     @Published var iCloudAccountAvailable: Bool = true
     @Published var authErrorMessage: String?
 
     private let userIdKey = "appleUserId"
+    private let guestSessionKey = "guestSessionActive"
+    private let defaults: UserDefaults
 
     override init() {
+        self.defaults = .standard
         super.init()
         self.userIdentifier = KeychainHelper.shared.get(userIdKey)
-        self.isSignedIn = (self.userIdentifier != nil)
+        let storedGuestSession = defaults.bool(forKey: guestSessionKey)
+        self.isGuestSession = storedGuestSession
+        self.isSignedIn = (self.userIdentifier != nil) || storedGuestSession
         startAccountStatusMonitoring()
     }
 
     func signOut() {
         KeychainHelper.shared.delete(userIdKey)
+        defaults.set(false, forKey: guestSessionKey)
         userIdentifier = nil
+        isGuestSession = false
         isSignedIn = false
+        authErrorMessage = nil
     }
 
     func handleAuthorization(result: Result<ASAuthorization, Error>) {
@@ -30,9 +39,11 @@ final class AuthManager: NSObject, ObservableObject {
             if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
                 let userID = credential.user
                 KeychainHelper.shared.set(userID, forKey: userIdKey)
+                defaults.set(false, forKey: guestSessionKey)
                 DispatchQueue.main.async {
                     self.userIdentifier = userID
                     self.isSignedIn = true
+                    self.isGuestSession = false
                     self.authErrorMessage = nil
                 }
             } else {
@@ -40,6 +51,17 @@ final class AuthManager: NSObject, ObservableObject {
             }
         case .failure(let error):
             DispatchQueue.main.async { self.authErrorMessage = error.localizedDescription }
+        }
+    }
+
+    func startGuestSession() {
+        defaults.set(true, forKey: guestSessionKey)
+        KeychainHelper.shared.delete(userIdKey)
+        DispatchQueue.main.async {
+            self.userIdentifier = nil
+            self.isGuestSession = true
+            self.isSignedIn = true
+            self.authErrorMessage = nil
         }
     }
 
@@ -91,4 +113,3 @@ final class AuthManager: NSObject, ObservableObject {
         }
     }
 }
-

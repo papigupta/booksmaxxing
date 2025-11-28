@@ -12,6 +12,7 @@ struct DailyPracticeHomepage: View {
     @EnvironmentObject var navigationState: NavigationState
     @EnvironmentObject var streakManager: StreakManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var authManager: AuthManager
     @Environment(\.colorScheme) private var colorScheme
     
     @State private var currentLessonNumber: Int = 0
@@ -156,6 +157,11 @@ struct DailyPracticeHomepage: View {
                         Button("Delete this book", role: .destructive) {
                             showingDeleteAlert = true
                         }
+                        let logoutTitle = authManager.isGuestSession ? "Exit guest mode" : "Log out"
+                        Button(logoutTitle, role: .destructive) {
+                            authManager.signOut()
+                            navigationState.shouldShowBookSelection = false
+                        }
                         Button("Cancel", role: .cancel) {}
                     }
                     .task {
@@ -249,6 +255,7 @@ struct DailyPracticeHomepage: View {
         }
         .animation(.easeInOut(duration: 0.25), value: tooltipLesson?.lessonNumber)
     }
+
 
     // MARK: - Header + Hero
     private func stickyHeader(palette: PracticePalette, tokens: ThemeTokens, safeTopInset: CGFloat) -> some View {

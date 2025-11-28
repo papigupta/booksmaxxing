@@ -31,81 +31,23 @@ struct BooksmaxxingApp: App {
     // Theme state
     @StateObject private var themeManager = ThemeManager()
     
-    // Track if we should try CloudKit sync
-    @State private var shouldEnableCloudKit = false
-    @State private var cloudKitContainer: ModelContainer?
-    @State private var persistentContainer: ModelContainer?
+    // Track active persistence containers
+    @State private var cloudModelContainer = BooksmaxxingApp.makeCloudModelContainer()
+    @State private var guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
     // Theme preset for global visual filter
     @State private var themePreset: ThemePreset = .system // treat as System Light by default
-    
-    var sharedModelContainer: ModelContainer = {
-        do {
-            let cloudConfig = ModelConfiguration(
-                cloudKitDatabase: .automatic
-            )
-            let container = try ModelContainer(
-                for: Book.self,
-                     Idea.self,
-                     Progress.self,
-                     Primer.self,
-                     Question.self,
-                     Test.self,
-                     TestAttempt.self,
-                     QuestionResponse.self,
-                     TestProgress.self,
-                     DailyCognitiveStats.self,
-                     PracticeSession.self,
-                     ReviewQueueItem.self,
-                     IdeaCoverage.self,
-                     MissedQuestionRecord.self,
-                     StoredLesson.self,
-                     PrimerLinkItem.self,
-                     StreakState.self,
-                     UserProfile.self,
-                     BookTheme.self,
-                configurations: cloudConfig
-            )
-            print("✅ Created CloudKit-backed ModelContainer")
-            return container
-        } catch {
-            print("❌ CloudKit container failed: \(error)")
-            // Fallback to in-memory only
-            do {
-                let inMemory = ModelConfiguration(isStoredInMemoryOnly: true)
-                let container = try ModelContainer(
-                    for: Book.self,
-                         Idea.self,
-                         Progress.self,
-                         Primer.self,
-                         Question.self,
-                         Test.self,
-                         TestAttempt.self,
-                     QuestionResponse.self,
-                     TestProgress.self,
-                     DailyCognitiveStats.self,
-                     PracticeSession.self,
-                     ReviewQueueItem.self,
-                     IdeaCoverage.self,
-                     MissedQuestionRecord.self,
-                     StoredLesson.self,
-                         PrimerLinkItem.self,
-                         StreakState.self,
-                         UserProfile.self,
-                         BookTheme.self,
-                    configurations: inMemory
-                )
-                print("✅ Created in-memory ModelContainer")
-                return container
-            } catch {
-                print("❌ In-memory container failed: \(error)")
-                fatalError("Cannot create any ModelContainer at all")
-            }
-        }
-    }()
 
     private func setupCloudKitIfNeeded() {}
     
     private func setupPersistentStorage() {}
+    
+    private var activeModelContainer: ModelContainer {
+        if authManager.isSignedIn && !authManager.isGuestSession {
+            return cloudModelContainer
+        } else {
+            return guestModelContainer
+        }
+    }
     
     var body: some Scene {
         WindowGroup {
@@ -138,15 +80,76 @@ struct BooksmaxxingApp: App {
                         isShowingSplash = false
                     }
                 }
-                // Storage already initialized via sharedModelContainer
+                // Storage already initialized via the active model container
             }
             // Removed global Experiments FAB overlay; access Experiments from kebab menu in BookOverviewView.
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(activeModelContainer)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 streakManager.refreshNotificationSchedule()
             }
         }
+        .onChange(of: authManager.isSignedIn) { _, signedIn in
+            if !signedIn {
+                guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
+            }
+        }
+        .onChange(of: authManager.isGuestSession) { _, isGuest in
+            if isGuest {
+                guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
+            }
+        }
+    }
+}
+
+private extension BooksmaxxingApp {
+    static func makeCloudModelContainer() -> ModelContainer {
+        do {
+            let cloudConfig = ModelConfiguration(cloudKitDatabase: .automatic)
+            let container = try makeModelContainer(configuration: cloudConfig)
+            print("✅ Created CloudKit-backed ModelContainer")
+            return container
+        } catch {
+            print("❌ CloudKit container failed: \(error)")
+            return makeGuestModelContainer()
+        }
+    }
+
+    static func makeGuestModelContainer() -> ModelContainer {
+        do {
+            let inMemory = ModelConfiguration(isStoredInMemoryOnly: true)
+            let container = try makeModelContainer(configuration: inMemory)
+            print("✅ Created in-memory ModelContainer")
+            return container
+        } catch {
+            print("❌ Failed to create in-memory container: \(error)")
+            fatalError("Cannot create guest ModelContainer")
+        }
+    }
+
+    static func makeModelContainer(configuration: ModelConfiguration) throws -> ModelContainer {
+        try ModelContainer(
+            for: Book.self,
+                 Idea.self,
+                 Progress.self,
+                 Primer.self,
+                 Question.self,
+                 Test.self,
+                 TestAttempt.self,
+                 QuestionResponse.self,
+                 TestProgress.self,
+                 DailyCognitiveStats.self,
+                 PracticeSession.self,
+                 ReviewQueueItem.self,
+                 IdeaCoverage.self,
+                 MissedQuestionRecord.self,
+                 StoredLesson.self,
+                 PrimerLinkItem.self,
+                 StreakState.self,
+                 UserProfile.self,
+                 BookTheme.self,
+            configurations: configuration
+        )
     }
 }
