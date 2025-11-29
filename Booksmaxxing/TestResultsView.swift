@@ -293,16 +293,6 @@ struct QuestionResultCard: View {
         evaluation.isCorrect
     }
     
-    private var statusLabel: (text: String, color: Color) {
-        guard let q = question else { return (evaluation.isCorrect ? "On Track" : "Off Track", evaluation.isCorrect ? .green : .red) }
-        let ratio = q.difficulty.pointValue > 0 ? Double(evaluation.pointsEarned) / Double(q.difficulty.pointValue) : 0
-        switch ratio {
-        case let r where r >= 0.70: return ("On Track", .green)
-        case let r where r >= 0.50: return ("Close", .orange)
-        default: return ("Off Track", .red)
-        }
-    }
-
     private var feedbackSegments: [(label: String, body: String)] {
         func normalize(_ s: String) -> String {
             var t = s
@@ -346,13 +336,14 @@ struct QuestionResultCard: View {
     }
 
     private var displayRows: [(title: String, body: String)] {
+        let shouldShowSummaryRow = !evaluation.isCorrect
         var dict: [String: String] = [:]
         for seg in feedbackSegments {
             let label = friendlyLabel(seg.label)
             dict[label] = seg.body
         }
         var rows: [(String, String)] = []
-        if let s = dict["Summary"] { rows.append(("Summary", s)) }
+        if shouldShowSummaryRow, let s = dict["Summary"] { rows.append(("Summary", s)) }
         if let fix = dict["What to fix"] ?? dict["Polish"] ?? dict["What worked"] {
             let title = dict["What to fix"] != nil ? "What to fix" : (dict["Polish"] != nil ? "Polish" : "What worked")
             rows.append((title, fix))
@@ -417,25 +408,13 @@ struct QuestionResultCard: View {
                 
                 Spacer()
                 
-                // Status + points
-                HStack(spacing: DS.Spacing.sm) {
-                    Text(statusLabel.text)
-                        .font(DS.Typography.captionBold)
-                        .foregroundStyle(statusLabel.color)
-                        .padding(.horizontal, DS.Spacing.xs)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(statusLabel.color.opacity(0.15))
-                        )
-                    Text("\(evaluation.pointsEarned) pts")
-                        .font(DS.Typography.captionBold)
-                        .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
-                }
+                Text("\(evaluation.pointsEarned) pts")
+                    .font(DS.Typography.captionBold)
+                    .foregroundStyle(themeManager.currentTokens(for: colorScheme).onSurface)
             }
             
             // Feedback (formatted)
-            if !evaluation.feedback.isEmpty {
+            if !displayRows.isEmpty {
                 VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     ForEach(Array(displayRows.enumerated()), id: \.offset) { _, row in
                         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
