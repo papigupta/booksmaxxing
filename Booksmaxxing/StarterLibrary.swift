@@ -65,6 +65,7 @@ struct StarterBookSeed: Decodable {
 
 enum StarterLibraryError: Error {
     case resourceMissing
+    case decodingFailed(Error)
 }
 
 final class StarterLibrary {
@@ -80,12 +81,19 @@ final class StarterLibrary {
             return cachedSeeds
         }
         guard let url = Bundle.main.url(forResource: "StarterBooks", withExtension: "json") else {
+            assertionFailure("StarterBooks.json is missing from the app bundle.")
             throw StarterLibraryError.resourceMissing
         }
-        let data = try Data(contentsOf: url)
-        let decoder = JSONDecoder()
-        let seeds = try decoder.decode([StarterBookSeed].self, from: data)
-        cachedSeeds = seeds
-        return seeds
+
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            let seeds = try decoder.decode([StarterBookSeed].self, from: data)
+            cachedSeeds = seeds
+            return seeds
+        } catch {
+            assertionFailure("Failed to decode StarterBooks.json: \(error)")
+            throw StarterLibraryError.decodingFailed(error)
+        }
     }
 }

@@ -11,6 +11,10 @@ struct MainView: View {
     @State private var hasTrackedAppOpen = false
     @State private var hasAttemptedStarterSeed = false
     @State private var userProfile: UserProfile?
+    @State private var starterSeedAttempts = 0
+    @State private var starterSeedErrorMessage: String?
+
+    private let maxStarterSeedAttempts = 3
 
     private var activeBook: Book? {
         if let selectedID = navigationState.selectedBookID,
@@ -40,6 +44,17 @@ struct MainView: View {
             } else {
                 ProgressView("Loading your library…")
             }
+        }
+        .alert(
+            "Starter Library Issue",
+            isPresented: Binding(
+                get: { starterSeedErrorMessage != nil },
+                set: { if !$0 { starterSeedErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { starterSeedErrorMessage = nil }
+        } message: {
+            Text(starterSeedErrorMessage ?? "")
         }
         .onChange(of: books) { _, newBooks in
             if let profile = userProfile {
@@ -84,7 +99,7 @@ struct MainView: View {
             if !hasAttemptedStarterSeed {
                 hasAttemptedStarterSeed = true
                 Task { @MainActor in
-                    seedStarterLibraryIfNeeded()
+                    await seedStarterLibraryIfNeeded()
                 }
             }
 
@@ -104,7 +119,8 @@ struct MainView: View {
 // MARK: - Starter Library Support
 extension MainView {
     @MainActor
-    private func seedStarterLibraryIfNeeded() {
+    private func seedStarterLibraryIfNeeded(retryAttempt: Int = 1) async {
+        starterSeedAttempts = retryAttempt
         do {
             let profile = try ensureUserProfile()
             self.userProfile = profile
@@ -122,13 +138,28 @@ extension MainView {
             }
 
             let seeder = StarterBookSeeder(modelContext: modelContext)
-            _ = try seeder.seedAllBooksIfNeeded()
+            let seededCount = try seeder.seedAllBooksIfNeeded()
+            if seededCount > 0 {
+                AnalyticsManager.shared.track(.starterLibrarySeeded(bookCount: seededCount))
+            }
             profile.starterLibraryVersion = currentVersion
             profile.updatedAt = Date.now
             try modelContext.save()
             updateNavigationState(for: profile, books: books)
         } catch {
-            print("DEBUG: Starter library seeding failed: \(error)")
+            print("DEBUG: Starter library seeding attempt \(retryAttempt) failed: \(error)")
+            AnalyticsManager.shared.track(
+                .starterLibrarySeedingFailed(
+                    reason: "Attempt \(retryAttempt) of \(maxStarterSeedAttempts): \(error.localizedDescription)"
+                )
+            )
+            if retryAttempt < maxStarterSeedAttempts {
+                let delay = UInt64(Double(retryAttempt) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: delay)
+                await seedStarterLibraryIfNeeded(retryAttempt: retryAttempt + 1)
+            } else {
+                starterSeedErrorMessage = "We couldn't load the starter library. Please relaunch or add a book manually. (\(error.localizedDescription))"
+            }
         }
     }
 

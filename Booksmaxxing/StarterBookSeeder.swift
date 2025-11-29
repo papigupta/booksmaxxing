@@ -9,14 +9,14 @@ struct StarterBookSeeder {
         self.bookService = BookService(modelContext: modelContext)
     }
 
-    func seedAllBooksIfNeeded() throws -> Bool {
+    func seedAllBooksIfNeeded() throws -> Int {
         let seeds = try StarterLibrary.shared.books()
-        var didSeedAnything = false
+        var seededCount = 0
         for seed in seeds {
             let seeded = try seedBookIfNeeded(seed)
-            didSeedAnything = didSeedAnything || seeded
+            if seeded { seededCount += 1 }
         }
-        return didSeedAnything
+        return seededCount
     }
 
     private func seedBookIfNeeded(_ seed: StarterBookSeed) throws -> Bool {

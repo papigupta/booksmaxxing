@@ -13,6 +13,8 @@ enum BMEvent {
         correct: Bool,
         difficulty: QuestionDifficultyMetric
     )
+    case starterLibrarySeeded(bookCount: Int)
+    case starterLibrarySeedingFailed(reason: String)
 }
 
 enum BookSource: String {
@@ -100,6 +102,10 @@ final class AnalyticsManager {
                     "difficulty": difficulty.rawValue
                 ]
             )
+        case let .starterLibrarySeeded(bookCount):
+            return ("starter_library_seeded", ["book_count": bookCount])
+        case let .starterLibrarySeedingFailed(reason):
+            return ("starter_library_seed_failed", ["reason": reason])
         }
     }
 
@@ -111,7 +117,7 @@ final class AnalyticsManager {
             incrementCounter(forKey: Keys.booksAdded)
         case .sessionCompleted:
             incrementCounter(forKey: Keys.totalSessionsCompleted)
-        case .sessionStarted, .questionAnswered:
+        case .sessionStarted, .questionAnswered, .starterLibrarySeeded, .starterLibrarySeedingFailed:
             break
         }
     }
