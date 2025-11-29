@@ -70,14 +70,21 @@ struct AuthView: View {
             .frame(height: 48)
             .padding(.horizontal)
 
-            VStack(spacing: 4) {
+            VStack(spacing: 8) {
                 Button(action: { authManager.startGuestSession() }) {
                     Text("Continue as guest")
-                        .underline()
+                        .font(DS.Typography.fraunces(size: 17, weight: .semibold))
+                        .tracking(DS.Typography.defaultTracking(for: 17))
+                        .foregroundStyle(DS.Colors.primaryText)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(DS.Colors.gray100)
+                        )
                 }
                 .buttonStyle(.plain)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .padding(.horizontal)
 
                 Text("Progress stays on this device")
                     .font(.caption2)
