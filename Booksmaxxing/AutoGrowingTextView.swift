@@ -13,6 +13,7 @@ typealias PlatformColor = NSColor
 struct AutoGrowingTextView: View {
     @Binding var text: String
     @Binding var measuredHeight: CGFloat
+    @Binding var isFocused: Bool
     var minHeight: CGFloat
     var maxHeight: CGFloat
     var isDisabled: Bool
@@ -26,6 +27,7 @@ struct AutoGrowingTextView: View {
         AutoGrowingTextViewRepresentable(
             text: $text,
             measuredHeight: $measuredHeight,
+            isFocused: $isFocused,
             minHeight: minHeight,
             maxHeight: maxHeight,
             isDisabled: isDisabled,
@@ -39,6 +41,7 @@ struct AutoGrowingTextView: View {
         AutoGrowingTextViewRepresentable(
             text: $text,
             measuredHeight: $measuredHeight,
+            isFocused: $isFocused,
             minHeight: minHeight,
             maxHeight: maxHeight,
             isDisabled: isDisabled,
@@ -56,6 +59,7 @@ struct AutoGrowingTextView: View {
 private struct AutoGrowingTextViewRepresentable: UIViewRepresentable {
     @Binding var text: String
     @Binding var measuredHeight: CGFloat
+    @Binding var isFocused: Bool
     let minHeight: CGFloat
     let maxHeight: CGFloat
     let isDisabled: Bool
@@ -92,17 +96,7 @@ private struct AutoGrowingTextViewRepresentable: UIViewRepresentable {
         uiView.isSelectable = !isDisabled
         context.coordinator.updateConfiguration(for: uiView)
         context.coordinator.refreshHeightIfNeeded(for: uiView)
-        handleFocusIfNeeded(for: uiView, context: context)
-    }
-    
-    private func handleFocusIfNeeded(for textView: UITextView, context: Context) {
-        if context.environment.isFocused && !isDisabled {
-            if !textView.isFirstResponder {
-                textView.becomeFirstResponder()
-            }
-        } else if textView.isFirstResponder {
-            textView.resignFirstResponder()
-        }
+        context.coordinator.syncFocus(for: uiView)
     }
     
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -122,7 +116,12 @@ private struct AutoGrowingTextViewRepresentable: UIViewRepresentable {
         }
         
         func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.isFocused = true
             onActivity()
+        }
+        
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.isFocused = false
         }
         
         func updateConfiguration(for textView: UITextView) {
@@ -144,7 +143,7 @@ private struct AutoGrowingTextViewRepresentable: UIViewRepresentable {
             if abs(clamped - cachedHeight) > 0.5 {
                 cachedHeight = clamped
                 DispatchQueue.main.async {
-                    parent.measuredHeight = clamped
+                    self.parent.measuredHeight = clamped
                 }
             }
             textView.isScrollEnabled = size.height > parent.maxHeight
@@ -161,12 +160,25 @@ private struct AutoGrowingTextViewRepresentable: UIViewRepresentable {
         private func onActivity() {
             parent.onActivity?()
         }
+        
+        func syncFocus(for textView: UITextView) {
+            guard !parent.isDisabled else {
+                if textView.isFirstResponder { textView.resignFirstResponder() }
+                return
+            }
+            if parent.isFocused && !textView.isFirstResponder {
+                textView.becomeFirstResponder()
+            } else if !parent.isFocused && textView.isFirstResponder {
+                textView.resignFirstResponder()
+            }
+        }
     }
 }
 #elseif os(macOS)
 private struct AutoGrowingTextViewRepresentable: NSViewRepresentable {
     @Binding var text: String
     @Binding var measuredHeight: CGFloat
+    @Binding var isFocused: Bool
     let minHeight: CGFloat
     let maxHeight: CGFloat
     let isDisabled: Bool
@@ -206,17 +218,7 @@ private struct AutoGrowingTextViewRepresentable: NSViewRepresentable {
         textView.isSelectable = !isDisabled
         context.coordinator.updateConfiguration(for: textView)
         context.coordinator.refreshHeightIfNeeded(for: textView)
-        handleFocusIfNeeded(for: textView, context: context)
-    }
-    
-    private func handleFocusIfNeeded(for textView: NSTextView, context: Context) {
-        if context.environment.isFocused && !isDisabled {
-            if textView.window?.firstResponder != textView {
-                textView.window?.makeFirstResponder(textView)
-            }
-        } else if textView.window?.firstResponder == textView {
-            textView.window?.resignFirstResponder()
-        }
+        context.coordinator.syncFocus(for: textView)
     }
     
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -238,7 +240,12 @@ private struct AutoGrowingTextViewRepresentable: NSViewRepresentable {
         }
         
         func textDidBeginEditing(_ notification: Notification) {
+            parent.isFocused = true
             onActivity()
+        }
+        
+        func textDidEndEditing(_ notification: Notification) {
+            parent.isFocused = false
         }
         
         func updateConfiguration(for textView: NSTextView?) {
@@ -261,7 +268,7 @@ private struct AutoGrowingTextViewRepresentable: NSViewRepresentable {
             if abs(clamped - cachedHeight) > 0.5 {
                 cachedHeight = clamped
                 DispatchQueue.main.async {
-                    parent.measuredHeight = clamped
+                    self.parent.measuredHeight = clamped
                 }
             }
             let needsScroll = size.height > parent.maxHeight
@@ -278,6 +285,22 @@ private struct AutoGrowingTextViewRepresentable: NSViewRepresentable {
         
         private func onActivity() {
             parent.onActivity?()
+        }
+        
+        func syncFocus(for textView: NSTextView) {
+            guard !parent.isDisabled else {
+                if textView.window?.firstResponder == textView {
+                    textView.window?.makeFirstResponder(nil)
+                }
+                return
+            }
+            if parent.isFocused {
+                if textView.window?.firstResponder != textView {
+                    textView.window?.makeFirstResponder(textView)
+                }
+            } else if textView.window?.firstResponder == textView {
+                textView.window?.makeFirstResponder(nil)
+            }
         }
     }
 }

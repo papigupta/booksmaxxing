@@ -1058,7 +1058,7 @@ struct OpenEndedInput: View {
     var onActivity: (() -> Void)? = nil
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
-    @FocusState private var isFocused: Bool
+    @State private var isFocused: Bool = false
     @State private var measuredHeight: CGFloat = 120
     private let minEditorHeight: CGFloat = 120
     private let maxEditorHeight: CGFloat = 260
@@ -1083,6 +1083,7 @@ struct OpenEndedInput: View {
             AutoGrowingTextView(
                 text: $response,
                 measuredHeight: $measuredHeight,
+                isFocused: $isFocused,
                 minHeight: minEditorHeight,
                 maxHeight: maxEditorHeight,
                 isDisabled: isDisabled,
@@ -1091,7 +1092,6 @@ struct OpenEndedInput: View {
                 kerning: DS.Typography.tightTracking(for: 16),
                 onActivity: onActivity
             )
-            .focused($isFocused)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(DS.Spacing.md)
             .background(
