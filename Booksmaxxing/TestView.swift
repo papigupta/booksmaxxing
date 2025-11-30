@@ -1059,32 +1059,53 @@ struct OpenEndedInput: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isFocused: Bool
+    @State private var measuredHeight: CGFloat = 120
+    private let minEditorHeight: CGFloat = 120
+    private let maxEditorHeight: CGFloat = 260
     
     var body: some View {
         let theme = themeManager.currentTokens(for: colorScheme)
+        let platformFont: PlatformFont = {
+            #if os(iOS)
+            return UIFont(name: "Fraunces", size: 16) ?? UIFont.preferredFont(forTextStyle: .body)
+            #else
+            return NSFont(name: "Fraunces", size: 16) ?? NSFont.preferredFont(forTextStyle: .body)
+            #endif
+        }()
+        let platformColor: PlatformColor = {
+            #if os(iOS)
+            return UIColor(theme.onSurface)
+            #else
+            return NSColor(theme.onSurface)
+            #endif
+        }()
         VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            TextEditor(text: $response)
-                .font(DS.Typography.body)
-                .tracking(DS.Typography.tightTracking(for: 16))
-                .lineSpacing(4)
-                .foregroundStyle(theme.onSurface)
-                .scrollContentBackground(.hidden)
-                .background(.clear)
-                .frame(minHeight: 120)
-                .padding(DS.Spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(theme.surfaceVariant)
-                )
-                .disabled(isDisabled)
-                .focused($isFocused)
-                .onChange(of: response) { _, _ in
-                    onActivity?()
+            AutoGrowingTextView(
+                text: $response,
+                measuredHeight: $measuredHeight,
+                minHeight: minEditorHeight,
+                maxHeight: maxEditorHeight,
+                isDisabled: isDisabled,
+                font: platformFont,
+                textColor: platformColor,
+                kerning: DS.Typography.tightTracking(for: 16),
+                onActivity: onActivity
+            )
+            .focused($isFocused)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(DS.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(theme.surfaceVariant)
+            )
+            .onAppear(perform: focusIfNeeded)
+            .onChange(of: isDisabled) { _, newValue in
+                if newValue {
+                    isFocused = false
+                } else {
+                    focusIfNeeded()
                 }
-                .onAppear(perform: focusIfNeeded)
-                .onChange(of: isDisabled) { _, newValue in
-                    if newValue == false { focusIfNeeded() }
-                }
+            }
         }
     }
 
