@@ -133,6 +133,34 @@ Bloom's Level: {BLOOM_CATEGORY} - {BLOOM_DESCRIPTION}
 
 Generate a question that specifically tests the {BLOOM_CATEGORY} level of understanding.
 
+# --- Format Requirement Blocks (TestGenerationService.swift:1140-1182) ---
+MCQ Requirements:
+- Exactly 4 options
+- Only 1 correct answer
+- Distractors should be plausible but clearly wrong
+- Avoid "all of the above" or "none of the above"
+- Question length: {QUESTION_CHAR_LIMIT} characters max
+- Each option: {OPTION_CHAR_LIMIT} characters max
+- Options must be parallel in structure and similar in length (±20% of average); do not make the correct answer longer than others
+- Do NOT prefix options with letters or numbers (no "A.", "1)", etc.)
+
+MSQ Requirements:
+- Exactly 4 options
+- 2-3 correct answers
+- Each option should be independently evaluable
+- Clear indication that multiple answers are expected
+- Question length: {QUESTION_CHAR_LIMIT} characters max
+- Each option: {OPTION_CHAR_LIMIT} characters max
+- Options must be parallel in structure and similar in length (±20% of average)
+- Do NOT prefix options with letters or numbers (no "A.", "1)", etc.)
+
+Open-Ended Requirements:
+- Requires 2-4 sentences to answer properly
+- Cannot be answered with yes/no
+- Has clear evaluation criteria
+- Encourages explanation and reasoning
+- Question length: {QUESTION_CHAR_LIMIT} characters max
+
 # --- Reframe OEQ Prompt Override ---
 [System Prompt]
 Write a single, simple prompt that asks the learner to explain the idea in their own words.
