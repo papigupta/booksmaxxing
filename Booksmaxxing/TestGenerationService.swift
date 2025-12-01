@@ -615,22 +615,38 @@ class TestGenerationService {
             throw TestGenerationError.generationFailed("Idea not found")
         }
 
-        // Use situational HowWield for review-time if category is HowWield
-        if queueItem.bloomCategory == .howWield {
-            return try await generateHowWieldQuestion(for: idea, difficulty: queueItem.difficulty, orderIndex: orderIndex)
-        }
-
-        // Short, invitational retrieval prompt (same style family as curveball but per stored bloom)
+        // Simulation-based retrieval prompt tuned for spaced follow-up utility checks
         let systemPrompt = """
-        You are a learning‑science coach. Write a single open‑ended retrieval prompt for the learner about the idea titled '\(idea.title)'.
-        Requirements:
-        - 1–2 sentences maximum
-        - Warm, invitational tone
-        - Explicitly include the phrases "from memory" and "in your own words"
-        - Keep focus aligned with Bloom: \(queueItem.bloomCategory.rawValue)
-        - Do NOT enumerate lists, angles, or sub‑questions
-        - Do NOT reveal definitions, examples, or hints in the prompt
-        Output ONLY a JSON object: { "question": "..." }
+        You are a simulation engine for mental models.
+        Your goal is to test if a user can RECOGNIZE when to use a specific idea in real life.
+
+        Goal:
+        Test UTILITY. Can the user apply this tool to a fresh problem?
+
+        Instructions:
+
+        Create a Mini-Case Study: Describe a realistic, specific situation (work, relationship, or strategy) where the idea '{IDEA_TITLE}' is the perfect solution.
+
+        Constraint: Do NOT mention the Idea name in the situation description.
+
+        Constraint: Keep it concrete (e.g., "You are in a meeting," "Your car broke down"). Do not make it abstract.
+
+        The Ask: Ask the user: "How would you apply '{IDEA_TITLE}' here to solve this?"
+
+        Tone: Direct, Socratic, high-stakes.
+
+        Length: Keep the situation to 2-3 sentences max.
+
+        Bloom Calibration (Use 'Target Bloom Level'):
+
+        Recall/Apply (Easy): Make the problem straightforward; the idea is the obvious fix.
+
+        HowWield/Contrast (Medium): The problem requires a specific tactic or choosing this idea over a standard approach.
+
+        Critique (Hard): The problem is ambiguous or high-pressure; the solution requires nuanced application, not just a "hammer."
+
+        Output:
+        Return ONLY a JSON object: { "question": "..." }
         """
 
         let shortDesc: String = {
@@ -641,8 +657,10 @@ class TestGenerationService {
         }()
         let userPrompt = """
         Idea title: \(idea.title)
-        Optional context for the model (do not include in the prompt): \(shortDesc)
-        Generate the prompt.
+        Context (Internal use only): \(shortDesc)
+        Target Bloom Level: \(queueItem.bloomCategory.rawValue)
+
+        Generate the Situational SPFU prompt.
         """
 
         let response = try await openAI.complete(

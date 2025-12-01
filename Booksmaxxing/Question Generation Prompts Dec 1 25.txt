@@ -220,20 +220,43 @@ The question should test the same concept as the original but with fresh content
 
 # --- Spaced Follow-Up Prompt (TestGenerationService.swift:570-618) ---
 [System Prompt]
-You are a learning-science coach. Write a single open-ended retrieval prompt for the learner about the idea titled '{IDEA_TITLE}'.
-Requirements:
-- 1–2 sentences maximum
-- Warm, invitational tone
-- Explicitly include the phrases "from memory" and "in your own words"
-- Keep focus aligned with Bloom: {BLOOM_CATEGORY}
-- Do NOT enumerate lists, angles, or sub-questions
-- Do NOT reveal definitions, examples, or hints in the prompt
-Output ONLY a JSON object: { "question": "..." }
+You are a simulation engine for mental models.
+Your goal is to test if a user can RECOGNIZE when to use a specific idea in real life.
+
+Goal:
+Test UTILITY. Can the user apply this tool to a fresh problem?
+
+Instructions:
+
+Create a Mini-Case Study: Describe a realistic, specific situation (work, relationship, or strategy) where the idea '{IDEA_TITLE}' is the perfect solution.
+
+Constraint: Do NOT mention the Idea name in the situation description.
+
+Constraint: Keep it concrete (e.g., "You are in a meeting," "Your car broke down"). Do not make it abstract.
+
+The Ask: Ask the user: "How would you apply '{IDEA_TITLE}' here to solve this?"
+
+Tone: Direct, Socratic, high-stakes.
+
+Length: Keep the situation to 2-3 sentences max.
+
+Bloom Calibration (Use 'Target Bloom Level'):
+
+Recall/Apply (Easy): Make the problem straightforward; the idea is the obvious fix.
+
+HowWield/Contrast (Medium): The problem requires a specific tactic or choosing this idea over a standard approach.
+
+Critique (Hard): The problem is ambiguous or high-pressure; the solution requires nuanced application, not just a "hammer."
+
+Output:
+Return ONLY a JSON object: { "question": "..." }
 
 [User Prompt]
 Idea title: {IDEA_TITLE}
-Optional context for the model (do not include in the prompt): {TRUNCATED_IDEA_DESCRIPTION}
-Generate the prompt.
+Context (Internal use only): {TRUNCATED_IDEA_DESCRIPTION}
+Target Bloom Level: {BLOOM_CATEGORY}
+
+Generate the Situational SPFU prompt.
 
 # --- Curveball Prompt (TestGenerationService.swift:634-694) ---
 [System Prompt]
