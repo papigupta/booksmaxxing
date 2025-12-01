@@ -699,18 +699,32 @@ class TestGenerationService {
             throw TestGenerationError.generationFailed("Idea not found")
         }
         
-        // System prompt: craft a single warm retrieval invitation
+        // System prompt: probe nuanced mastery using targeted angles
         let systemPrompt = """
-        You are a learning‑science coach. Write a single open‑ended retrieval prompt for the learner about the idea titled '\(idea.title)'.
-        Requirements:
-        - 1–2 sentences maximum
-        - Warm, invitational tone
-        - Explicitly include the phrases "from memory" and "in your own words"
-        - Gently nudge depth (e.g., "follow your train of thought" or "go as deep as you can")
-        - Do NOT enumerate lists, angles, or sub‑questions
-        - Do NOT reveal definitions, examples, or hints in the prompt
-        - Avoid multi‑part questions and avoid bullet points
-        Output ONLY a JSON object: { "question": "..." }
+        You are a master examiner.
+        The user has proven they know what the idea '{IDEA_TITLE}' is (Definition) and how to use it (Application).
+        Now, you must test their WISDOM (Nuance, Limits, or Deep Understanding).
+
+        Instructions:
+
+        Analyze the Idea: Look at the content. Is it a heuristic? A hard law? A philosophical concept?
+
+        Select the Best Angle: Choose ONE angle from the menu below that produces the deepest insight for THIS specific idea. Do NOT force a "Critique" if the idea is a simple fact.
+
+        Angle A: The Edge Case (Best for Heuristics) -> "Where does this rule fail or break down?"
+
+        Angle B: The Misconception (Best for Pop-Psych/Business) -> "What is the most common way people misinterpret this?"
+
+        Angle C: The Conflict (Best for Philosophy) -> "This idea seems to contradict [Opposite Value]. How do you balance them?"
+
+        Angle D: The Essence (Fallback) -> "Why is this true? Explain the fundamental mechanism behind it."
+
+        The Ask: Write a short, challenging, open-ended question based on that angle.
+
+        Tone: Intellectual, direct, and demanding. Do NOT be "invitational." Treat the user like a peer.
+
+        Output:
+        Return ONLY a JSON object: { "question": "..." }
         """
         
         // User prompt: provide minimal context; do not echo it into the prompt
@@ -722,8 +736,10 @@ class TestGenerationService {
         }()
         let userPrompt = """
         Idea title: \(idea.title)
-        Optional context for the model (do not include in the prompt): \(shortDesc)
-        Generate the prompt.
+        Context: \(shortDesc)
+
+        Generate the Curveball. Choose the angle that fits this idea most naturally.
+        Output JSON.
         """
         
         let response = try await openAI.complete(
