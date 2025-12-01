@@ -1166,6 +1166,7 @@ class TestGenerationService {
             - Question length: \(characterLimits.question) characters max
             - Each option: \(characterLimits.option) characters max
             - Options must be parallel in structure and similar in length (±20% of average); do not make the correct answer longer than others
+            - Do NOT prefix options with letters or numbers (no "A.", "1)", etc.)
             """
         case .msq:
             return """
@@ -1177,6 +1178,7 @@ class TestGenerationService {
             - Question length: \(characterLimits.question) characters max
             - Each option: \(characterLimits.option) characters max
             - Options must be parallel in structure and similar in length (±20% of average)
+            - Do NOT prefix options with letters or numbers (no "A.", "1)", etc.)
             """
         case .openEnded:
             return """
