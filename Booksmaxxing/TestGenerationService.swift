@@ -291,12 +291,6 @@ class TestGenerationService {
             let correct: [Int]?
         }
 
-        func specForSlot(_ i: Int) -> (type: String, bloom: String, difficulty: String) {
-            let (bloom, diff, qType) = self.getQuestionConfigForSlot(i)
-            let t = (qType == .openEnded) ? "OpenEnded" : "MCQ"
-            return (t, bloom.rawValue, diff.rawValue)
-        }
-
         func processBatch(_ items: [BatchedItem], expectedIndices: [Int]) async throws -> [Question] {
             let idxSet = Set(items.map { $0.orderIndex })
             guard idxSet == Set(expectedIndices) else {
@@ -305,6 +299,18 @@ class TestGenerationService {
 
             var byIndex: [Int: BatchedItem] = [:]
             for item in items { byIndex[item.orderIndex] = item }
+
+            let middleBloomSet: Set<String> = [
+                BloomCategory.whyImportant.rawValue,
+                BloomCategory.whenUse.rawValue,
+                BloomCategory.contrast.rawValue,
+                BloomCategory.howWield.rawValue
+            ]
+            let bossBloomSet: Set<String> = [
+                BloomCategory.critique.rawValue,
+                BloomCategory.howWield.rawValue,
+                BloomCategory.contrast.rawValue
+            ]
 
             func norm(_ s: String) -> String {
                 return s.lowercased()
@@ -316,14 +322,41 @@ class TestGenerationService {
             var out: [Question] = []
             for i in expectedIndices.sorted() {
                 guard let item = byIndex[i] else { continue }
-                let expected = specForSlot(i)
-                guard item.type == expected.type && item.bloom == expected.bloom && item.difficulty == expected.difficulty else {
-                    throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) spec mismatch")
+                guard item.type == "MCQ" else {
+                    throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) must be MCQ")
+                }
+                switch i {
+                case 0:
+                    guard item.bloom == BloomCategory.recall.rawValue,
+                          item.difficulty == QuestionDifficulty.easy.rawValue else {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot 0 must be Recall/Easy")
+                    }
+                case 1:
+                    guard item.bloom == BloomCategory.apply.rawValue,
+                          item.difficulty == QuestionDifficulty.easy.rawValue else {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot 1 must be Apply/Easy")
+                    }
+                case 2...5:
+                    guard item.difficulty == QuestionDifficulty.medium.rawValue else {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) must be Medium difficulty")
+                    }
+                    guard middleBloomSet.contains(item.bloom) else {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) bloom not in middle set")
+                    }
+                case 6:
+                    guard item.difficulty == QuestionDifficulty.hard.rawValue else {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot 6 must be Hard difficulty")
+                    }
+                    guard bossBloomSet.contains(item.bloom) else {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot 6 bloom not in boss set")
+                    }
+                default:
+                    throw TestGenerationError.generationFailed("UNIFIED: Unexpected slot index \(i)")
                 }
                 guard !item.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) empty question")
                 }
-                if expected.type == "MCQ" {
+                if item.type == "MCQ" {
                     guard let options = item.options, let correct = item.correct, options.count == 4, correct.count == 1 else {
                         throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) MCQ shape invalid")
                     }
@@ -335,7 +368,7 @@ class TestGenerationService {
                     throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) OpenEnded must omit options/correct")
                 }
 
-                let type: QuestionType = (item.type == "OpenEnded") ? .openEnded : .mcq
+                let type: QuestionType = .mcq
                 guard let bloom = BloomCategory(rawValue: item.bloom), let difficulty = QuestionDifficulty(rawValue: item.difficulty) else {
                     throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) unknown enums")
                 }
@@ -364,47 +397,50 @@ class TestGenerationService {
 
         func unifiedSystemPrompt() -> String {
             """
-            You are an expert non-fiction learning designer.
+            You are an expert mental model coach for high-performers.
             Create seven multiple-choice questions (Q1–Q7) for one idea.
+
+            Tone & Style:
+
+            ANTI-TEXTBOOK RULE: You are forbidden from using generic names (Alice, Bob), classroom examples (apples, widgets), or abstract academic language.
+
+            REAL WORLD ONLY: Frame every question in the context of a messy, real-world situation. Use "You" or specific roles (e.g., "A product manager," "A parent," "A general").
+
+            Direct & Sharp: Cut the fluff. Get to the decision point immediately.
+
+            Guardrails:
+
+            NO DUPLICATE SCENARIOS: If you reuse the same Bloom type (e.g., two HowWield questions), the situations must be completely different. Bad: "meeting" vs "team discussion". Good: "meeting" vs "strategy doc".
+
             Goals:
-            - Difficulty must rise steadily: Q1 is easiest, Q7 is the toughest.
-            - Each question probes a distinct angle so the learner builds robust understanding.
-            - Avoid yes/no or trick questions. Keep stems concrete and scenario-based when possible.
-            - Provide exactly 4 parallel, succinct options with ONE correct answer. No "all/none of the above".
-            - Keep options similar length so the correct choice is not obvious.
-            Output ONLY JSON matching the schema; no prose, no explanations.
+
+            Difficulty must rise steadily: Q1 is warm-up, Q7 is the "Final Boss."
+
+            Dynamic Selection: You must choose the Bloom types for Q3–Q7 that BEST fit the specific Idea. Prioritize logical fit over variety.
+
+            Provide exactly 4 parallel, succinct options with ONE correct answer.
+
+            No "all/none of the above".
+
+            Output ONLY JSON matching the schema.
             """
         }
 
         func unifiedUserPrompt(_ idea: Idea) -> String {
-            let slotSpecs: [(Int, String, String)] = [
-                (0, "Easy", "Recall or restate the core idea."),
-                (1, "Easy", "Show a simple real-life application."),
-                (2, "Medium", "Explain why the idea matters / stakes."),
-                (3, "Medium", "Identify when/where to use the idea."),
-                (4, "Medium", "Contrast the idea with a common alternative or misconception."),
-                (5, "Medium", "Demonstrate how to wield the idea through a multi-step scenario."),
-                (6, "Hard", "Pressure-test the idea's limits or trade-offs in the toughest scenario.")
-            ]
-
-            let specLines = slotSpecs.map { spec in
-                "- orderIndex=\(spec.0), type=MCQ, bloom=\(specForSlot(spec.0).bloom), difficulty=\(spec.1), focus=\(spec.2)"
-            }.joined(separator: "\n")
-
             let schema = """
             JSON schema:
             {
-              "questions": [
-                {
-                  "orderIndex": 0..6,
-                  "type": "MCQ",
-                  "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|HowWield|Critique",
-                  "difficulty": "Easy|Medium|Hard",
-                  "question": "string",
-                  "options": ["A","B","C","D"],
-                  "correct": [0]
-                }
-              ]
+            "questions": [
+            {
+            "orderIndex": 0..6,
+            "type": "MCQ",
+            "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|HowWield|Critique",
+            "difficulty": "Easy|Medium|Hard",
+            "question": "string",
+            "options": ["A","B","C","D"],
+            "correct": [0]
+            }
+            ]
             }
             """
 
@@ -413,8 +449,29 @@ class TestGenerationService {
             Idea description: \(idea.ideaDescription)
             Book: \(idea.bookTitle)
 
-            Generate exactly 7 MCQs using this spec (Q1 easiest → Q7 hardest):
-            \(specLines)
+            Generate exactly 7 MCQs. Follow this difficulty curve, but CHOOSE the specific Bloom type that makes the most sense for this Idea.
+
+            The Warm-Up (Fixed Types):
+
+            orderIndex=0: Recall (Easy) - Restate the core law/definition.
+
+            orderIndex=1: Apply (Easy) - A very simple, direct application.
+
+            The Middle (Dynamic Types - Repeats Allowed but MUST be Distinct Scenarios):
+            Instruction: Choose the best Bloom type from [WhyImportant, WhenUse, Contrast, HowWield] for each slot. Ensure the difficulty is strictly MEDIUM. If you repeat a Bloom, the scenario must change completely (e.g., meeting vs strategy doc, not meeting vs team discussion).
+
+            orderIndex=2 (Medium): Select best fit for "Context/Stakes".
+
+            orderIndex=3 (Medium): Select best fit for "Tactical Application".
+
+            orderIndex=4 (Medium): Select best fit for "Nuance/Details".
+
+            orderIndex=5 (Medium): Select best fit for "Complex Scenario".
+
+            The Boss (Dynamic Type):
+            Instruction: Choose the best Bloom type from [Critique, HowWield, Contrast] for this slot. Ensure the difficulty is strictly HARD.
+
+            orderIndex=6 (Hard): Must be a difficult, ambiguous, or high-pressure scenario testing mastery.
 
             \(schema)
             """
@@ -483,38 +540,18 @@ class TestGenerationService {
         // Unified path failed or disabled: generate slot-by-slot
         var questions: [Question] = []
         
-        // Fixed order with specific question types and difficulties:
-        // Q1: Recall (Easy, MCQ)
-        // Q2: Apply (Easy, MCQ)  
-        // Q3: WhyImportant (Medium, MCQ)
-        // Q4: WhenUse (Medium, MCQ)
-        // Q5: Contrast (Medium, MCQ)
-        // Q6: HowWield (Medium, MCQ)
-        // Q7: Critique (Hard, MCQ)
-        // Q8: Reframe (Hard, Open-ended)
-        
-        let categoryDistribution: [(BloomCategory, QuestionDifficulty, QuestionType)] = [
-            (.recall, .easy, .mcq),           // Q1
-            (.apply, .easy, .mcq),            // Q2
-            (.whyImportant, .medium, .mcq),   // Q3
-            (.whenUse, .medium, .mcq),        // Q4
-            (.contrast, .medium, .mcq),       // Q5
-            (.howWield, .medium, .mcq),       // Q6
-            (.critique, .hard, .mcq),         // Q7
-            (.reframe, .hard, .openEnded)     // Q8 - Open-ended reframe
-        ]
-        
-        // Generate questions in the fixed order
-        for (index, (category, difficulty, type)) in categoryDistribution.enumerated() {
+        // Generate questions aligned to the prompt's difficulty curve (fixed for slots 0-1 & 7, dynamic otherwise)
+        for slot in 0...7 {
+            let (category, difficulty, type) = getQuestionConfigForSlot(slot)
             let question = try await generateQuestion(
                 for: idea,
                 type: type,
                 difficulty: difficulty,
                 bloomCategory: category,
-                orderIndex: index
+                orderIndex: slot
             )
             questions.append(question)
-            logger.debug("Generated Q\(index + 1): \(category.rawValue) - \(type.rawValue) - orderIndex: \(index)")
+            logger.debug("Generated Q\(slot + 1): \(category.rawValue) - \(type.rawValue) - orderIndex: \(slot)")
         }
         
         // Verify order before returning
@@ -1232,17 +1269,23 @@ class TestGenerationService {
     }
 
     private func getQuestionConfigForSlot(_ slotIndex: Int) -> (BloomCategory, QuestionDifficulty, QuestionType) {
-        // Fixed configuration for each slot
+        let middlePool: [BloomCategory] = [.whyImportant, .whenUse, .contrast, .howWield]
+        let bossPool: [BloomCategory] = [.critique, .howWield, .contrast]
         switch slotIndex {
-        case 0: return (.recall, .easy, .mcq)           // Q1
-        case 1: return (.apply, .easy, .mcq)            // Q2
-        case 2: return (.whyImportant, .medium, .mcq)   // Q3
-        case 3: return (.whenUse, .medium, .mcq)        // Q4
-        case 4: return (.contrast, .medium, .mcq)       // Q5
-        case 5: return (.howWield, .medium, .mcq)       // Q6
-        case 6: return (.critique, .hard, .mcq)         // Q7
-        case 7: return (.reframe, .hard, .openEnded)    // Q8
-        default: return (.recall, .easy, .mcq)          // Fallback
+        case 0:
+            return (.recall, .easy, .mcq)
+        case 1:
+            return (.apply, .easy, .mcq)
+        case 2, 3, 4, 5:
+            let bloom = middlePool.randomElement() ?? .whyImportant
+            return (bloom, .medium, .mcq)
+        case 6:
+            let bloom = bossPool.randomElement() ?? .critique
+            return (bloom, .hard, .mcq)
+        case 7:
+            return (.reframe, .hard, .openEnded)
+        default:
+            return (.recall, .easy, .mcq)
         }
     }
     
