@@ -43,5 +43,9 @@
     <false/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>This app uses notifications to send helpful updates and reminders.</string>
 </dict>
 </plist>
