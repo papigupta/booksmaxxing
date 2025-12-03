@@ -6,6 +6,8 @@ struct PrimerView: View {
     let openAIService: OpenAIService
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    private let tightTracking: CGFloat = -0.6
+    private let horizontalPadding: CGFloat = 32
     
     @State private var primerService: PrimerService?
     @State private var primer: Primer?
@@ -28,7 +30,6 @@ struct PrimerView: View {
         NavigationView {
             VStack(spacing: 0) {
                 headerView
-                DSDivider()
                 contentView
             }
         }
@@ -55,33 +56,24 @@ struct PrimerView: View {
         let theme = themeManager.currentTokens(for: colorScheme)
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             // Book title with enhanced styling
-            HStack(spacing: DS.Spacing.xs) {
-                DSIcon("book.closed.fill", size: 14)
-                    .foregroundColor(theme.onSurface.opacity(0.7))
-                
-                Text(idea.bookTitle)
-                    .font(DS.Typography.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(theme.onSurface.opacity(0.7))
-                    .textCase(.uppercase)
-                    .tracking(0.8)
-            }
+            Text(idea.bookTitle)
+                .font(DS.Typography.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(theme.onSurface.opacity(0.7))
+                .textCase(.uppercase)
+                .tracking(tightTracking)
             
             // Primer title with better hierarchy
             Text(idea.title)
                 .font(DS.Typography.title2)
                 .fontWeight(.semibold)
+                .tracking(tightTracking)
                 .foregroundStyle(DS.Colors.primaryText)
                 .lineLimit(2)
             
-            // Subtle divider
-            Rectangle()
-                .fill(theme.divider)
-                .frame(height: 1)
-                .frame(maxWidth: 80)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.horizontal, horizontalPadding)
         .padding(.top, DS.Spacing.xl)
         .padding(.bottom, DS.Spacing.lg)
         .background(theme.surface)
@@ -125,30 +117,28 @@ struct PrimerView: View {
     }
     
     private func primerContentView(_ primer: Primer) -> some View {
-        ScrollView {
+        let hasNewContent = hasNewEncodingContent(primer)
+        return ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
-                thesisSection(primer)
-                
-                // Secondary sections with tighter spacing
-                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
-                    storySection(primer)
-                    examplesSection(primer)
-                    useItWhenSection(primer)
-                    howToApplySection(primer)
-                    edgesAndLimitsSection(primer)
+                if hasNewContent {
+                    shiftSection(primer)
+                    anchorSection(primer)
+                    mechanismSection(primer)
+                    lensSection(primer)
+                    rabbitHoleSection(primer)
                 }
                 
-                // Key recall section (prominent)
-                oneLineRecallSection(primer)
-                
-                // Additional resources
-                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                if hasNewContent {
                     furtherLearningSection(primer)
-                    legacyFallbackContent(primer)
-                    refreshButton
                 }
+                
+                if !hasNewContent {
+                    legacyContentStack(primer)
+                }
+                
+                refreshButton
             }
-            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, DS.Spacing.lg)
         }
     }
@@ -190,6 +180,225 @@ struct PrimerView: View {
                     .cornerRadius(12)
                     .shadow(color: DS.Colors.shadow, radius: 4, x: 0, y: 2)
             }
+        }
+    }
+    
+    @ViewBuilder
+    private func shiftSection(_ primer: Primer) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        if !primer.shift.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.xs) {
+                    DSIcon("arrow.triangle.2.circlepath", size: 16)
+                        .foregroundColor(theme.primary)
+                    Text("The Shift")
+                        .font(DS.Typography.headline)
+                        .tracking(tightTracking)
+                        .foregroundStyle(theme.onSurface)
+                }
+                
+                Text(primer.shift)
+                    .font(DS.Typography.bodyEmphasized)
+                    .tracking(tightTracking)
+                    .foregroundStyle(theme.onSurface)
+                    .lineSpacing(4)
+                    .padding(DS.Spacing.lg)
+                    .background(theme.surfaceVariant)
+                    .cornerRadius(10)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func anchorSection(_ primer: Primer) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        if !primer.anchor.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("sparkles", size: 18)
+                        .foregroundColor(theme.primary)
+                    Text("The Anchor")
+                        .font(DS.Typography.headline)
+                        .tracking(tightTracking)
+                        .foregroundStyle(theme.onSurface)
+                    Spacer()
+                    Text(primer.anchorIsAuthorMetaphor ? "Author metaphor" : "New analogy")
+                        .font(DS.Typography.caption)
+                        .tracking(tightTracking)
+                        .foregroundStyle(theme.onSurface.opacity(0.75))
+                        .padding(.horizontal, DS.Spacing.sm)
+                        .padding(.vertical, DS.Spacing.xs)
+                        .background(theme.onSurface.opacity(0.08))
+                        .cornerRadius(999)
+                }
+                
+                Text(primer.anchor)
+                    .font(DS.Typography.body)
+                    .tracking(tightTracking)
+                    .foregroundStyle(theme.onSurface)
+                    .lineSpacing(6)
+                    .padding(DS.Spacing.lg)
+                    .background(theme.surfaceVariant)
+                    .cornerRadius(12)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func mechanismSection(_ primer: Primer) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        if !primer.mechanism.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("gearshape.fill", size: 18)
+                        .foregroundColor(theme.primary)
+                    Text("The Mechanism")
+                        .font(DS.Typography.headline)
+                        .tracking(tightTracking)
+                        .foregroundStyle(theme.onSurface)
+                }
+                
+                VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                    ForEach(primer.mechanism, id: \.self) { item in
+                        Text("• \(item)")
+                            .font(DS.Typography.body)
+                            .tracking(tightTracking)
+                            .foregroundStyle(theme.onSurface)
+                    }
+                }
+                .padding(DS.Spacing.lg)
+                .background(theme.surfaceVariant)
+                .cornerRadius(12)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func lensSection(_ primer: Primer) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        if !primer.lensSee.isEmpty || !primer.lensFeel.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("viewfinder", size: 18)
+                        .foregroundColor(theme.primary)
+                    Text("The Lens")
+                        .font(DS.Typography.headline)
+                        .tracking(tightTracking)
+                        .foregroundStyle(theme.onSurface)
+                }
+                
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    if !primer.lensSee.isEmpty {
+                        lensChip(title: "When you see", cue: primer.lensSee, reason: primer.lensSeeWhy)
+                    }
+                    if !primer.lensFeel.isEmpty {
+                        lensChip(title: "When you feel", cue: primer.lensFeel, reason: primer.lensFeelWhy)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func lensChip(title: String, cue: String, reason: String) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack(spacing: DS.Spacing.xs) {
+                Text(title)
+                    .font(DS.Typography.captionEmphasized)
+                    .tracking(tightTracking)
+                    .foregroundStyle(theme.onSurface)
+                    .padding(.horizontal, DS.Spacing.sm)
+                    .padding(.vertical, DS.Spacing.xs)
+                    .background(theme.onSurface.opacity(0.08))
+                    .cornerRadius(999)
+                Text(cue)
+                    .font(DS.Typography.body)
+                    .tracking(tightTracking)
+                    .foregroundStyle(theme.onSurface)
+                Spacer()
+            }
+            if !reason.isEmpty {
+                Text(reason)
+                    .font(DS.Typography.caption)
+                    .tracking(tightTracking)
+                    .foregroundStyle(theme.onSurface.opacity(0.7))
+                    .lineLimit(3)
+            }
+        }
+        .padding(DS.Spacing.md)
+        .background(theme.surfaceVariant)
+        .cornerRadius(10)
+    }
+    
+    @ViewBuilder
+    private func rabbitHoleSection(_ primer: Primer) -> some View {
+        let theme = themeManager.currentTokens(for: colorScheme)
+        if !primer.rabbitHole.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                HStack(spacing: DS.Spacing.sm) {
+                    DSIcon("magnifyingglass", size: 18)
+                        .foregroundColor(theme.primary)
+                    Text("The Rabbit Hole")
+                        .font(DS.Typography.headline)
+                        .tracking(tightTracking)
+                        .foregroundStyle(theme.onSurface)
+                }
+                
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    ForEach(primer.rabbitHole, id: \.id) { item in
+                        Button(action: { openSearch(for: item) }) {
+                            let displayQuery = item.query
+                                .replacingOccurrences(of: "\"", with: "")
+                                .replacingOccurrences(of: "“", with: "")
+                                .replacingOccurrences(of: "”", with: "")
+                                .replacingOccurrences(of: ",", with: "")
+                                .components(separatedBy: .whitespacesAndNewlines)
+                                .filter { !$0.isEmpty }
+                                .joined(separator: " ")
+                            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                                Text(item.label.displayName)
+                                    .font(DS.Typography.captionEmphasized)
+                                    .tracking(tightTracking)
+                                    .foregroundStyle(theme.onSurface.opacity(0.75))
+                                    .padding(.horizontal, DS.Spacing.sm)
+                                    .padding(.vertical, DS.Spacing.xs)
+                                    .background(theme.onSurface.opacity(0.08))
+                                    .cornerRadius(999)
+                                HStack(alignment: .center, spacing: DS.Spacing.sm) {
+                                    Text(displayQuery)
+                                        .font(DS.Typography.body)
+                                        .tracking(tightTracking)
+                                        .foregroundStyle(theme.onSurface)
+                                        .lineLimit(2)
+                                    Spacer()
+                                    DSIcon("arrow.up.right.square", size: 16)
+                                        .foregroundColor(theme.onSurface.opacity(0.8))
+                                }
+                            }
+                            .padding(.vertical, DS.Spacing.sm)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, DS.Spacing.sm)
+                        .padding(.vertical, DS.Spacing.xs)
+                        .background(theme.surfaceVariant)
+                        .cornerRadius(10)
+                    }
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func legacyContentStack(_ primer: Primer) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+            thesisSection(primer)
+            storySection(primer)
+            examplesSection(primer)
+            useItWhenSection(primer)
+            howToApplySection(primer)
+            edgesAndLimitsSection(primer)
+            furtherLearningSection(primer)
+            legacyFallbackContent(primer)
         }
     }
     
@@ -390,39 +599,6 @@ struct PrimerView: View {
     }
     
     @ViewBuilder
-    private func oneLineRecallSection(_ primer: Primer) -> some View {
-        if !primer.oneLineRecall.isEmpty {
-            VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                // Section header
-                HStack(spacing: DS.Spacing.sm) {
-                    DSIcon("quote.bubble.fill", size: 20)
-                        .foregroundColor(DS.Colors.black)
-                    
-                    Text("One-line Recall")
-                        .font(DS.Typography.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(DS.Colors.black)
-                }
-                
-                // Quote content with enhanced styling
-                Text("\"\(primer.oneLineRecall)\"")
-                    .font(DS.Typography.body)
-                    .fontWeight(.medium)
-                    .italic()
-                    .foregroundColor(DS.Colors.primaryText)
-                    .lineSpacing(6)
-                    .padding(DS.Spacing.lg)
-                    .background(DS.Colors.tertiaryBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(DS.Colors.subtleBorder, lineWidth: 1)
-                    )
-                    .cornerRadius(8)
-            }
-        }
-    }
-    
-    @ViewBuilder
     private func furtherLearningSection(_ primer: Primer) -> some View {
         let linkItems = (primer.links ?? []).sorted { $0.createdAt < $1.createdAt }
         if !linkItems.isEmpty {
@@ -431,9 +607,10 @@ struct PrimerView: View {
                     DSIcon("link.circle.fill")
                     Text("Further Learning")
                         .font(DS.Typography.headline)
+                        .tracking(tightTracking)
                 }
                 
-                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                     ForEach(linkItems, id: \.id) { item in
                         Button(action: {
                             openURL(item.url)
@@ -442,14 +619,17 @@ struct PrimerView: View {
                                 DSIcon("link", size: 14)
                                 Text(item.title)
                                     .font(DS.Typography.body)
+                                    .tracking(tightTracking)
                                     .foregroundStyle(DS.Colors.primaryText)
-                                    .underline()
                                 Spacer()
                                 DSIcon("arrow.up.right", size: 14)
                             }
-                            .padding(.vertical, DS.Spacing.xxs)
+                            .padding(.vertical, DS.Spacing.sm)
+                            .padding(.horizontal, DS.Spacing.sm)
                         }
-                        .dsTertiaryButton()
+                        .buttonStyle(.plain)
+                        .background(themeManager.currentTokens(for: colorScheme).surfaceVariant)
+                        .cornerRadius(10)
                     }
                 }
             }
@@ -535,15 +715,29 @@ struct PrimerView: View {
                 }
                 Text("Refresh Primer")
                     .font(DS.Typography.caption)
+                    .tracking(tightTracking)
             }
             .foregroundStyle(DS.Colors.black)
         }
-        .dsTertiaryButton()
+        .buttonStyle(.plain)
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.vertical, DS.Spacing.sm)
+        .background(themeManager.currentTokens(for: colorScheme).surfaceVariant)
+        .cornerRadius(10)
         .disabled(isRefreshing)
         .padding(.top, DS.Spacing.md)
     }
     
     // MARK: - Methods
+    
+    private func hasNewEncodingContent(_ primer: Primer) -> Bool {
+        return !primer.shift.isEmpty ||
+        !primer.anchor.isEmpty ||
+        !primer.mechanism.isEmpty ||
+        !primer.lensSee.isEmpty ||
+        !primer.lensFeel.isEmpty ||
+        !primer.rabbitHole.isEmpty
+    }
     
     private func loadPrimer() {
         isLoading = true
@@ -627,6 +821,27 @@ struct PrimerView: View {
                 }
             }
         }
+    }
+    
+    private func openSearch(for item: RabbitHoleItem) {
+        let sanitized = item.query
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "“", with: "")
+            .replacingOccurrences(of: "”", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let query = sanitized.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let urlString: String
+        switch item.label {
+        case .visual:
+            urlString = "https://www.youtube.com/results?search_query=\(query)"
+        case .debate, .counter, .other:
+            urlString = "https://www.google.com/search?q=\(query)"
+        }
+        openURL(urlString)
     }
     
     private func openURL(_ urlString: String) {

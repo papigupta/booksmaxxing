@@ -2,6 +2,28 @@ import Foundation
 import SwiftData
 import OSLog
 
+private struct ParsedPrimer {
+    var shift: String = ""
+    var anchor: String = ""
+    var anchorIsAuthorMetaphor: Bool = false
+    var mechanism: [String] = []
+    var lensSee: String = ""
+    var lensSeeWhy: String = ""
+    var lensFeel: String = ""
+    var lensFeelWhy: String = ""
+    var rabbitHole: [RabbitHoleItem] = []
+    
+    // Legacy fields for fallback compatibility
+    var thesis: String = ""
+    var story: String = ""
+    var examples: [String] = []
+    var useItWhen: [String] = []
+    var howToApply: [String] = []
+    var edgesAndLimits: [String] = []
+    var oneLineRecall: String = ""
+    var furtherLearning: [PrimerLink] = []
+}
+
 @MainActor
 class PrimerService: ObservableObject {
     private let openAIService: OpenAIService
@@ -23,14 +45,14 @@ class PrimerService: ObservableObject {
     
     func generatePrimer(for idea: Idea) async throws -> Primer {
         let userPrompt = createPrimerPrompt(for: idea)
-        let system = "You are an expert summarizer specializing in distilling core ideas from books into concise primers, like those in book summary apps."
+        let system = "You are an encoding-focused explainer for famous non-fiction. You blend vivid imagery and precise logic to produce dual-coded explanations that feel like the author's voice."
 
         let primerContent = try await openAIService.chat(
             systemPrompt: system,
             userPrompt: userPrompt,
             model: "gpt-4.1",
             temperature: 0.7,
-            maxTokens: 2000
+            maxTokens: 2400
         )
         
         // Parse the response into structured data
@@ -39,6 +61,15 @@ class PrimerService: ObservableObject {
         // Create and save the primer with new structure
         let primer = Primer(
             ideaId: idea.id,
+            shift: parsedPrimer.shift,
+            anchor: parsedPrimer.anchor,
+            anchorIsAuthorMetaphor: parsedPrimer.anchorIsAuthorMetaphor,
+            mechanism: parsedPrimer.mechanism,
+            lensSee: parsedPrimer.lensSee,
+            lensSeeWhy: parsedPrimer.lensSeeWhy,
+            lensFeel: parsedPrimer.lensFeel,
+            lensFeelWhy: parsedPrimer.lensFeelWhy,
+            rabbitHole: parsedPrimer.rabbitHole,
             thesis: parsedPrimer.thesis,
             story: parsedPrimer.story,
             examples: parsedPrimer.examples,
@@ -99,153 +130,193 @@ class PrimerService: ObservableObject {
     
     private func createPrimerPrompt(for idea: Idea) -> String {
         return """
-        GOAL: Teach "\(idea.title)" (from "\(idea.bookTitle)") in one page, ready to use now.
+        GOAL: Create a deep-encoding "Primer" for the concept "\(idea.title)" from the book "\(idea.bookTitle)".
 
-        SOURCE: Use only this description; add no outside facts:
-        \(idea.ideaDescription)
+        CONTEXT: The user already read it; they need an "Aha!" re-encoding (dual coding + elaboration). You can use accurate book-specific metaphors from your own knowledge; do not fabricate.
 
-        Voice: Mirror the author's diction, cadence, and stance in the description. Reuse key terms verbatim. Vary sentence length. No filler. No meta (don't say "in this primer/section").
+        SOURCE MATERIAL: "\(idea.ideaDescription)"
 
-        Output format — use these exact headings:
+        OUTPUT FORMAT (use these exact headings/labels):
 
-        # Thesis (≤22 words)
-        A single, sharp claim that captures the idea's essence.
-        
-        # Story (80–120 words)
-        Share a compelling narrative or example that illustrates this idea in action. Use concrete details and make it memorable.
+        # The Shift (≤20 words)
+        Most people think X, but actually Y.
 
-        # Examples (1 example, 2–3 sentences, ≤320 characters)
-        - Write one vivid, concrete scenario showing the idea in action.
-        - Use the shape: Context → Tension → Application → Outcome.
-        - Include at least one exact term from the description; avoid redefining the idea.
-        - No meta language (don't say "this idea/the theorem").
+        # The Anchor (Visual Analogy) (60–80 words)
+        Source: <Author metaphor | New analogy>
+        Analogy: <vivid analogy text>
 
-        # Use it when… (3 bullets, ≤10 words each)
-        Concrete cues/conditions that signal the idea applies.
+        # The Mechanism (The Logic)
+        - <mechanism bullet 1>
+        - <mechanism bullet 2>
+        - <mechanism bullet 3>
 
-        # How to apply (3 bullets, ≤12 words each, verb-first)
-        Actionable steps or checks drawn only from the description.
+        # The Lens (When to see it)
+        When you see: <cue> — Why: <brief rationale>
+        When you feel: <cue> — Why: <brief rationale>
 
-        # Edges & limits (2–3 bullets, ≤12 words)
-        Boundaries, exceptions, or trade-offs stated or implied in the description.
+        # The Rabbit Hole (Curiosity)
+        - Debate: <search query for a debate/lecture>
+        - Visual: <search query for a visual/animation>
+        - Counter: <search query for a counter-argument>
 
-        # One-line recall (≤14 words)
-        A memorable line in the author's tone.
-
-        # Further learning (3–4 links)
-        - [Official/book page]: https://amazon.com/<book-slug-or-isbn>
-        - [In-depth article]: https://<reputable-site>/<book-or-idea-slug>
-        - [Talk/lecture video]: https://youtube.com/results?search_query=<author+idea+book>
-        - [Review/critique]: https://<quality-blog>/<book-or-idea-review>
-
-        Rules: No repetition across sections. No hedging. The example must be ≤320 characters, concrete, and non-definitional. Total length ≤ 240 words.
+        TONE: Intellectual, slightly provocative, matching the book's authorial voice. No URLs—only queries. Be concrete and specific; avoid generic filler. Total length ≈ 200 words.
         """
     }
     
-    private func parsePrimerResponse(_ response: String) throws -> (
-        thesis: String,
-        story: String,
-        examples: [String],
-        useItWhen: [String],
-        howToApply: [String],
-        edgesAndLimits: [String],
-        oneLineRecall: String,
-        furtherLearning: [PrimerLink]
-    ) {
+    private func parsePrimerResponse(_ response: String) throws -> ParsedPrimer {
         let lines = response.components(separatedBy: .newlines)
-        
-        var thesis = ""
-        var story = ""
-        var examples: [String] = []
-        var useItWhen: [String] = []
-        var howToApply: [String] = []
-        var edgesAndLimits: [String] = []
-        var oneLineRecall = ""
-        var furtherLearning: [PrimerLink] = []
-        
+        var parsed = ParsedPrimer()
         var currentSection = ""
+        
+        func cleanQuery(_ text: String) -> String {
+            let stripped = text
+                .replacingOccurrences(of: "\"", with: "")
+                .replacingOccurrences(of: "“", with: "")
+                .replacingOccurrences(of: "”", with: "")
+                .replacingOccurrences(of: ",", with: "")
+            let squashed = stripped
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            return squashed.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        func parseLensLine(_ line: String, isFeel: Bool) {
+            // Expect "When you see: <cue> — Why: <reason>"
+            let parts = line
+                .replacingOccurrences(of: "When you see:", with: "", options: .caseInsensitive)
+                .replacingOccurrences(of: "When you feel:", with: "", options: .caseInsensitive)
+                .split(separator: "—", maxSplits: 1, omittingEmptySubsequences: false)
+                .map { String($0).trimmingCharacters(in: .whitespaces) }
+            let cue = parts.first ?? ""
+            let reason = parts.count > 1
+                ? parts[1].replacingOccurrences(of: "Why:", with: "", options: .caseInsensitive).trimmingCharacters(in: .whitespaces)
+                : ""
+            if isFeel {
+                if !cue.isEmpty { parsed.lensFeel = cue }
+                if !reason.isEmpty { parsed.lensFeelWhy = reason }
+            } else {
+                if !cue.isEmpty { parsed.lensSee = cue }
+                if !reason.isEmpty { parsed.lensSeeWhy = reason }
+            }
+        }
+        
+        func labelFrom(_ text: String) -> RabbitHoleLabel {
+            let lower = text.lowercased()
+            if lower.contains("debate") { return .debate }
+            if lower.contains("visual") { return .visual }
+            if lower.contains("counter") { return .counter }
+            return .other
+        }
         
         for line in lines {
             let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            if trimmedLine.isEmpty { continue }
             
-            // Check for section headers
-            if trimmedLine.hasPrefix("# Thesis") {
-                currentSection = "thesis"
+            // New structure headers
+            if trimmedLine.hasPrefix("# The Shift") {
+                currentSection = "shift"
                 continue
-            } else if trimmedLine.hasPrefix("# Story") {
-                currentSection = "story"
+            } else if trimmedLine.hasPrefix("# The Anchor") {
+                currentSection = "anchor"
                 continue
-            } else if trimmedLine.hasPrefix("# Examples") {
-                currentSection = "examples"
+            } else if trimmedLine.hasPrefix("# The Mechanism") {
+                currentSection = "mechanism"
                 continue
-            } else if trimmedLine.hasPrefix("# Use it when") {
-                currentSection = "useItWhen"
+            } else if trimmedLine.hasPrefix("# The Lens") {
+                currentSection = "lens"
                 continue
-            } else if trimmedLine.hasPrefix("# How to apply") {
-                currentSection = "howToApply"
-                continue
-            } else if trimmedLine.hasPrefix("# Edges & limits") {
-                currentSection = "edgesAndLimits"
-                continue
-            } else if trimmedLine.hasPrefix("# One-line recall") {
-                currentSection = "oneLineRecall"
-                continue
-            } else if trimmedLine.hasPrefix("# Further learning") {
-                currentSection = "furtherLearning"
+            } else if trimmedLine.hasPrefix("# The Rabbit Hole") {
+                currentSection = "rabbitHole"
                 continue
             }
             
-            // Process content based on current section
+            // Legacy headers fallback
+            if trimmedLine.hasPrefix("# Thesis") { currentSection = "thesis"; continue }
+            if trimmedLine.hasPrefix("# Story") { currentSection = "story"; continue }
+            if trimmedLine.hasPrefix("# Examples") { currentSection = "examples"; continue }
+            if trimmedLine.hasPrefix("# Use it when") { currentSection = "useItWhen"; continue }
+            if trimmedLine.hasPrefix("# How to apply") { currentSection = "howToApply"; continue }
+            if trimmedLine.hasPrefix("# Edges & limits") { currentSection = "edgesAndLimits"; continue }
+            if trimmedLine.hasPrefix("# One-line recall") { currentSection = "oneLineRecall"; continue }
+            if trimmedLine.hasPrefix("# Further learning") { currentSection = "furtherLearning"; continue }
+            
             switch currentSection {
+            case "shift":
+                parsed.shift += trimmedLine + " "
+            case "anchor":
+                if trimmedLine.lowercased().hasPrefix("source:") {
+                    if trimmedLine.lowercased().contains("author metaphor") { parsed.anchorIsAuthorMetaphor = true }
+                    continue
+                }
+                if trimmedLine.lowercased().hasPrefix("analogy:") {
+                    let analogy = trimmedLine.replacingOccurrences(of: "Analogy:", with: "", options: .caseInsensitive).trimmingCharacters(in: .whitespaces)
+                    parsed.anchor += analogy + " "
+                } else {
+                    parsed.anchor += trimmedLine + " "
+                }
+            case "mechanism":
+                if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
+                    let item = trimmedLine
+                        .replacingOccurrences(of: "- ", with: "")
+                        .replacingOccurrences(of: "• ", with: "")
+                        .trimmingCharacters(in: .whitespaces)
+                    if !item.isEmpty { parsed.mechanism.append(item) }
+                }
+            case "lens":
+                if trimmedLine.lowercased().hasPrefix("when you see") {
+                    parseLensLine(trimmedLine, isFeel: false)
+                } else if trimmedLine.lowercased().hasPrefix("when you feel") {
+                    parseLensLine(trimmedLine, isFeel: true)
+                }
+            case "rabbitHole":
+                if trimmedLine.hasPrefix("-") {
+                    let entry = trimmedLine.dropFirst().trimmingCharacters(in: .whitespaces)
+                    if let colonIndex = entry.firstIndex(of: ":") {
+                        let labelText = String(entry[..<colonIndex]).trimmingCharacters(in: .whitespaces)
+                        let queryText = String(entry[entry.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
+                        if !queryText.isEmpty {
+                            parsed.rabbitHole.append(RabbitHoleItem(label: labelFrom(labelText), query: queryText))
+                        }
+                    }
+                }
             case "thesis":
-                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
-                    thesis += trimmedLine + " "
-                }
+                parsed.thesis += trimmedLine + " "
             case "story":
-                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
-                    story += trimmedLine + " "
-                }
+                parsed.story += trimmedLine + " "
             case "examples":
                 if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
                     let item = trimmedLine
                         .replacingOccurrences(of: "- ", with: "")
                         .replacingOccurrences(of: "• ", with: "")
                         .trimmingCharacters(in: .whitespaces)
-                    if !item.isEmpty {
-                        examples.append(item)
-                    }
-                } else if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
-                    // Fallback if model returns a single line without bullet
-                    examples.append(trimmedLine)
+                    if !item.isEmpty { parsed.examples.append(item) }
+                } else {
+                    parsed.examples.append(trimmedLine)
                 }
             case "useItWhen":
                 if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
                     let item = trimmedLine.replacingOccurrences(of: "- ", with: "")
                         .replacingOccurrences(of: "• ", with: "")
-                    if !item.isEmpty {
-                        useItWhen.append(item)
-                    }
+                        .trimmingCharacters(in: .whitespaces)
+                    if !item.isEmpty { parsed.useItWhen.append(item) }
                 }
             case "howToApply":
                 if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
                     let item = trimmedLine.replacingOccurrences(of: "- ", with: "")
                         .replacingOccurrences(of: "• ", with: "")
-                    if !item.isEmpty {
-                        howToApply.append(item)
-                    }
+                        .trimmingCharacters(in: .whitespaces)
+                    if !item.isEmpty { parsed.howToApply.append(item) }
                 }
             case "edgesAndLimits":
                 if trimmedLine.hasPrefix("-") || trimmedLine.hasPrefix("•") {
                     let item = trimmedLine.replacingOccurrences(of: "- ", with: "")
                         .replacingOccurrences(of: "• ", with: "")
-                    if !item.isEmpty {
-                        edgesAndLimits.append(item)
-                    }
+                        .trimmingCharacters(in: .whitespaces)
+                    if !item.isEmpty { parsed.edgesAndLimits.append(item) }
                 }
             case "oneLineRecall":
-                if !trimmedLine.isEmpty && !trimmedLine.hasPrefix("#") {
-                    oneLineRecall += trimmedLine + " "
-                }
+                parsed.oneLineRecall += trimmedLine + " "
             case "furtherLearning":
                 if trimmedLine.hasPrefix("-") {
                     let linkText = trimmedLine.replacingOccurrences(of: "- ", with: "")
@@ -256,13 +327,10 @@ class PrimerService: ObservableObject {
                             .replacingOccurrences(of: "]", with: "")
                         var url = String(linkText[linkText.index(after: colonIndex)...])
                             .trimmingCharacters(in: .whitespaces)
-                        
-                        // Ensure URL has proper scheme
                         if !url.hasPrefix("http://") && !url.hasPrefix("https://") {
                             url = "https://" + url
                         }
-                        
-                        furtherLearning.append(PrimerLink(title: title, url: url))
+                        parsed.furtherLearning.append(PrimerLink(title: title, url: url))
                     }
                 }
             default:
@@ -270,16 +338,23 @@ class PrimerService: ObservableObject {
             }
         }
         
-        return (
-            thesis: thesis.trimmingCharacters(in: .whitespaces),
-            story: story.trimmingCharacters(in: .whitespaces),
-            examples: examples,
-            useItWhen: useItWhen,
-            howToApply: howToApply,
-            edgesAndLimits: edgesAndLimits,
-            oneLineRecall: oneLineRecall.trimmingCharacters(in: .whitespaces),
-            furtherLearning: furtherLearning
-        )
+        // Post-processing trims and fallbacks
+        parsed.shift = parsed.shift.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.anchor = parsed.anchor.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.lensSee = parsed.lensSee.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.lensSeeWhy = parsed.lensSeeWhy.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.lensFeel = parsed.lensFeel.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.lensFeelWhy = parsed.lensFeelWhy.trimmingCharacters(in: .whitespacesAndNewlines)
+        parsed.rabbitHole = parsed.rabbitHole.map { item in
+            let cleaned = cleanQuery(item.query)
+            return RabbitHoleItem(id: item.id, label: item.label, query: cleaned)
+        }
+        parsed.thesis = parsed.thesis.trimmingCharacters(in: .whitespaces)
+        parsed.story = parsed.story.trimmingCharacters(in: .whitespaces)
+        parsed.oneLineRecall = parsed.oneLineRecall.trimmingCharacters(in: .whitespaces)
+        if parsed.oneLineRecall.isEmpty { parsed.oneLineRecall = parsed.shift }
+        
+        return parsed
     }
 
     // MARK: - On-demand Examples Generation

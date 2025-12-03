@@ -6,12 +6,21 @@ final class Primer {
     var id: UUID = UUID()
     var ideaId: String = ""  // Now uses book-specific IDs like "b1i1", "b2i3"
     
-    // New structure fields
+    // New Encoding Card structure fields
+    var shift: String = ""
+    var anchor: String = ""
+    var anchorIsAuthorMetaphor: Bool = false
+    var mechanismData: Data = Data()
+    var lensSee: String = ""
+    var lensSeeWhy: String = ""
+    var lensFeel: String = ""
+    var lensFeelWhy: String = ""
+    var rabbitHoleData: Data = Data()
+    
+    // Legacy structure fields
     var thesis: String = ""
     var story: String = ""  // Default value for backward compatibility
-    // Examples stored as Data for CloudKit compatibility
     var examplesData: Data = Data()
-    // Data-backed arrays for CloudKit compatibility
     var useItWhenData: Data = Data()
     var howToApplyData: Data = Data()
     var edgesAndLimitsData: Data = Data()
@@ -53,14 +62,52 @@ final class Primer {
         set { edgesAndLimitsData = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
     
+    var mechanism: [String] {
+        get { (try? JSONDecoder().decode([String].self, from: mechanismData)) ?? [] }
+        set { mechanismData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
+    
     var keyNuances: [String] {
         get { (try? JSONDecoder().decode([String].self, from: keyNuancesData)) ?? [] }
         set { keyNuancesData = (try? JSONEncoder().encode(newValue)) ?? Data() }
     }
+    
+    var rabbitHole: [RabbitHoleItem] {
+        get { (try? JSONDecoder().decode([RabbitHoleItem].self, from: rabbitHoleData)) ?? [] }
+        set { rabbitHoleData = (try? JSONEncoder().encode(newValue)) ?? Data() }
+    }
 
-    init(ideaId: String, thesis: String, story: String, examples: [String], useItWhen: [String], howToApply: [String], edgesAndLimits: [String], oneLineRecall: String, furtherLearning: [PrimerLink]) {
+    init(
+        ideaId: String,
+        shift: String,
+        anchor: String,
+        anchorIsAuthorMetaphor: Bool,
+        mechanism: [String],
+        lensSee: String,
+        lensSeeWhy: String,
+        lensFeel: String,
+        lensFeelWhy: String,
+        rabbitHole: [RabbitHoleItem],
+        thesis: String = "",
+        story: String = "",
+        examples: [String] = [],
+        useItWhen: [String] = [],
+        howToApply: [String] = [],
+        edgesAndLimits: [String] = [],
+        oneLineRecall: String = "",
+        furtherLearning: [PrimerLink] = []
+    ) {
         self.id = UUID()
         self.ideaId = ideaId
+        self.shift = shift
+        self.anchor = anchor
+        self.anchorIsAuthorMetaphor = anchorIsAuthorMetaphor
+        self.mechanism = mechanism
+        self.lensSee = lensSee
+        self.lensSeeWhy = lensSeeWhy
+        self.lensFeel = lensFeel
+        self.lensFeelWhy = lensFeelWhy
+        self.rabbitHole = rabbitHole
         self.thesis = thesis
         self.story = story
         self.examples = examples
@@ -83,6 +130,15 @@ final class Primer {
         self.id = UUID()
         self.ideaId = ideaId
         self.overview = overview
+        self.shift = overview.components(separatedBy: ".").first ?? overview
+        self.anchor = ""
+        self.anchorIsAuthorMetaphor = false
+        self.mechanism = []
+        self.lensSee = ""
+        self.lensSeeWhy = ""
+        self.lensFeel = ""
+        self.lensFeelWhy = ""
+        self.rabbitHole = []
         self.keyNuances = keyNuances
         self.digDeeperLinks = digDeeperLinks
         
@@ -105,6 +161,28 @@ struct PrimerLink: Codable {
     let title: String
     let url: String
 } 
+
+enum RabbitHoleLabel: String, Codable {
+    case debate
+    case visual
+    case counter
+    case other
+    
+    var displayName: String {
+        switch self {
+        case .debate: return "Debate"
+        case .visual: return "Visual"
+        case .counter: return "Counter"
+        case .other: return "Explore"
+        }
+    }
+}
+
+struct RabbitHoleItem: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var label: RabbitHoleLabel = .other
+    var query: String = ""
+}
 
 // MARK: - CloudKit-friendly Primer Link Entity
 @Model
