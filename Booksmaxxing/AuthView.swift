@@ -5,6 +5,7 @@ import SwiftData
 struct AuthView: View {
     @ObservedObject var authManager: AuthManager
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(spacing: 24) {
@@ -70,34 +71,33 @@ struct AuthView: View {
             .frame(height: 48)
             .padding(.horizontal)
 
-            VStack(spacing: 8) {
-                Button(action: { authManager.startGuestSession() }) {
-                    Text("Continue as guest")
-                        .font(DS.Typography.fraunces(size: 17, weight: .semibold))
-                        .tracking(DS.Typography.defaultTracking(for: 17))
-                        .foregroundStyle(DS.Colors.primaryText)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(DS.Colors.gray100)
-                        )
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Text("By continuing, you agree to our")
+                        .foregroundStyle(.secondary)
+                    Button(action: { openURL(URL(string: "https://booksmaxxing.com/termsofservice")!) }) {
+                        Text("Terms")
+                            .underline()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    Text("&")
+                        .foregroundStyle(.secondary)
+                    Button(action: { openURL(URL(string: "https://booksmaxxing.com/privacypolicy")!) }) {
+                        Text("Privacy Policy")
+                            .underline()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
+
+                Button(action: { authManager.startGuestSession() }) {
+                    Text("Explore Limited Preview")
+                        .underline()
+                }
+                .font(.footnote)
                 .buttonStyle(.plain)
-                .padding(.horizontal)
-
-                Text("Progress stays on this device")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 4) {
-                Text("By continuing, you agree to our")
-                    .foregroundStyle(.secondary)
-                Link("Terms", destination: URL(string: "https://booksmaxxing.com/termsofservice")!)
-                Text("&")
-                    .foregroundStyle(.secondary)
-                Link("Privacy Policy", destination: URL(string: "https://booksmaxxing.com/privacypolicy")!)
+                .foregroundStyle(.secondary)
             }
             .font(.footnote)
 
@@ -119,7 +119,7 @@ struct AuthView: View {
 
 private extension AuthView {
     var welcomeTitle: Text {
-        Text("Welcome to ")
+        Text("Welcome to\n")
             .font(DS.Typography.fraunces(size: welcomeTitleSize, weight: .light))
         + Text("Booksmaxxing")
             .font(DS.Typography.fraunces(size: welcomeTitleSize, weight: .black))

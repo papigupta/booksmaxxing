@@ -28,8 +28,8 @@ final class AuthManager: NSObject, ObservableObject {
         KeychainHelper.shared.delete(userIdKey)
         defaults.set(false, forKey: guestSessionKey)
         userIdentifier = nil
-        isGuestSession = false
         isSignedIn = false
+        isGuestSession = false
         authErrorMessage = nil
     }
 

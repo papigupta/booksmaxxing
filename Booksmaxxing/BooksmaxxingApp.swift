@@ -91,7 +91,7 @@ struct BooksmaxxingApp: App {
             }
         }
         .onChange(of: authManager.isSignedIn) { _, signedIn in
-            if !signedIn {
+            if !signedIn && !authManager.isGuestSession {
                 guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
             }
         }
