@@ -7,6 +7,14 @@ import OSLog
 @MainActor
 class TestGenerationService {
     private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "TestGeneration")
+    private static let optionPrefixRegexes: [NSRegularExpression] = {
+        let patterns = [
+            #"^\s*[A-Da-d][\.\)]\s+"#,
+            #"^\s*[0-9]+[\.\)]\s+"#,
+            #"^\s*Option\s+[A-Da-d]:\s+"#
+        ]
+        return patterns.compactMap { try? NSRegularExpression(pattern: $0, options: []) }
+    }()
     // Helper function to randomize options and update correct answer index
     func randomizeOptions(_ options: [String], correctIndices: [Int]) -> (options: [String], correctIndices: [Int]) {
         // Create array of indices paired with options
@@ -1260,11 +1268,20 @@ class TestGenerationService {
               options.count == 4 else {
             throw TestGenerationError.invalidOptions
         }
-        
+
         guard let correct = json?["correct"] as? [Int] else {
             throw TestGenerationError.missingCorrectAnswers
         }
-        
+
+        let (sanitizedOptions, hadPrefixes) = sanitizeOptionPrefixes(options)
+        if hadPrefixes {
+            logger.notice("Sanitized prefixed labels from generated options")
+        }
+
+        guard sanitizedOptions.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+            throw TestGenerationError.invalidOptions
+        }
+
         // Validate correct answers
         if type == .mcq && correct.count != 1 {
             throw TestGenerationError.invalidCorrectAnswerCount
@@ -1272,8 +1289,27 @@ class TestGenerationService {
         if type == .msq && (correct.count < 2 || correct.count > 3) {
             throw TestGenerationError.invalidCorrectAnswerCount
         }
-        
-        return (question, options, correct)
+
+        return (question, sanitizedOptions, correct)
+    }
+
+    private func sanitizeOptionPrefixes(_ options: [String]) -> (sanitized: [String], hadPrefixes: Bool) {
+        var hadViolation = false
+        let sanitized = options.map { option -> String in
+            var updated = option
+            for regex in TestGenerationService.optionPrefixRegexes {
+                let nsRange = NSRange(updated.startIndex..<updated.endIndex, in: updated)
+                if let match = regex.firstMatch(in: updated, range: nsRange),
+                   let swiftRange = Range(match.range, in: updated) {
+                    updated.removeSubrange(swiftRange)
+                    updated = updated.trimmingCharacters(in: .whitespacesAndNewlines)
+                    hadViolation = true
+                    break
+                }
+            }
+            return updated
+        }
+        return (sanitized, hadViolation)
     }
     
     private func analyzeMistakePatterns(_ mistakes: [QuestionResponse]) -> [BloomCategory: Int] {
