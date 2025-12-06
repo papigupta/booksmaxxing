@@ -7,6 +7,7 @@ struct MainView: View {
     @EnvironmentObject var navigationState: NavigationState
     @EnvironmentObject var streakManager: StreakManager
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var authManager: AuthManager
     @Query(sort: \Book.lastAccessed, order: .reverse) private var books: [Book]
     @State private var hasTrackedAppOpen = false
     @State private var hasAttemptedStarterSeed = false
@@ -30,19 +31,28 @@ struct MainView: View {
     
     var body: some View {
         Group {
-            if books.isEmpty || navigationState.shouldShowBookSelection {
-                // Show OnboardingView which has its own NavigationStack
-                OnboardingView(openAIService: openAIService)
-                    .environmentObject(navigationState)
-            } else if let book = activeBook {
-                DailyPracticeHomepage(
-                    book: book,
-                    openAIService: openAIService,
-                    isRootExperience: true
-                )
-                .id(book.id)
+            if let profile = userProfile {
+                if shouldShowEmailCapture(for: profile) {
+                    EmailCaptureView(profile: profile) { result in
+                        handleEmailCaptureCompletion(result, profile: profile)
+                    }
+                    .onAppear { updateOnboardingStep(.emailCapture, for: profile) }
+                } else if books.isEmpty || navigationState.shouldShowBookSelection {
+                    // Show OnboardingView which has its own NavigationStack
+                    OnboardingView(openAIService: openAIService)
+                        .environmentObject(navigationState)
+                } else if let book = activeBook {
+                    DailyPracticeHomepage(
+                        book: book,
+                        openAIService: openAIService,
+                        isRootExperience: true
+                    )
+                    .id(book.id)
+                } else {
+                    ProgressView("Loading your library…")
+                }
             } else {
-                ProgressView("Loading your library…")
+                ProgressView("Loading your profile…")
             }
         }
         .alert(
@@ -59,6 +69,7 @@ struct MainView: View {
         .onChange(of: books) { _, newBooks in
             if let profile = userProfile {
                 updateNavigationState(for: profile, books: newBooks)
+                refreshOnboardingStep(for: profile)
             }
         }
         .onChange(of: navigationState.selectedBookID) { _, newID in
@@ -70,12 +81,6 @@ struct MainView: View {
                 AnalyticsManager.shared.track(.appOpened)
                 hasTrackedAppOpen = true
             }
-            // Initialize selected book on first appear
-            if let first = books.first, navigationState.selectedBookID == nil {
-                navigationState.selectedBookID = first.id
-                navigationState.selectedBookTitle = first.title
-            }
-            
             // Run cleanup on app startup for all users
             Task {
                 do {
@@ -107,6 +112,8 @@ struct MainView: View {
                 do {
                     let profile = try ensureUserProfile()
                     self.userProfile = profile
+                    applyPendingAppleEmailIfNeeded(profile: profile)
+                    refreshOnboardingStep(for: profile)
                     updateNavigationState(for: profile, books: books)
                 } catch {
                     print("DEBUG: Failed to load user profile: \(error)")
@@ -180,6 +187,8 @@ extension MainView {
         }
 
         let profile = UserProfile()
+        profile.shouldPromptForEmail = !authManager.isGuestSession
+        profile.onboardingStep = authManager.isSignedIn ? .authentication : .unknown
         modelContext.insert(profile)
         try modelContext.save()
         self.userProfile = profile
@@ -227,8 +236,80 @@ extension MainView {
             profile.updatedAt = Date.now
             try modelContext.save()
             self.userProfile = profile
+            updateOnboardingStep(.dailyPractice, for: profile)
         } catch {
             print("DEBUG: Failed to persist selected book: \(error)")
         }
+    }
+}
+
+// MARK: - Email Capture Helpers
+private extension MainView {
+    func shouldShowEmailCapture(for profile: UserProfile) -> Bool {
+        guard !authManager.isGuestSession else { return false }
+        guard profile.emailStatus != .skipped else { return false }
+        guard profile.shouldPromptForEmail else { return false }
+        return !profile.hasProvidedEmail
+    }
+
+    func handleEmailCaptureCompletion(_ result: EmailCaptureResult, profile: UserProfile) {
+        refreshOnboardingStep(for: profile)
+        if !authManager.isGuestSession {
+            syncProfileIfPossible(profile)
+        }
+        updateOnboardingStep(.bookSelection, for: profile)
+    }
+
+    func refreshOnboardingStep(for profile: UserProfile) {
+        guard !authManager.isGuestSession else { return }
+        if shouldShowEmailCapture(for: profile) {
+            updateOnboardingStep(.emailCapture, for: profile)
+        } else if !profile.hasCompletedInitialBookSelection {
+            updateOnboardingStep(.bookSelection, for: profile)
+        } else {
+            updateOnboardingStep(.dailyPractice, for: profile)
+        }
+    }
+
+    func updateOnboardingStep(_ step: OnboardingStep, for profile: UserProfile) {
+        guard profile.onboardingStep != step else { return }
+        profile.onboardingStep = step
+        profile.updatedAt = Date.now
+        do {
+            try modelContext.save()
+        } catch {
+            print("DEBUG: Failed to update onboarding step: \(error)")
+        }
+        syncProfileIfPossible(profile)
+        AnalyticsManager.shared.track(.onboardingStep(step: step.rawValue))
+    }
+
+    func syncProfileIfPossible(_ profile: UserProfile) {
+        guard let userId = authManager.userIdentifier, !authManager.isGuestSession else { return }
+        UserProfileSyncService.shared.syncProfile(profile, userId: userId)
+    }
+
+    func applyPendingAppleEmailIfNeeded(profile: UserProfile) {
+        guard let pendingEmail = authManager.pendingAppleEmail?.trimmingCharacters(in: .whitespacesAndNewlines), !pendingEmail.isEmpty else {
+            return
+        }
+        guard !profile.hasProvidedEmail else {
+            authManager.pendingAppleEmail = nil
+            return
+        }
+        profile.emailAddress = pendingEmail.lowercased()
+        profile.emailStatus = .provided
+        profile.lastEmailUpdate = Date.now
+        profile.shouldPromptForEmail = false
+        profile.updatedAt = Date.now
+        do {
+            try modelContext.save()
+            AnalyticsManager.shared.track(.emailSubmitted(method: .appleShare))
+        } catch {
+            print("DEBUG: Failed to persist Apple-provided email: \(error)")
+        }
+        syncProfileIfPossible(profile)
+        authManager.pendingAppleEmail = nil
+        updateOnboardingStep(.bookSelection, for: profile)
     }
 }

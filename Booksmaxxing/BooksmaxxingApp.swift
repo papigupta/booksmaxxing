@@ -34,6 +34,7 @@ struct BooksmaxxingApp: App {
     // Track active persistence containers
     @State private var cloudModelContainer = BooksmaxxingApp.makeCloudModelContainer()
     @State private var guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
+    @State private var lastAuthState: (signedIn: Bool, isGuest: Bool)? = nil
     // Theme preset for global visual filter
     @State private var themePreset: ThemePreset = .system // treat as System Light by default
 
@@ -91,19 +92,54 @@ struct BooksmaxxingApp: App {
             }
         }
         .onChange(of: authManager.isSignedIn) { _, signedIn in
-            if !signedIn && !authManager.isGuestSession {
-                guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
-            }
+            handleAuthStateChange(signedIn: signedIn, isGuest: authManager.isGuestSession)
         }
         .onChange(of: authManager.isGuestSession) { _, isGuest in
-            if isGuest {
-                guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
+            handleAuthStateChange(signedIn: authManager.isSignedIn, isGuest: isGuest)
+        }
+        .onChange(of: authManager.userIdentifier) { _, _ in
+            if authManager.isSignedIn && !authManager.isGuestSession {
+                resetSessionState()
+                rebuildCloudContainer()
             }
         }
     }
 }
 
 private extension BooksmaxxingApp {
+    func handleAuthStateChange(signedIn: Bool, isGuest: Bool) {
+        if let snapshot = lastAuthState,
+           snapshot.signedIn == signedIn,
+           snapshot.isGuest == isGuest {
+            return
+        }
+        lastAuthState = (signedIn: signedIn, isGuest: isGuest)
+        resetSessionState()
+        if signedIn {
+            if isGuest {
+                rebuildGuestContainer()
+            } else {
+                rebuildCloudContainer()
+            }
+        } else {
+            rebuildGuestContainer()
+        }
+    }
+
+    func resetSessionState() {
+        navigationState.reset()
+        streakManager.resetForNewSession()
+        themeManager.resetForNewSession()
+    }
+
+    func rebuildGuestContainer() {
+        guestModelContainer = BooksmaxxingApp.makeGuestModelContainer()
+    }
+
+    func rebuildCloudContainer() {
+        cloudModelContainer = BooksmaxxingApp.makeCloudModelContainer()
+    }
+
     static func makeCloudModelContainer() -> ModelContainer {
         do {
             let cloudConfig = ModelConfiguration(cloudKitDatabase: .automatic)

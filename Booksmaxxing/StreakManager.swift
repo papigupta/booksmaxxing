@@ -42,6 +42,20 @@ final class StreakManager: ObservableObject {
         }
     }
 
+    func resetForNewSession() {
+        modelContext = nil
+        state = nil
+        currentStreak = 0
+        bestStreak = 0
+        lastActiveDay = nil
+        previousStreakCount = 0
+        previousLastActiveDay = nil
+        hasAttemptedReturningUserPrompt = false
+        Task { [notificationScheduler] in
+            await notificationScheduler.cancelReminders()
+        }
+    }
+
     @discardableResult
     func markActivity(on date: Date = Date()) -> Bool {
         ensureStateExists()
