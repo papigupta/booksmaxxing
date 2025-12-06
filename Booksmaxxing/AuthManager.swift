@@ -9,6 +9,7 @@ final class AuthManager: NSObject, ObservableObject {
     @Published private(set) var isGuestSession: Bool = false
     @Published var iCloudAccountAvailable: Bool = true
     @Published var authErrorMessage: String?
+    @Published var pendingAppleEmail: String?
 
     private let userIdKey = "appleUserId"
     private let guestSessionKey = "guestSessionActive"
@@ -31,6 +32,7 @@ final class AuthManager: NSObject, ObservableObject {
         isSignedIn = false
         isGuestSession = false
         authErrorMessage = nil
+        pendingAppleEmail = nil
     }
 
     func handleAuthorization(result: Result<ASAuthorization, Error>) {
@@ -38,6 +40,7 @@ final class AuthManager: NSObject, ObservableObject {
         case .success(let auth):
             if let credential = auth.credential as? ASAuthorizationAppleIDCredential {
                 let userID = credential.user
+                let appleEmail = credential.email
                 KeychainHelper.shared.set(userID, forKey: userIdKey)
                 defaults.set(false, forKey: guestSessionKey)
                 DispatchQueue.main.async {
@@ -45,6 +48,7 @@ final class AuthManager: NSObject, ObservableObject {
                     self.isSignedIn = true
                     self.isGuestSession = false
                     self.authErrorMessage = nil
+                    self.pendingAppleEmail = appleEmail
                 }
             } else {
                 DispatchQueue.main.async { self.authErrorMessage = "Invalid Apple credential." }
@@ -62,6 +66,7 @@ final class AuthManager: NSObject, ObservableObject {
             self.isGuestSession = true
             self.isSignedIn = true
             self.authErrorMessage = nil
+            self.pendingAppleEmail = nil
         }
     }
 

@@ -133,6 +133,11 @@ final class ThemeManager: ObservableObject {
         usingBookPalette = false
     }
 
+    func resetForNewSession() {
+        modelContext = nil
+        resetToDefaultPalette()
+    }
+
     func previewRoles(_ roles: [PaletteRole], seeds: [SeedColor]) {
         applyRoles(roles, seeds: seeds)
         usingBookPalette = true
