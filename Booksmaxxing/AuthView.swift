@@ -6,12 +6,13 @@ struct AuthView: View {
     @ObservedObject var authManager: AuthManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    var logoNamespace: Namespace.ID? = nil
 
     var body: some View {
         VStack(spacing: 24) {
-            Spacer()
-
-            VStack(spacing: 8) {
+            VStack(spacing: 16) {
+                onboardingLogo
+                
                 welcomeTitle
                     .multilineTextAlignment(.center)
                     .tracking(DS.Typography.tightTracking(for: welcomeTitleSize))
@@ -19,6 +20,8 @@ struct AuthView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 40)
 
             if !authManager.iCloudAccountAvailable {
                 VStack(spacing: 8) {
@@ -117,6 +120,22 @@ struct AuthView: View {
         }
         .onAppear {
             authManager.checkICloudAccountStatus()
+        }
+    }
+}
+
+private extension AuthView {
+    @ViewBuilder
+    var onboardingLogo: some View {
+        let view = Image("appLogoMedium")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 48)
+            .accessibilityLabel("Booksmaxxing")
+        if let logoNamespace {
+            view.matchedGeometryEffect(id: "onboardingLogo", in: logoNamespace)
+        } else {
+            view
         }
     }
 }
