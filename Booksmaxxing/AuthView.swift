@@ -111,6 +111,10 @@ struct AuthView: View {
             Spacer()
         }
         .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            OnboardingBackground()
+        }
         .onAppear {
             authManager.checkICloudAccountStatus()
         }
