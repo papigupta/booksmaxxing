@@ -20,49 +20,42 @@ struct AuthView: View {
             let safeTop = proxy.safeAreaInsets.top
             let safeBottom = proxy.safeAreaInsets.bottom
 
-            VStack(spacing: 32) {
+            VStack(spacing: 0) {
                 onboardingLogo
+                    .padding(.top, safeTop)
 
-                heroCopy
-                    .padding(.top, 24)
+                Spacer()
 
                 VStack(spacing: 20) {
+                    heroCopy
                     subtitle
-
                     signInWithAppleButton
-
                     finePrint
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 24)
 
-                if !authManager.iCloudAccountAvailable {
-                    VStack(spacing: 8) {
-                        Text("iCloud is not available")
-                            .font(.headline)
-                        Text("Please sign into iCloud in Settings to enable syncing.")
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
+                    if !authManager.iCloudAccountAvailable {
+                        VStack(spacing: 8) {
+                            Text("iCloud is not available")
+                                .font(.headline)
+                            Text("Please sign into iCloud in Settings to enable syncing.")
+                                .font(.subheadline)
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
 
-                if let message = authManager.authErrorMessage {
-                    Text(message)
-                        .foregroundColor(.red)
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
+                    if let message = authManager.authErrorMessage {
+                        Text(message)
+                            .foregroundColor(.red)
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                    }
                 }
-
-                Spacer(minLength: 0)
+                .padding(.bottom, safeBottom + 24)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.top, safeTop + 0)
             .padding(.horizontal, pageMargin)
-            .padding(.bottom, safeBottom + 32)
             .background {
                 OnboardingBackground()
                     .ignoresSafeArea()
