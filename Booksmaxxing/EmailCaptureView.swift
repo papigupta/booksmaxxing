@@ -15,6 +15,17 @@ struct EmailCaptureView: View {
     @State private var email: String
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var heroVisible = false
+    @State private var emailSectionVisible = false
+    @State private var finePrintVisible = false
+
+    private let pageMargin: CGFloat = 60
+    private let primaryColor = Color(hex: "262626")
+    private let heroSize: CGFloat = 56
+    private let subtitleSize: CGFloat = 20
+    private let detailSize: CGFloat = 12
+    private let finePrintSize: CGFloat = 14
+    private let heroLineSpacing: CGFloat = -18
 
     let onFinish: (EmailCaptureResult) -> Void
 
@@ -25,65 +36,204 @@ struct EmailCaptureView: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        GeometryReader { proxy in
+            let safeTop = proxy.safeAreaInsets.top
+            let safeBottom = proxy.safeAreaInsets.bottom
 
-            VStack(spacing: 8) {
-                Text("Where should we send feedback invites?")
-                    .font(.title2)
-                    .multilineTextAlignment(.center)
-                Text("We’ll reach out occasionally to learn how Booksmaxxing can improve.")
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            ZStack(alignment: .bottom) {
+                VStack(spacing: 0) {
+                    completionIcon
+                        .padding(.top, safeTop)
 
-            VStack(spacing: 12) {
-                TextField("Email address", text: $email)
-                    .keyboardType(.emailAddress)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled(true)
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Spacer()
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                    VStack(spacing: 28) {
+                        heroCopy
+                            .opacity(heroVisible ? 1 : 0)
+                            .scaleEffect(heroVisible ? 1 : 0.8)
+
+                        VStack(spacing: 0) {
+                            emailSection
+                                .opacity(emailSectionVisible ? 1 : 0)
+                                .scaleEffect(emailSectionVisible ? 1 : 0.86)
+
+                            Group {
+                                if showCTA {
+                                    continueButton
+                                        .disabled(!isContinueEnabled)
+                                        .padding(.top, 12)
+                                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                                } else {
+                                    finePrint
+                                        .padding(.top, 28)
+                                        .opacity(finePrintVisible ? 1 : 0)
+                                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                                }
+                            }
+                        }
+                    }
+                    .padding(.bottom, safeBottom + 24)
                 }
+                .padding(.horizontal, pageMargin)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-
-            VStack(spacing: 12) {
-                Button(action: submitEmail) {
-                    Text("Continue")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(isContinueEnabled ? Color.accentColor : Color.gray.opacity(0.4))
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .disabled(!isContinueEnabled)
-
-                Button("Skip for now", action: skip)
-                    .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                OnboardingBackground()
+                    .ignoresSafeArea()
             }
-
-            Spacer()
-            Spacer()
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-            OnboardingBackground()
+        .onAppear(perform: startPresentation)
+        .onChange(of: email) { _ in
+            if errorMessage != nil {
+                errorMessage = nil
+            }
         }
+        .animation(.easeInOut(duration: 0.3), value: showCTA)
     }
 
     private var isContinueEnabled: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSaving
+        !isSaving && isValidEmail(trimmedEmail)
+    }
+
+    private var trimmedEmail: String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var showCTA: Bool {
+        !trimmedEmail.isEmpty
+    }
+
+    private var completionIcon: some View {
+        ZStack {
+            Circle()
+                .fill(primaryColor)
+            Image(systemName: "checkmark")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 52, height: 52)
+        .accessibilityHidden(true)
+    }
+
+    private var heroCopy: some View {
+        VStack(spacing: heroLineSpacing) {
+            Text("you're")
+            Text("all set!")
+        }
+        .font(DS.Typography.frauncesItalic(size: heroSize, weight: .black))
+        .tracking(heroSize * -0.04)
+        .multilineTextAlignment(.center)
+        .foregroundColor(primaryColor)
+    }
+
+    private var emailSection: some View {
+        VStack(spacing: 20) {
+            Text("Do you want to share your email?")
+                .font(DS.Typography.fraunces(size: subtitleSize, weight: .regular))
+                .tracking(subtitleSize * -0.03)
+                .multilineTextAlignment(.center)
+                .foregroundColor(primaryColor)
+
+            emailInput
+        }
+    }
+
+    private var emailInput: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("Email", text: $email)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                .textContentType(.emailAddress)
+                .disabled(isSaving)
+                .font(DS.Typography.fraunces(size: subtitleSize, weight: .regular))
+                .foregroundColor(primaryColor)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 18)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.94))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(primaryColor.opacity(0.15), lineWidth: 1)
+                )
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(DS.Typography.fraunces(size: detailSize, weight: .regular))
+                    .foregroundColor(.red)
+            }
+        }
+    }
+
+    private var continueButton: some View {
+        Button(action: submitEmail) {
+            Text("Continue")
+                .font(DS.Typography.fraunces(size: subtitleSize, weight: .regular))
+                .tracking(subtitleSize * -0.03)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(primaryColor.opacity(isContinueEnabled ? 1 : 0.35))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var finePrint: some View {
+        VStack(spacing: 8) {
+            Text("We are in testing phase, and the only way to reach out to you for feedback is through email.")
+                .font(DS.Typography.fraunces(size: finePrintSize, weight: .regular))
+                .tracking(finePrintSize * -0.03)
+                .foregroundColor(primaryColor)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: skip) {
+                Text("Skip")
+                    .underline()
+                    .font(DS.Typography.fraunces(size: finePrintSize, weight: .bold))
+                    .tracking(finePrintSize * -0.03)
+                    .foregroundColor(primaryColor)
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+        }
+        .multilineTextAlignment(.center)
+    }
+
+    private func startPresentation() {
+        heroVisible = false
+        emailSectionVisible = false
+        finePrintVisible = false
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            withAnimation(.interpolatingSpring(stiffness: 140, damping: 14)) {
+                heroVisible = true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                emailSectionVisible = true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                finePrintVisible = true
+            }
+        }
     }
 
     private func submitEmail() {
-        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = trimmedEmail
         guard isValidEmail(trimmed) else {
             errorMessage = "Please enter a valid email address."
             return
@@ -106,6 +256,7 @@ struct EmailCaptureView: View {
                 }
                 AnalyticsManager.shared.track(.emailSubmitted(method: .manual))
                 authManager.pendingAppleEmail = nil
+                notifyEmailSaved()
                 onFinish(.submitted)
             } catch {
                 errorMessage = "Couldn't save your email. Please try again."
@@ -113,6 +264,11 @@ struct EmailCaptureView: View {
             }
             isSaving = false
         }
+    }
+
+    private func notifyEmailSaved() {
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
     }
 
     private func skip() {
