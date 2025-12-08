@@ -72,6 +72,10 @@ struct EmailCaptureView: View {
             Spacer()
         }
         .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            OnboardingBackground()
+        }
     }
 
     private var isContinueEnabled: Bool {
