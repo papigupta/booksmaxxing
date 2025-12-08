@@ -7,6 +7,10 @@ struct AuthView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     var logoNamespace: Namespace.ID? = nil
+    @State private var heroVisible = false
+    @State private var subtitleVisible = false
+    @State private var buttonVisible = false
+    @State private var finePrintVisible = false
 
     private let pageMargin: CGFloat = 60
     private let primaryColor = Color(hex: "262626")
@@ -28,9 +32,18 @@ struct AuthView: View {
 
                 VStack(spacing: 20) {
                     heroCopy
+                        .opacity(heroVisible ? 1 : 0)
+                        .scaleEffect(heroVisible ? 1 : 0.8)
+
                     subtitle
+                        .opacity(subtitleVisible ? 1 : 0)
+
                     signInWithAppleButton
+                        .opacity(buttonVisible ? 1 : 0)
+                        .scaleEffect(buttonVisible ? 1 : 0.82)
+
                     finePrint
+                        .opacity(finePrintVisible ? 1 : 0)
 
                     if !authManager.iCloudAccountAvailable {
                         VStack(spacing: 8) {
@@ -44,6 +57,7 @@ struct AuthView: View {
                         .padding()
                         .background(Color(.secondarySystemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .opacity(finePrintVisible ? 1 : 0)
                     }
 
                     if let message = authManager.authErrorMessage {
@@ -51,6 +65,7 @@ struct AuthView: View {
                             .foregroundColor(.red)
                             .font(.footnote)
                             .multilineTextAlignment(.center)
+                            .opacity(finePrintVisible ? 1 : 0)
                     }
                 }
                 .padding(.bottom, safeBottom + 24)
@@ -63,6 +78,34 @@ struct AuthView: View {
         }
         .onAppear {
             authManager.checkICloudAccountStatus()
+            heroVisible = false
+            subtitleVisible = false
+            buttonVisible = false
+            finePrintVisible = false
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.interpolatingSpring(stiffness: 140, damping: 14)) {
+                    heroVisible = true
+                }
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    subtitleVisible = true
+                }
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                withAnimation(.interpolatingSpring(stiffness: 150, damping: 16)) {
+                    buttonVisible = true
+                }
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.05) {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    finePrintVisible = true
+                }
+            }
         }
     }
 }
@@ -152,7 +195,7 @@ private extension AuthView {
     }
 
     var finePrint: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 6) {
             HStack(spacing: 4) {
                 Text("By continuing, you agree to our")
                 Button(action: { openURL(URL(string: "https://booksmaxxing.com/termsofservice")!) }) {
