@@ -14,25 +14,36 @@ final class AuthManager: NSObject, ObservableObject {
     private let userIdKey = "appleUserId"
     private let guestSessionKey = "guestSessionActive"
     private let defaults: UserDefaults
+    private let forceReauthKey = "forceReauthRequired"
 
     override init() {
         self.defaults = .standard
         super.init()
-        self.userIdentifier = KeychainHelper.shared.get(userIdKey)
-        let storedGuestSession = defaults.bool(forKey: guestSessionKey)
-        self.isGuestSession = storedGuestSession
-        self.isSignedIn = (self.userIdentifier != nil) || storedGuestSession
+        let requireFreshLogin = defaults.bool(forKey: forceReauthKey)
+        if requireFreshLogin {
+            self.userIdentifier = nil
+            self.isGuestSession = false
+            self.isSignedIn = false
+        } else {
+            self.userIdentifier = KeychainHelper.shared.get(userIdKey)
+            let storedGuestSession = defaults.bool(forKey: guestSessionKey)
+            self.isGuestSession = storedGuestSession
+            self.isSignedIn = (self.userIdentifier != nil) || storedGuestSession
+        }
         startAccountStatusMonitoring()
     }
 
     func signOut() {
         KeychainHelper.shared.delete(userIdKey)
         defaults.set(false, forKey: guestSessionKey)
-        userIdentifier = nil
-        isSignedIn = false
-        isGuestSession = false
-        authErrorMessage = nil
-        pendingAppleEmail = nil
+        defaults.set(true, forKey: forceReauthKey)
+        DispatchQueue.main.async {
+            self.userIdentifier = nil
+            self.isSignedIn = false
+            self.isGuestSession = false
+            self.authErrorMessage = nil
+            self.pendingAppleEmail = nil
+        }
     }
 
     func handleAuthorization(result: Result<ASAuthorization, Error>) {
@@ -43,6 +54,7 @@ final class AuthManager: NSObject, ObservableObject {
                 let appleEmail = credential.email
                 KeychainHelper.shared.set(userID, forKey: userIdKey)
                 defaults.set(false, forKey: guestSessionKey)
+                defaults.set(false, forKey: forceReauthKey)
                 DispatchQueue.main.async {
                     self.userIdentifier = userID
                     self.isSignedIn = true
@@ -60,6 +72,7 @@ final class AuthManager: NSObject, ObservableObject {
 
     func startGuestSession() {
         defaults.set(true, forKey: guestSessionKey)
+        defaults.set(false, forKey: forceReauthKey)
         KeychainHelper.shared.delete(userIdKey)
         DispatchQueue.main.async {
             self.userIdentifier = nil

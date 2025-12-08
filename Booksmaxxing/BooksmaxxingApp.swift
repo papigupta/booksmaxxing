@@ -21,6 +21,7 @@ struct BooksmaxxingApp: App {
     
     // State to control splash screen visibility
     @State private var isShowingSplash = true
+    @Namespace private var onboardingLogoNamespace
     
     // Navigation state
     @StateObject private var navigationState = NavigationState()
@@ -54,7 +55,7 @@ struct BooksmaxxingApp: App {
         WindowGroup {
             ZStack {
                 if isShowingSplash {
-                    SplashScreenView()
+                    SplashScreenView(logoNamespace: onboardingLogoNamespace)
                         .transition(.opacity)
                 } else {
                     if authManager.isSignedIn {
@@ -65,7 +66,7 @@ struct BooksmaxxingApp: App {
                             .environmentObject(themeManager)
                             .transition(.opacity)
                     } else {
-                        AuthView(authManager: authManager)
+                        AuthView(authManager: authManager, logoNamespace: onboardingLogoNamespace)
                             .transition(.opacity)
                     }
                 }
