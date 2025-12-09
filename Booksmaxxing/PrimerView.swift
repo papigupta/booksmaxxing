@@ -47,6 +47,7 @@ struct PrimerView: View {
             // Initialize primerService with the correct modelContext
             primerService = PrimerService(openAIService: openAIService, modelContext: modelContext)
             loadPrimer()
+            UserAnalyticsService.shared.markPrimerOpened()
         }
     }
     

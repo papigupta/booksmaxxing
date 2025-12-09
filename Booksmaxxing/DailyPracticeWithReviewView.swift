@@ -151,6 +151,9 @@ struct DailyPracticeWithReviewView: View {
             }
         }
         .background(themeManager.currentTokens(for: colorScheme).surface.ignoresSafeArea())
+        .onAppear {
+            UserAnalyticsService.shared.markLessonStarted(book: book)
+        }
     }
     
     // MARK: - Views
@@ -657,6 +660,7 @@ struct DailyPracticeWithReviewView: View {
         completedAttempt = attempt
         showingTest = false
         shouldShowStreakToday = didIncrementStreak
+        UserAnalyticsService.shared.markLessonFinished()
         // Compute and persist Brain Calories + Accuracy + Attention for today
         sessionBCal = attempt.brainCalories
         let stats = CognitiveStatsService(modelContext: modelContext)
@@ -674,6 +678,16 @@ struct DailyPracticeWithReviewView: View {
         todayPauses = stats.todayAttentionPauses()
         todayAttentionPercent = stats.todayAttentionPercent()
         todayBCalTotal = stats.todayBCalTotal()
+
+        let clarityPercent = acc.percent
+        let brainCaloriesClosed = todayBCalTotal >= 200
+        let clarityClosed = clarityPercent >= 80
+        let attentionClosed = todayAttentionPercent >= 80
+        UserAnalyticsService.shared.updateRingClosures(
+            brainCaloriesClosed: brainCaloriesClosed,
+            clarityClosed: clarityClosed,
+            attentionClosed: attentionClosed
+        )
         
         // Record mistakes to review queue
         if let test = combinedTest {
@@ -821,6 +835,9 @@ private struct ReviewTestResultsView: View {
             }
             .navigationTitle("Results")
             .navigationBarTitleDisplayMode(.inline)
+        }
+        .onAppear {
+            UserAnalyticsService.shared.markResultsViewed()
         }
     }
     

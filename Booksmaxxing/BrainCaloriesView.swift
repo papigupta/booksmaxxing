@@ -40,7 +40,11 @@ struct BrainCaloriesView: View {
             .padding(.vertical, DS.Spacing.xxl)
         }
         .background(practiceBackground.ignoresSafeArea())
-        .onAppear { animateRings() }
+        .onAppear {
+            UserAnalyticsService.shared.markActivityRingsViewed()
+            UserAnalyticsService.shared.markResultsViewed()
+            animateRings()
+        }
         .onChange(of: animationSignature) { _ in animateRings() }
     }
 

@@ -55,6 +55,7 @@ class BookService: ObservableObject {
             
             modelContext.insert(newBook)
             try modelContext.save()
+            UserAnalyticsService.shared.refreshBookStats()
             
             // Keep early Google Books fetch skipped until author known (accuracy)
             if triggerMetadataFetch, let author = author, !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -545,6 +546,7 @@ class BookService: ObservableObject {
         modelContext.delete(book)
         try modelContext.save()
         print("⚠️ DELETION: Completed deletion for book '" + bookTitle + "'")
+        UserAnalyticsService.shared.refreshBookStats()
     }
     
     // MARK: - Relationship Validation and Cleanup

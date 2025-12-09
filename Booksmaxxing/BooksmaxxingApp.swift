@@ -31,6 +31,7 @@ struct BooksmaxxingApp: App {
     @StateObject private var authManager = AuthManager()
     // Theme state
     @StateObject private var themeManager = ThemeManager()
+    private let analyticsService = UserAnalyticsService.shared
     
     // Track active persistence containers
     @State private var cloudModelContainer = BooksmaxxingApp.makeCloudModelContainer()
@@ -74,7 +75,7 @@ struct BooksmaxxingApp: App {
             // Apply experimental theme globally
             .applyTheme(themePreset)
             .preferredColorScheme(themePreset.preferredColorScheme)
-            .animation(.easeInOut(duration: 0.5), value: isShowingSplash)
+            .animation(.easeIn(duration: 0.3), value: isShowingSplash)
             .onAppear {
                 // Hide splash screen after a delay to allow everything to load
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -83,6 +84,7 @@ struct BooksmaxxingApp: App {
                     }
                 }
                 // Storage already initialized via the active model container
+                refreshAnalyticsServiceContext()
             }
             // Removed global Experiments FAB overlay; access Experiments from kebab menu in BookOverviewView.
         }
@@ -103,6 +105,7 @@ struct BooksmaxxingApp: App {
                 resetSessionState()
                 rebuildCloudContainer()
             }
+            refreshAnalyticsServiceContext()
         }
     }
 }
@@ -125,6 +128,7 @@ private extension BooksmaxxingApp {
         } else {
             rebuildGuestContainer()
         }
+        refreshAnalyticsServiceContext()
     }
 
     func resetSessionState() {
@@ -139,6 +143,20 @@ private extension BooksmaxxingApp {
 
     func rebuildCloudContainer() {
         cloudModelContainer = BooksmaxxingApp.makeCloudModelContainer()
+    }
+
+    func refreshAnalyticsServiceContext() {
+        let context = ModelContext(activeModelContainer)
+        analyticsService.attachModelContext(context)
+        analyticsService.updateAuthState(
+            userIdentifier: authManager.userIdentifier,
+            isSignedIn: authManager.isSignedIn,
+            isGuestSession: authManager.isGuestSession
+        )
+        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            analyticsService.recordAppLaunch(version: version)
+        }
+        analyticsService.refreshBookStats()
     }
 
     static func makeCloudModelContainer() -> ModelContainer {
@@ -186,6 +204,7 @@ private extension BooksmaxxingApp {
                  StreakState.self,
                  UserProfile.self,
                  BookTheme.self,
+                 UserAnalyticsSnapshot.self,
             configurations: configuration
         )
     }
