@@ -304,6 +304,7 @@ private extension MainView {
         profile.updatedAt = Date.now
         do {
             try modelContext.save()
+            UserAnalyticsService.shared.markEmail(status: profile.emailStatus, hasEmail: profile.hasProvidedEmail)
             AnalyticsManager.shared.track(.emailSubmitted(method: .appleShare))
         } catch {
             print("DEBUG: Failed to persist Apple-provided email: \(error)")

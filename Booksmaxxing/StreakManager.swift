@@ -54,6 +54,7 @@ final class StreakManager: ObservableObject {
         Task { [notificationScheduler] in
             await notificationScheduler.cancelReminders()
         }
+        notifyAnalytics()
     }
 
     @discardableResult
@@ -88,6 +89,7 @@ final class StreakManager: ObservableObject {
         if currentStreak > bestStreak { bestStreak = currentStreak }
         persist()
         refreshNotificationSchedule()
+        notifyAnalytics()
         requestNotificationsAfterFirstSessionIfNeeded(wasFirstRecordedSession)
         return true
     }
@@ -103,6 +105,7 @@ final class StreakManager: ObservableObject {
         lastActiveDay = previousLastActiveDay
         persist()
         refreshNotificationSchedule()
+        notifyAnalytics()
         return true
     }
 
@@ -182,6 +185,7 @@ final class StreakManager: ObservableObject {
         guard triggerSideEffects else { return }
         evaluateReturningUserPromptIfNeeded()
         refreshNotificationSchedule()
+        notifyAnalytics()
     }
 
     private func evaluateReturningUserPromptIfNeeded() {
@@ -214,5 +218,16 @@ final class StreakManager: ObservableObject {
         modelContext.insert(newState)
         bindState(newState, triggerSideEffects: false)
         do { try modelContext.save() } catch { print("Streak create error: \(error)") }
+        notifyAnalytics()
+    }
+
+    private func notifyAnalytics() {
+        Task { @MainActor in
+            UserAnalyticsService.shared.updateStreak(
+                current: currentStreak,
+                best: bestStreak,
+                litToday: isLitToday
+            )
+        }
     }
 }

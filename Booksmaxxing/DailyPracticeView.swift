@@ -131,6 +131,7 @@ struct DailyPracticeView: View {
                 }
                 .onAppear {
                     Task { await themeManager.activateTheme(for: book) }
+                    UserAnalyticsService.shared.markLessonStarted(book: book)
                 }
                 .fullScreenCover(isPresented: $showingTest) {
                     if let test = generatedTest {
@@ -781,6 +782,7 @@ struct DailyPracticeView: View {
         showingTest = false
         activeAttempt = nil
         updateCurrentSessionStatus(PracticeSessionStatus.completed)
+        UserAnalyticsService.shared.markLessonFinished()
         
         // Fetch responses explicitly using the attemptId
         let attemptId = attempt.id
@@ -915,7 +917,7 @@ struct DailyPracticeView: View {
             let coverage = try? modelContext.fetch(covDesc).first
             let ideaObj = try? modelContext.fetch(ideaDesc).first
             if let coverage, let ideaObj, ideaObj.masteryLevel < 3 {
-                let hasEight = Set(coverage.coveredCategories).count >= 8
+                let hasEight = coverage.totalQuestionsCorrect >= 8
                 let passedSPFU = coverage.spacedFollowUpPassedAt != nil
                 let passedCurve = coverage.curveballPassed
                 if hasEight && passedSPFU && passedCurve {
@@ -942,12 +944,22 @@ struct DailyPracticeView: View {
         let acc = stats.todayAccuracy()
         todayCorrect = acc.correct
         todayTotal = acc.total
+        let clarityPercent = acc.percent
         todayBCalTotal = stats.todayBCalTotal()
         // Attention
         sessionPauses = attempt.attentionPauses
         stats.addAttentionPauses(sessionPauses)
         todayPauses = stats.todayAttentionPauses()
         todayAttentionPercent = stats.todayAttentionPercent()
+
+        let brainCaloriesClosed = todayBCalTotal >= 200
+        let clarityClosed = clarityPercent >= 80
+        let attentionClosed = todayAttentionPercent >= 80
+        UserAnalyticsService.shared.updateRingClosures(
+            brainCaloriesClosed: brainCaloriesClosed,
+            clarityClosed: clarityClosed,
+            attentionClosed: attentionClosed
+        )
 
         if didIncrementStreak {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -1046,7 +1058,7 @@ struct DailyPracticeView: View {
                 }
 
                 // If 8 categories are covered and spacedfollowup not set/passed, schedule it baseDelayDays out
-                let hasEight = Set(coverage.coveredCategories).count >= 8
+                let hasEight = coverage.totalQuestionsCorrect >= 8
                 if hasEight && coverage.spacedFollowUpPassedAt == nil && coverage.spacedFollowUpDueDate == nil && coverage.spacedFollowUpBloom != nil {
                     coverage.spacedFollowUpDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.baseDelayDays, to: Date())
                 }

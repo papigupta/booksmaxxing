@@ -254,6 +254,7 @@ struct EmailCaptureView: View {
                 if let userId = authManager.userIdentifier, !authManager.isGuestSession {
                     UserProfileSyncService.shared.syncProfile(profile, userId: userId)
                 }
+                UserAnalyticsService.shared.markEmail(status: profile.emailStatus, hasEmail: profile.hasProvidedEmail)
                 AnalyticsManager.shared.track(.emailSubmitted(method: .manual))
                 authManager.pendingAppleEmail = nil
                 notifyEmailSaved()
@@ -282,6 +283,7 @@ struct EmailCaptureView: View {
                 if let userId = authManager.userIdentifier, !authManager.isGuestSession {
                     UserProfileSyncService.shared.syncProfile(profile, userId: userId)
                 }
+                UserAnalyticsService.shared.markEmail(status: profile.emailStatus, hasEmail: profile.hasProvidedEmail)
                 AnalyticsManager.shared.track(.emailSkipped)
                 authManager.pendingAppleEmail = nil
                 onFinish(.skipped)

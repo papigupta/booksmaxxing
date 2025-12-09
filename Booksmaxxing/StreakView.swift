@@ -80,6 +80,9 @@ struct StreakView: View {
         .padding(.top, horizontalPadding)
         .padding(.bottom, horizontalPadding)
         .background(backgroundColor.ignoresSafeArea())
+        .onAppear {
+            UserAnalyticsService.shared.markStreakPageViewed()
+        }
     }
 
     private var heroSection: some View {

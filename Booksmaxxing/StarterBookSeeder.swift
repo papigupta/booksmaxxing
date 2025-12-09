@@ -16,6 +16,7 @@ struct StarterBookSeeder {
             let seeded = try seedBookIfNeeded(seed)
             if seeded { seededCount += 1 }
         }
+        UserAnalyticsService.shared.refreshBookStats()
         return seededCount
     }
 

@@ -10,6 +10,9 @@ struct ProfileView: View {
     @State private var emailDraft: String = ""
     @State private var emailErrorMessage: String?
     @State private var emailInfoMessage: String?
+#if DEBUG
+    @State private var showAnalyticsDashboard = false
+#endif
 
     let authManager: AuthManager
 
@@ -67,6 +70,13 @@ struct ProfileView: View {
                         }
                     }
                 }
+#if DEBUG
+                Section(header: Text("Analytics (Debug)")) {
+                    Button("Open Analytics Dashboard") {
+                        showAnalyticsDashboard = true
+                    }
+                }
+#endif
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -82,6 +92,11 @@ struct ProfileView: View {
                 emailDraft = ""
             }
         }
+#if DEBUG
+        .sheet(isPresented: $showAnalyticsDashboard) {
+            AdminAnalyticsDashboardView()
+        }
+#endif
     }
 }
 
@@ -119,6 +134,7 @@ private extension ProfileView {
             if let userId = authManager.userIdentifier, !authManager.isGuestSession {
                 UserProfileSyncService.shared.syncProfile(profile, userId: userId)
             }
+            UserAnalyticsService.shared.markEmail(status: profile.emailStatus, hasEmail: profile.hasProvidedEmail)
             if trimmed.isEmpty {
                 emailInfoMessage = "Email removed."
             } else {
