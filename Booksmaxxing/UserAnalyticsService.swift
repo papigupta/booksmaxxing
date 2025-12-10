@@ -222,6 +222,10 @@ final class UserAnalyticsService {
         guard let context = modelContext else { return }
         do {
             try context.save()
+            if let snapshot {
+                let payload = AnalyticsPublicRecordPayload(snapshot: snapshot, isGuestSession: isGuestSession)
+                AnalyticsPublicSyncService.shared.enqueueSync(payload)
+            }
         } catch {
             print("UserAnalyticsService save error: \(error)")
         }
