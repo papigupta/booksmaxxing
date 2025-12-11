@@ -399,8 +399,8 @@ class BookService: ObservableObject {
     func deleteBookAndAllData(book: Book) throws {
         let bookId = book.id.uuidString
         let bookTitle = book.title
+        let normalizedBookTitle = ReviewQueueItem.normalizeBookTitle(bookTitle)
         let targetBookId = bookId
-        let targetBookTitle = bookTitle
         let targetBookUUID = book.id
         print("⚠️ DELETION: Starting permanent delete for book '" + bookTitle + "' (id: " + bookId + ")")
 
@@ -415,7 +415,10 @@ class BookService: ObservableObject {
             let itemsById = try modelContext.fetch(byIdDescriptor)
             // Filter legacy by matching bookTitle in Swift to avoid predicate limitations
             let legacyCandidates = try modelContext.fetch(byTitleLegacyDescriptor)
-            let legacyItems = legacyCandidates.filter { $0.bookTitle == targetBookTitle }
+            let legacyItems = legacyCandidates.filter {
+                let normalized = $0.bookTitleNormalized ?? ReviewQueueItem.normalizeBookTitle($0.bookTitle)
+                return normalized == normalizedBookTitle
+            }
             (itemsById + legacyItems).forEach { modelContext.delete($0) }
             print("⚠️ DELETION: Deleted \(itemsById.count + legacyItems.count) ReviewQueueItem rows (including legacy)")
         } catch {
