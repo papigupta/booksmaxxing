@@ -214,7 +214,7 @@ final class UserAnalyticsService {
         pendingSaveTask?.cancel()
         pendingSaveTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 400_000_000)
-            await self?.saveNow()
+            self?.saveNow()
         }
     }
 

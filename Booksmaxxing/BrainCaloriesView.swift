@@ -45,7 +45,9 @@ struct BrainCaloriesView: View {
             UserAnalyticsService.shared.markResultsViewed()
             animateRings()
         }
-        .onChange(of: animationSignature) { _ in animateRings() }
+        .onChange(of: animationSignature) { _, _ in
+            animateRings()
+        }
     }
 
     private var header: some View {

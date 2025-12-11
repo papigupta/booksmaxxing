@@ -10,6 +10,7 @@ final class ReviewQueueItem {
     var ideaTitle: String = ""
     var bookTitle: String = ""
     var bookId: String? // Prefer bookId; bookTitle kept for backward compat
+    var bookTitleNormalized: String?
     var questionType: QuestionType = QuestionType.mcq
     var conceptTested: String = ""
     var difficulty: QuestionDifficulty = QuestionDifficulty.easy
@@ -40,6 +41,7 @@ final class ReviewQueueItem {
         self.ideaTitle = ideaTitle
         self.bookTitle = bookTitle
         self.bookId = bookId
+        self.bookTitleNormalized = ReviewQueueItem.normalizeBookTitle(bookTitle)
         self.questionType = questionType
         self.conceptTested = conceptTested
         self.difficulty = difficulty
@@ -49,6 +51,33 @@ final class ReviewQueueItem {
         self.isSpacedFollowUp = isSpacedFollowUp
         self.addedDate = Date()
         self.isCompleted = false
+    }
+
+    static func normalizeBookTitle(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "" }
+        let collapsed = trimmed
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return collapsed.lowercased()
+    }
+
+    func normalizedBookTitleValue() -> String {
+        if let stored = bookTitleNormalized, !stored.isEmpty {
+            return stored
+        }
+        let normalized = ReviewQueueItem.normalizeBookTitle(bookTitle)
+        bookTitleNormalized = normalized
+        return normalized
+    }
+
+    func matchesBook(targetBookId: String, normalizedBookTitle: String?) -> Bool {
+        if let storedId = bookId {
+            return storedId == targetBookId
+        }
+        guard let normalizedBookTitle else { return false }
+        return normalizedBookTitleValue() == normalizedBookTitle
     }
 }
 
@@ -125,20 +154,18 @@ class ReviewQueueManager {
         openCap: Int = 1
     ) -> (mcqs: [ReviewQueueItem], openEnded: [ReviewQueueItem]) {
         let targetBookId = bookId
-        let hasLegacyTitle = bookTitle != nil
-        let safeLegacyTitle = bookTitle ?? ""
+        let normalizedLegacyTitle = bookTitle.map { ReviewQueueItem.normalizeBookTitle($0) }
         let descriptor = FetchDescriptor<ReviewQueueItem>(
             predicate: #Predicate { item in
-                !item.isCompleted && (
-                    item.bookId == targetBookId ||
-                    (hasLegacyTitle && item.bookId == nil && item.bookTitle == safeLegacyTitle)
-                )
+                !item.isCompleted && (item.bookId == targetBookId || item.bookId == nil)
             },
             sortBy: [SortDescriptor(\.addedDate)]
         )
-        
         do {
-            let allPendingItems = try modelContext.fetch(descriptor)
+            let candidates = try modelContext.fetch(descriptor)
+            let allPendingItems = candidates.filter { item in
+                item.matchesBook(targetBookId: targetBookId, normalizedBookTitle: normalizedLegacyTitle)
+            }
             print("🔍 REVIEW QUEUE: pending items for book=\(bookId): \(allPendingItems.count)")
 
             // OEQ prioritization: pick at most 1 OEQ in this order:
@@ -231,19 +258,18 @@ class ReviewQueueManager {
     func getQueueStatistics(bookId: String, bookTitle: String? = nil) -> (totalMCQs: Int, totalOpenEnded: Int) {
         print("🔍 REVIEW QUEUE: getQueueStatistics() called for bookId: \(bookId)")
         let targetBookId = bookId
-        let hasLegacyTitle = bookTitle != nil
-        let safeLegacyTitle = bookTitle ?? ""
+        let normalizedLegacyTitle = bookTitle.map { ReviewQueueItem.normalizeBookTitle($0) }
         let descriptor = FetchDescriptor<ReviewQueueItem>(
             predicate: #Predicate { item in
-                !item.isCompleted && (
-                    item.bookId == targetBookId ||
-                    (hasLegacyTitle && item.bookId == nil && item.bookTitle == safeLegacyTitle)
-                )
+                !item.isCompleted && (item.bookId == targetBookId || item.bookId == nil)
             }
         )
         
         do {
-            let allPendingItems = try modelContext.fetch(descriptor)
+            let candidates = try modelContext.fetch(descriptor)
+            let allPendingItems = candidates.filter { item in
+                item.matchesBook(targetBookId: targetBookId, normalizedBookTitle: normalizedLegacyTitle)
+            }
             let mcqCount = allPendingItems.filter { $0.questionType == .mcq }.count
             let openEndedCount = allPendingItems.filter { $0.questionType == .openEnded }.count
             
