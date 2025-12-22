@@ -122,9 +122,9 @@ struct PrimerView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.xl) {
                 if hasNewContent {
-                    shiftSection(primer)
-                    anchorSection(primer)
-                    mechanismSection(primer)
+                    provocationSection(primer)
+                    mentalModelSection(primer)
+                    deepLogicSection(primer)
                     lensSection(primer)
                     rabbitHoleSection(primer)
                 }
@@ -185,14 +185,14 @@ struct PrimerView: View {
     }
     
     @ViewBuilder
-    private func shiftSection(_ primer: Primer) -> some View {
+    private func provocationSection(_ primer: Primer) -> some View {
         let theme = themeManager.currentTokens(for: colorScheme)
         if !primer.shift.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.xs) {
-                    DSIcon("arrow.triangle.2.circlepath", size: 16)
+                    DSIcon("bolt.fill", size: 16)
                         .foregroundColor(theme.primary)
-                    Text("The Shift")
+                    Text("The Provocation")
                         .font(DS.Typography.headline)
                         .tracking(tightTracking)
                         .foregroundStyle(theme.onSurface)
@@ -211,26 +211,17 @@ struct PrimerView: View {
     }
     
     @ViewBuilder
-    private func anchorSection(_ primer: Primer) -> some View {
+    private func mentalModelSection(_ primer: Primer) -> some View {
         let theme = themeManager.currentTokens(for: colorScheme)
         if !primer.anchor.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.sm) {
                     DSIcon("sparkles", size: 18)
                         .foregroundColor(theme.primary)
-                    Text("The Anchor")
+                    Text("The Mental Model")
                         .font(DS.Typography.headline)
                         .tracking(tightTracking)
                         .foregroundStyle(theme.onSurface)
-                    Spacer()
-                    Text(primer.anchorIsAuthorMetaphor ? "Author metaphor" : "New analogy")
-                        .font(DS.Typography.caption)
-                        .tracking(tightTracking)
-                        .foregroundStyle(theme.onSurface.opacity(0.75))
-                        .padding(.horizontal, DS.Spacing.sm)
-                        .padding(.vertical, DS.Spacing.xs)
-                        .background(theme.onSurface.opacity(0.08))
-                        .cornerRadius(999)
                 }
                 
                 Text(primer.anchor)
@@ -246,25 +237,26 @@ struct PrimerView: View {
     }
     
     @ViewBuilder
-    private func mechanismSection(_ primer: Primer) -> some View {
+    private func deepLogicSection(_ primer: Primer) -> some View {
         let theme = themeManager.currentTokens(for: colorScheme)
         if !primer.mechanism.isEmpty {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.sm) {
                     DSIcon("gearshape.fill", size: 18)
                         .foregroundColor(theme.primary)
-                    Text("The Mechanism")
+                    Text("The Deep Logic")
                         .font(DS.Typography.headline)
                         .tracking(tightTracking)
                         .foregroundStyle(theme.onSurface)
                 }
                 
                 VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                    ForEach(primer.mechanism, id: \.self) { item in
-                        Text("• \(item)")
+                    ForEach(Array(primer.mechanism.enumerated()), id: \.offset) { _, paragraph in
+                        Text(paragraph)
                             .font(DS.Typography.body)
                             .tracking(tightTracking)
                             .foregroundStyle(theme.onSurface)
+                            .lineSpacing(6)
                     }
                 }
                 .padding(DS.Spacing.lg)

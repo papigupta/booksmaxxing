@@ -130,25 +130,43 @@ class PrimerService: ObservableObject {
     
     private func createPrimerPrompt(for idea: Idea) -> String {
         return """
-        GOAL: Create a deep-encoding "Primer" for the concept "\(idea.title)" from the book "\(idea.bookTitle)".
+        The Universal "Architectural" Primer Prompt
+        Role: You are a world-class Science Communicator. Your goal is to decode a concept from a non-fiction book into a "Primer"—a learning asset that captures the full depth and nuance of the original text.
 
-        CONTEXT: The user already read it; they need an "Aha!" re-encoding (dual coding + elaboration). You can use accurate book-specific metaphors from your own knowledge; do not fabricate.
+        Input:
 
-        SOURCE MATERIAL: "\(idea.ideaDescription)"
+        Book: \(idea.bookTitle)
 
-        OUTPUT FORMAT (use these exact headings/labels):
+        Concept: \(idea.title)
 
-        # The Shift (≤20 words)
-        Most people think X, but actually Y.
+        Source Context: \(idea.ideaDescription)
 
-        # The Anchor (Visual Analogy) (60–80 words)
-        Source: <Author metaphor | New analogy>
-        Analogy: <vivid analogy text>
+        Instructions: Generate a JSON object with these three sections. Write in a dense, lucid, and high-resolution style (approx. 150–200 words total).
 
-        # The Mechanism (The Logic)
-        - <mechanism bullet 1>
-        - <mechanism bullet 2>
-        - <mechanism bullet 3>
+        1. The Provocation
+        Goal: Violate the user's intuition.
+        Instruction: Start by exposing a gap or misconception in how the user currently sees the world. Create a "need to know" before you deliver the insight.
+
+        2. The Mental Model
+        Goal: Visualization.
+        Instruction: Describe a vivid, sensory scenario or analogy that makes the abstract concept concrete. Make the user "see" the idea in 3D.
+
+        3. The Deep Logic
+        Goal: Structural Fidelity.
+        Instruction: Explain the concept using the author's exact architectural framework.
+        If the concept has specific parts (stages, types, quadrants, or laws), you must include and bold them (e.g., Fixed Mindset vs. Growth Mindset).
+        Match the structure:
+        If it's a Loop/Process: Explain how one step triggers the next.
+        If it's a Spectrum/Contrast: Explain the distinction between the opposing sides.
+        If it's a Thesis: Explain the central mechanism of the argument.
+        Style: Use fluid prose. Do not use bullet points.
+
+        OUTPUT FORMAT (use this exact order):
+        {
+          "provocation": "<text>",
+          "mentalModel": "<text>",
+          "deepLogic": "<text>"
+        }
 
         # The Lens (When to see it)
         When you see: <cue> — Why: <brief rationale>
@@ -159,13 +177,25 @@ class PrimerService: ObservableObject {
         - Visual: <search query for a visual/animation>
         - Counter: <search query for a counter-argument>
 
-        TONE: Intellectual, slightly provocative, matching the book's authorial voice. No URLs—only queries. Be concrete and specific; avoid generic filler. Total length ≈ 200 words.
+        Additional rules: The user already read the source text—give them an "aha" re-encoding via dual coding and elaboration. Use accurate book-specific metaphors when relevant, and do not fabricate facts. Maintain an intellectual, slightly provocative tone that mirrors the authorial voice. No URLs—only search queries.
         """
     }
     
     private func parsePrimerResponse(_ response: String) throws -> ParsedPrimer {
         let lines = response.components(separatedBy: .newlines)
         var parsed = ParsedPrimer()
+
+        if let jsonSections = extractArchitecturalSections(from: response) {
+            if let provocation = jsonSections["provocation"] {
+                parsed.shift = provocation.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if let mentalModel = jsonSections["mentalmodel"] {
+                parsed.anchor = mentalModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if let deepLogic = jsonSections["deeplogic"] {
+                parsed.mechanism = narrativeChunks(from: deepLogic)
+            }
+        }
         var currentSection = ""
         
         func cleanQuery(_ text: String) -> String {
@@ -355,6 +385,66 @@ class PrimerService: ObservableObject {
         if parsed.oneLineRecall.isEmpty { parsed.oneLineRecall = parsed.shift }
         
         return parsed
+    }
+
+    private func extractArchitecturalSections(from response: String) -> [String: String]? {
+        guard let start = response.firstIndex(of: "{") else { return nil }
+        var depth = 0
+        var inString = false
+        var isEscaping = false
+        var index = start
+        var endIndex: String.Index?
+
+        while index < response.endIndex {
+            let char = response[index]
+            if inString {
+                if isEscaping {
+                    isEscaping = false
+                } else if char == "\\" {
+                    isEscaping = true
+                } else if char == "\"" {
+                    inString = false
+                }
+            } else {
+                if char == "\"" {
+                    inString = true
+                } else if char == "{" {
+                    depth += 1
+                } else if char == "}" {
+                    depth -= 1
+                    if depth == 0 {
+                        endIndex = response.index(after: index)
+                        break
+                    }
+                }
+            }
+            index = response.index(after: index)
+        }
+
+        guard let endIndex else { return nil }
+        let jsonString = String(response[start..<endIndex])
+        guard let data = jsonString.data(using: .utf8) else { return nil }
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+
+        var results: [String: String] = [:]
+        for (key, value) in object {
+            if let stringValue = value as? String {
+                results[key.lowercased()] = stringValue
+            }
+        }
+        return results
+    }
+
+    private func narrativeChunks(from text: String) -> [String] {
+        let trimmed = text
+            .replacingOccurrences(of: "\r", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let paragraphs = trimmed
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return paragraphs.isEmpty ? [trimmed] : paragraphs
     }
 
     // MARK: - On-demand Examples Generation
