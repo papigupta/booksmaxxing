@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class AnalyticsSyncJob {
-    var id: UUID
-    var payloadData: Data
-    var enqueuedAt: Date
-    var retryCount: Int
-    var nextAttemptAt: Date
+    var id: UUID = UUID()
+    var payloadData: Data = Foundation.Data()
+    var enqueuedAt: Date = Date()
+    var retryCount: Int = 0
+    var nextAttemptAt: Date = Date()
     var lastErrorMessage: String?
 
     init(payload: AnalyticsPublicRecordPayload, encoder: JSONEncoder = JSONEncoder()) {

@@ -307,8 +307,15 @@ private struct ActivityRingLayer: View {
     let lineWidth: CGFloat
     let startAngle: Angle
 
-    private var trimmedProgress: Double { min(max(progress, 0), 1) }
-    private var overflow: Double { max(progress - 1, 0) }
+    private var normalizedProgress: Double {
+        guard progress.isFinite else { return 0 }
+        return min(max(progress, 0), 1)
+    }
+
+    private var overflow: Double {
+        guard progress.isFinite else { return 0 }
+        return max(progress - 1, 0)
+    }
 
     var body: some View {
         ZStack {
@@ -317,14 +324,14 @@ private struct ActivityRingLayer: View {
                 .frame(width: diameter, height: diameter)
 
             Circle()
-                .trim(from: 0, to: CGFloat(trimmedProgress))
+                .trim(from: 0, to: CGFloat(normalizedProgress))
                 .stroke(style.gradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(startAngle)
                 .frame(width: diameter, height: diameter)
                 .shadow(color: style.shadowColor, radius: 9, x: 0, y: 4)
 
             ActivityRingTip(
-                progress: trimmedProgress,
+                progress: normalizedProgress,
                 diameter: diameter,
                 lineWidth: lineWidth,
                 startAngle: startAngle,
@@ -349,9 +356,14 @@ private struct ActivityRingTip: View {
     let startAngle: Angle
     let color: Color
 
+    private var safeProgress: Double {
+        guard progress.isFinite else { return 0 }
+        return min(max(progress, 0), 1)
+    }
+
     var body: some View {
         Group {
-            if progress > 0 {
+            if safeProgress > 0 {
                 Circle()
                     .fill(color)
                     .frame(width: lineWidth * 0.7, height: lineWidth * 0.7)
@@ -362,7 +374,7 @@ private struct ActivityRingTip: View {
     }
 
     private var tipOffset: CGSize {
-        let angle = startAngle + .degrees(progress * 360)
+        let angle = startAngle + .degrees(safeProgress * 360)
         let radius = (diameter / 2) - (lineWidth / 2)
         let x = CGFloat(cos(angle.radians)) * radius
         let y = CGFloat(sin(angle.radians)) * radius

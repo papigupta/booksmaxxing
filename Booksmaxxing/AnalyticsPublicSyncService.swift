@@ -124,7 +124,10 @@ final class AnalyticsPublicSyncService {
         guard !isUploading, let context = modelContext else { return }
 
         var descriptor = FetchDescriptor<AnalyticsSyncJob>(
-            sortBy: [SortDescriptor(\.nextAttemptAt, order: .forward), SortDescriptor(\.enqueuedAt, order: .forward)]
+            sortBy: [
+                SortDescriptor(\AnalyticsSyncJob.nextAttemptAt, order: .forward),
+                SortDescriptor(\AnalyticsSyncJob.enqueuedAt, order: .forward)
+            ]
         )
         descriptor.fetchLimit = 1
         guard let job = try? context.fetch(descriptor).first else { return }
@@ -188,7 +191,7 @@ final class AnalyticsPublicSyncService {
     }
 
     private func fetchRecord(with id: CKRecord.ID) async throws -> CKRecord? {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord?, Error>) in
             database.fetch(withRecordID: id) { record, error in
                 if let record {
                     continuation.resume(returning: record)
@@ -204,7 +207,7 @@ final class AnalyticsPublicSyncService {
     }
 
     private func saveRecord(_ record: CKRecord) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             database.save(record) { _, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -295,7 +298,7 @@ final class AnalyticsPublicSyncService {
     }
 
     private func checkAccountStatus() async -> Bool {
-        await withCheckedContinuation { continuation in
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
             container.accountStatus { status, error in
                 if let error {
                     print("AnalyticsPublicSync account status error: \(error)")

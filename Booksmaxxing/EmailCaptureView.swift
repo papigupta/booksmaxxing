@@ -84,7 +84,7 @@ struct EmailCaptureView: View {
             }
         }
         .onAppear(perform: startPresentation)
-        .onChange(of: email) { _ in
+        .onChange(of: email) { _, _ in
             if errorMessage != nil {
                 errorMessage = nil
             }
