@@ -1,7 +1,9 @@
 import Foundation
 import CloudKit
+import SwiftData
+import CryptoKit
 
-struct AnalyticsPublicRecordPayload {
+struct AnalyticsPublicRecordPayload: Codable {
     let recordName: String
     let userIdentifier: String
     let createdAt: Date
@@ -73,44 +75,141 @@ struct AnalyticsPublicRecordPayload {
     }
 }
 
+@MainActor
 final class AnalyticsPublicSyncService {
     static let shared = AnalyticsPublicSyncService()
 
+    private let container: CKContainer
     private let database: CKDatabase
-    private let queue = DispatchQueue(label: "AnalyticsPublicSyncServiceQueue")
     private let recordType = "CD_UserAnalyticsSnapshot"
 
+    private var modelContext: ModelContext?
+    private var isUploading = false
+    private var wakeUpTask: Task<Void, Never>?
+    private var bufferedPayloads: [AnalyticsPublicRecordPayload] = []
+
     private init() {
-        database = CKContainer(identifier: CloudKitConfig.containerIdentifier).publicCloudDatabase
+        container = CKContainer(identifier: CloudKitConfig.containerIdentifier)
+        database = container.publicCloudDatabase
+    }
+
+    func attachModelContext(_ context: ModelContext) {
+        modelContext = context
+        flushBufferedPayloads()
+        Task { await processQueue() }
     }
 
     func enqueueSync(_ payload: AnalyticsPublicRecordPayload) {
-        queue.async { [weak self] in
-            self?.upsert(payload: payload)
+        guard let context = modelContext else {
+            bufferedPayloads.append(payload)
+            return
+        }
+
+        let job = AnalyticsSyncJob(payload: payload)
+        context.insert(job)
+        do { try context.save() } catch { print("AnalyticsPublicSync enqueue save error: \(error)") }
+        Task { await processQueue() }
+    }
+
+    private func flushBufferedPayloads() {
+        guard !bufferedPayloads.isEmpty else { return }
+        let payloads = bufferedPayloads
+        bufferedPayloads = []
+        for payload in payloads {
+            enqueueSync(payload)
         }
     }
 
-    private func upsert(payload: AnalyticsPublicRecordPayload) {
-        let recordID = CKRecord.ID(recordName: payload.recordName)
-        database.fetch(withRecordID: recordID) { [weak self] record, error in
+    private func processQueue() async {
+        guard !isUploading, let context = modelContext else { return }
+
+        var descriptor = FetchDescriptor<AnalyticsSyncJob>(
+            sortBy: [SortDescriptor(\.nextAttemptAt, order: .forward), SortDescriptor(\.enqueuedAt, order: .forward)]
+        )
+        descriptor.fetchLimit = 1
+        guard let job = try? context.fetch(descriptor).first else { return }
+
+        let now = Date()
+        if job.nextAttemptAt > now {
+            scheduleWakeUp(at: job.nextAttemptAt)
+            return
+        }
+
+        isUploading = true
+        await upload(job: job)
+    }
+
+    private func scheduleWakeUp(at date: Date) {
+        wakeUpTask?.cancel()
+        let delay = max(date.timeIntervalSinceNow, 0.5)
+        wakeUpTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard let self else { return }
+            await self.processQueue()
+        }
+    }
 
-            let recordToSave: CKRecord
-            if let record {
-                recordToSave = record
-            } else if let ckError = error as? CKError, ckError.code == .unknownItem {
-                recordToSave = CKRecord(recordType: self.recordType, recordID: recordID)
-            } else if let error {
-                print("AnalyticsPublicSync fetch error: \(error)")
-                return
-            } else {
-                recordToSave = CKRecord(recordType: self.recordType, recordID: recordID)
+    private func upload(job: AnalyticsSyncJob) async {
+        defer {
+            isUploading = false
+        }
+
+        guard let context = modelContext else { return }
+        guard let payload = job.payload() else {
+            context.delete(job)
+            do { try context.save() } catch { print("AnalyticsPublicSync decode error: \(error)") }
+            await processQueue()
+            return
+        }
+
+        let isAccountAvailable = await checkAccountStatus()
+        guard isAccountAvailable else {
+            reschedule(job: job, message: "iCloud account unavailable", retryable: true)
+            await processQueue()
+            return
+        }
+
+        do {
+            try await upsert(payload: payload)
+            context.delete(job)
+            try context.save()
+        } catch {
+            handleUploadError(error, for: job)
+        }
+
+        await processQueue()
+    }
+
+    private func upsert(payload: AnalyticsPublicRecordPayload) async throws {
+        let recordID = CKRecord.ID(recordName: sanitizedRecordName(from: payload.recordName))
+        let record = try await fetchRecord(with: recordID) ?? CKRecord(recordType: recordType, recordID: recordID)
+        populate(record, from: payload)
+        try await saveRecord(record)
+    }
+
+    private func fetchRecord(with id: CKRecord.ID) async throws -> CKRecord? {
+        try await withCheckedThrowingContinuation { continuation in
+            database.fetch(withRecordID: id) { record, error in
+                if let record {
+                    continuation.resume(returning: record)
+                } else if let ckError = error as? CKError, ckError.code == .unknownItem {
+                    continuation.resume(returning: nil)
+                } else if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: nil)
+                }
             }
+        }
+    }
 
-            self.populate(recordToSave, from: payload)
-            self.database.save(recordToSave) { _, error in
+    private func saveRecord(_ record: CKRecord) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            database.save(record) { _, error in
                 if let error {
-                    print("AnalyticsPublicSync save error: \(error)")
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: ())
                 }
             }
         }
@@ -149,5 +248,67 @@ final class AnalyticsPublicSyncService {
         record["clarityRingClosed"] = NSNumber(value: payload.clarityRingClosed)
         record["attentionRingClosed"] = NSNumber(value: payload.attentionRingClosed)
         record["isGuestSession"] = NSNumber(value: payload.isGuestSession)
+    }
+
+    private func handleUploadError(_ error: Error, for job: AnalyticsSyncJob) {
+        if let ckError = error as? CKError {
+            if isRetryable(ckError) {
+                let message = "CKError retry (\(ckError.code.rawValue)): \(ckError.localizedDescription)"
+                reschedule(job: job, message: message, retryable: true)
+            } else {
+                let message = "CKError fatal (\(ckError.code.rawValue)): \(ckError.localizedDescription)"
+                reschedule(job: job, message: message, retryable: false)
+            }
+        } else {
+            reschedule(job: job, message: error.localizedDescription, retryable: true)
+        }
+    }
+
+    private func reschedule(job: AnalyticsSyncJob, message: String, retryable: Bool) {
+        guard let context = modelContext else { return }
+        if retryable {
+            job.retryCount += 1
+            job.lastErrorMessage = message
+            let delay = retryDelay(for: job.retryCount)
+            job.nextAttemptAt = Date().addingTimeInterval(delay)
+            print("AnalyticsPublicSync retrying in \(Int(delay))s: \(message)")
+        } else {
+            job.lastErrorMessage = message
+            print("AnalyticsPublicSync dropping job: \(message)")
+            context.delete(job)
+        }
+        do { try context.save() } catch { print("AnalyticsPublicSync reschedule save error: \(error)") }
+    }
+
+    private func retryDelay(for attempt: Int) -> TimeInterval {
+        let cappedAttempt = min(attempt, 6)
+        return min(pow(2.0, Double(cappedAttempt)) * 5.0, 300.0)
+    }
+
+    private func isRetryable(_ error: CKError) -> Bool {
+        switch error.code {
+        case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy, .notAuthenticated, .serverRejectedRequest, .quotaExceeded:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func checkAccountStatus() async -> Bool {
+        await withCheckedContinuation { continuation in
+            container.accountStatus { status, error in
+                if let error {
+                    print("AnalyticsPublicSync account status error: \(error)")
+                    continuation.resume(returning: false)
+                    return
+                }
+                continuation.resume(returning: status == .available)
+            }
+        }
+    }
+
+    private func sanitizedRecordName(from raw: String) -> String {
+        let digest = SHA256.hash(data: Data(raw.utf8))
+        return "usr_" + digest.compactMap { String(format: "%02x", $0) }.joined()
     }
 }

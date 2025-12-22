@@ -148,6 +148,7 @@ private extension BooksmaxxingApp {
     func refreshAnalyticsServiceContext() {
         let context = ModelContext(activeModelContainer)
         analyticsService.attachModelContext(context)
+        AnalyticsPublicSyncService.shared.attachModelContext(context)
         analyticsService.updateAuthState(
             userIdentifier: authManager.userIdentifier,
             isSignedIn: authManager.isSignedIn,
@@ -204,6 +205,7 @@ private extension BooksmaxxingApp {
                  StreakState.self,
                  UserProfile.self,
                  BookTheme.self,
+                 AnalyticsSyncJob.self,
                  UserAnalyticsSnapshot.self,
             configurations: configuration
         )
