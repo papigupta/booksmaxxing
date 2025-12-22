@@ -198,7 +198,7 @@ struct PrimerView: View {
                         .foregroundStyle(theme.onSurface)
                 }
                 
-                Text(primer.shift)
+                formattedText(primer.shift)
                     .font(DS.Typography.bodyEmphasized)
                     .tracking(tightTracking)
                     .foregroundStyle(theme.onSurface)
@@ -224,7 +224,7 @@ struct PrimerView: View {
                         .foregroundStyle(theme.onSurface)
                 }
                 
-                Text(primer.anchor)
+                formattedText(primer.anchor)
                     .font(DS.Typography.body)
                     .tracking(tightTracking)
                     .foregroundStyle(theme.onSurface)
@@ -252,7 +252,7 @@ struct PrimerView: View {
                 
                 VStack(alignment: .leading, spacing: DS.Spacing.md) {
                     ForEach(Array(primer.mechanism.enumerated()), id: \.offset) { _, paragraph in
-                        Text(paragraph)
+                        formattedText(paragraph)
                             .font(DS.Typography.body)
                             .tracking(tightTracking)
                             .foregroundStyle(theme.onSurface)
@@ -852,6 +852,17 @@ struct PrimerView: View {
         } else {
             print("Cannot open URL: \(urlString)")
         }
+    }
+
+    private func formattedText(_ text: String) -> Text {
+        if #available(iOS 15.0, *) {
+            var options = AttributedString.MarkdownParsingOptions()
+            options.interpretedSyntax = .inlineOnly
+            if let attributed = try? AttributedString(markdown: text, options: options) {
+                return Text(attributed)
+            }
+        }
+        return Text(text)
     }
 }
 
