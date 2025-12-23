@@ -326,13 +326,14 @@ final class LessonGenerationService {
         4. Questions should test different aspects of the concept
         5. Wrong answers should be plausible but clearly incorrect
         6. Use varied Bloom categories to ensure comprehensive coverage
-        \(count == 8 ? "7. IMPORTANT: Use ALL 8 different bloom categories, one for each question" : "")
+        7. Do NOT prefix options with letters or numbers (no "A.", "1)", etc.)
+        \(count == 8 ? "8. IMPORTANT: Use ALL 8 different bloom categories, one for each question" : "")
         
         Format your response as a JSON array with this structure:
         [
           {
             "question": "Question text here?",
-            "options": ["Option A", "Option B", "Option C", "Option D"],
+            "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],
             "correctIndex": 0,
             "difficulty": "easy|medium|hard",
             "bloomCategory": "recall|reframe|whyImportant|apply|whenUse|contrast|critique|howWield"
@@ -378,6 +379,13 @@ final class LessonGenerationService {
                     continue
                 }
                 
+                let sanitizedOptions = OptionSanitizer.sanitize(options)
+                if let reason = OptionSanitizer.firstInvalidReason(in: sanitizedOptions) {
+                    print("WARNING: Skipping invalid options for idea \(idea.title): \(reason)")
+                    continue
+                }
+                guard sanitizedOptions.indices.contains(correctIndex) else { continue }
+                
                 let difficulty: QuestionDifficulty = {
                     switch difficultyStr.lowercased() {
                     case "easy": return .easy
@@ -402,7 +410,7 @@ final class LessonGenerationService {
                 }()
                 
                 // Randomize options
-                let (shuffledOptions, newCorrectIndices) = randomizeOptions(options, correctIndices: [correctIndex])
+                let (shuffledOptions, newCorrectIndices) = randomizeOptions(sanitizedOptions, correctIndices: [correctIndex])
                 
                 let question = Question(
                     ideaId: idea.id,
@@ -517,11 +525,12 @@ final class LessonGenerationService {
         
         Generate ONE new multiple choice question that tests the SAME concept but with DIFFERENT wording.
         This is a correction/review question, so make it clear and focused on understanding.
+        Do NOT prefix options with letters or numbers (no "A.", "1)", etc.)
         
         Format your response as JSON:
         {
           "question": "Question text here?",
-          "options": ["Option A", "Option B", "Option C", "Option D"],
+          "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],
           "correctIndex": 0,
           "explanation": "Brief explanation of why this is correct"
         }
@@ -541,19 +550,24 @@ final class LessonGenerationService {
                let options = questionData["options"] as? [String],
                let correctIndex = questionData["correctIndex"] as? Int {
                 
-                // Randomize options
-                let (shuffledOptions, newCorrectIndices) = randomizeOptions(options, correctIndices: [correctIndex])
-                
-                return Question(
-                    ideaId: idea.id,
-                    type: .mcq,
-                    difficulty: .medium,
-                    bloomCategory: .apply,
-                    questionText: questionText,
-                    options: shuffledOptions,
-                    correctAnswers: newCorrectIndices,
-                    orderIndex: index
-                )
+                let sanitizedOptions = OptionSanitizer.sanitize(options)
+                if let reason = OptionSanitizer.firstInvalidReason(in: sanitizedOptions) {
+                    print("WARNING: Invalid correction options for idea \(idea.title): \(reason)")
+                } else if sanitizedOptions.indices.contains(correctIndex) {
+                    // Randomize options
+                    let (shuffledOptions, newCorrectIndices) = randomizeOptions(sanitizedOptions, correctIndices: [correctIndex])
+                    
+                    return Question(
+                        ideaId: idea.id,
+                        type: .mcq,
+                        difficulty: .medium,
+                        bloomCategory: .apply,
+                        questionText: questionText,
+                        options: shuffledOptions,
+                        correctAnswers: newCorrectIndices,
+                        orderIndex: index
+                    )
+                }
             }
         } catch {
             print("ERROR: Failed to generate correction question: \(error)")

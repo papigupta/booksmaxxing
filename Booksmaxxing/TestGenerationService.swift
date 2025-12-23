@@ -63,6 +63,7 @@ class TestGenerationService {
         - No added hedges or caveats unless mirrored across options
         - Keep order fixed; do NOT reorder
         - Preserve the correct option semantically
+        - Do NOT prefix options with letters or numbers (no "A.", "1)", etc.)
         Output ONLY JSON: { "options": ["...","...","...","..."] }
         """
 
@@ -360,7 +361,11 @@ class TestGenerationService {
                     guard let options = item.options, let correct = item.correct, options.count == 4, correct.count == 1 else {
                         throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) MCQ shape invalid")
                     }
-                    let normalized = options.map { norm($0) }
+                    let sanitizedOptions = OptionSanitizer.sanitize(options)
+                    if let reason = OptionSanitizer.firstInvalidReason(in: sanitizedOptions) {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) invalid options (\(reason))")
+                    }
+                    let normalized = sanitizedOptions.map { norm($0) }
                     if Set(normalized).count != 4 { throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) duplicate options") }
                     if normalized.contains(where: { disallowed.contains($0) }) { throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) disallowed option") }
                     if !(0...3).contains(correct[0]) { throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) correct index out of range") }
@@ -372,12 +377,16 @@ class TestGenerationService {
                 guard let bloom = BloomCategory(rawValue: item.bloom), let difficulty = QuestionDifficulty(rawValue: item.difficulty) else {
                     throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) unknown enums")
                 }
-                var options: [String]? = item.options
+                var options: [String]? = item.options.map { OptionSanitizer.sanitize($0) }
                 var correct: [Int]? = item.correct
                 if type != .openEnded, let opts = options, let corr = correct {
                     let (shuffled, newIdx) = self.randomizeOptions(opts, correctIndices: corr)
                     let normalized = await self.normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newIdx.first ?? 0, difficulty: difficulty, contextQuestion: item.question)
-                    options = normalized
+                    let cleaned = OptionSanitizer.sanitize(normalized)
+                    if let reason = OptionSanitizer.firstInvalidReason(in: cleaned) {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) invalid options after normalization (\(reason))")
+                    }
+                    options = cleaned
                     correct = newIdx
                 }
 
@@ -421,6 +430,7 @@ class TestGenerationService {
             Provide exactly 4 parallel, succinct options with ONE correct answer.
 
             No "all/none of the above".
+            Do NOT prefix options with letters or numbers (no "A.", "1)", etc.).
 
             Output ONLY JSON matching the schema.
             """
@@ -437,7 +447,7 @@ class TestGenerationService {
             "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|HowWield|Critique",
             "difficulty": "Easy|Medium|Hard",
             "question": "string",
-            "options": ["A","B","C","D"],
+            "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],
             "correct": [0]
             }
             ]
@@ -805,7 +815,7 @@ class TestGenerationService {
         Return ONLY a JSON object with this structure:
         {
             "question": "The new question text",
-            "options": ["Option 1", "Option 2", "Option 3", "Option 4"],  // Only for MCQ
+            "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],  // Only for MCQ
             "correct": [0]  // Index of correct answer (0-based)
         }
         
@@ -821,39 +831,49 @@ class TestGenerationService {
         The question should test the same concept as the original but with fresh content.
         """
         
-        let response = try await openAI.complete(
-            prompt: "\(systemPrompt)\n\n\(userPrompt)",
-            model: "gpt-4.1",
-            temperature: 0.8,  // Slightly higher for variety
-            maxTokens: 500
-        )
-        
-        let (questionText, options, correctAnswers) = try parseQuestionResponse(response, type: queueItem.questionType)
-        
-        // Randomize options if they exist
-        let finalOptions: [String]?
-        let finalCorrectAnswers: [Int]?
-        if let opts = options, let correct = correctAnswers {
-            let (shuffled, newCorrect) = randomizeOptions(opts, correctIndices: correct)
-            finalOptions = shuffled
-            finalCorrectAnswers = newCorrect
-        } else {
-            finalOptions = options
-            finalCorrectAnswers = correctAnswers
+        let maxAttempts = 2
+        var lastError: Error?
+        for attempt in 1...maxAttempts {
+            do {
+                let response = try await openAI.complete(
+                    prompt: "\(systemPrompt)\n\n\(userPrompt)",
+                    model: "gpt-4.1",
+                    temperature: 0.8,  // Slightly higher for variety
+                    maxTokens: 500
+                )
+                
+                let (questionText, options, correctAnswers) = try parseQuestionResponse(response, type: queueItem.questionType)
+                
+                // Randomize options if they exist
+                let finalOptions: [String]?
+                let finalCorrectAnswers: [Int]?
+                if let opts = options, let correct = correctAnswers {
+                    let (shuffled, newCorrect) = randomizeOptions(opts, correctIndices: correct)
+                    finalOptions = shuffled
+                    finalCorrectAnswers = newCorrect
+                } else {
+                    finalOptions = options
+                    finalCorrectAnswers = correctAnswers
+                }
+                
+                return Question(
+                    ideaId: queueItem.ideaId,
+                    type: queueItem.questionType,
+                    difficulty: queueItem.difficulty,
+                    bloomCategory: queueItem.bloomCategory,
+                    questionText: questionText,
+                    options: finalOptions,
+                    correctAnswers: finalCorrectAnswers,
+                    orderIndex: orderIndex,
+                    isCurveball: queueItem.isCurveball,
+                    sourceQueueItemId: queueItem.id
+                )
+            } catch {
+                lastError = error
+                logger.debug("REVIEW: attempt \(attempt) failed: \(error.localizedDescription)")
+            }
         }
-        
-        return Question(
-            ideaId: queueItem.ideaId,
-            type: queueItem.questionType,
-            difficulty: queueItem.difficulty,
-            bloomCategory: queueItem.bloomCategory,
-            questionText: questionText,
-            options: finalOptions,
-            correctAnswers: finalCorrectAnswers,
-            orderIndex: orderIndex,
-            isCurveball: queueItem.isCurveball,
-            sourceQueueItemId: queueItem.id
-        )
+        throw lastError ?? TestGenerationError.invalidResponse
     }
     
     // MARK: - Review Test Generation (focused on mistakes)
@@ -934,39 +954,53 @@ class TestGenerationService {
         let systemPrompt = createSystemPrompt(for: type, difficulty: difficulty, bloomCategory: bloomCategory)
         let userPrompt = createUserPrompt(for: idea, type: type, bloomCategory: bloomCategory, isReview: isReview)
         
-        let response = try await openAI.complete(
-            prompt: "\(systemPrompt)\n\n\(userPrompt)",
-            model: "gpt-4.1",
-            temperature: 0.7,
-            maxTokens: 500
-        )
-        
-        // Parse the response based on question type
-        let (questionText, options, correctAnswers) = try parseQuestionResponse(response, type: type)
-        
-        // Randomize options if they exist (MCQ and MSQ)
-        let finalOptions: [String]?
-        let finalCorrectAnswers: [Int]?
-        if let opts = options, let correct = correctAnswers {
-            let (shuffled, newCorrect) = randomizeOptions(opts, correctIndices: correct)
-            let normalized = await normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newCorrect.first ?? 0, difficulty: difficulty, contextQuestion: questionText)
-            finalOptions = normalized
-            finalCorrectAnswers = newCorrect
-        } else {
-            finalOptions = options
-            finalCorrectAnswers = correctAnswers
+        let maxAttempts = 2
+        var lastError: Error?
+        for attempt in 1...maxAttempts {
+            do {
+                let response = try await openAI.complete(
+                    prompt: "\(systemPrompt)\n\n\(userPrompt)",
+                    model: "gpt-4.1",
+                    temperature: 0.7,
+                    maxTokens: 500
+                )
+                
+                // Parse the response based on question type
+                let (questionText, options, correctAnswers) = try parseQuestionResponse(response, type: type)
+                
+                // Randomize options if they exist (MCQ and MSQ)
+                let finalOptions: [String]?
+                let finalCorrectAnswers: [Int]?
+                if let opts = options, let correct = correctAnswers {
+                    let (shuffled, newCorrect) = randomizeOptions(opts, correctIndices: correct)
+                    let normalized = await normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newCorrect.first ?? 0, difficulty: difficulty, contextQuestion: questionText)
+                    let cleaned = OptionSanitizer.sanitize(normalized)
+                    if let reason = OptionSanitizer.firstInvalidReason(in: cleaned) {
+                        throw TestGenerationError.generationFailed("Invalid options after normalization (\(reason))")
+                    }
+                    finalOptions = cleaned
+                    finalCorrectAnswers = newCorrect
+                } else {
+                    finalOptions = options
+                    finalCorrectAnswers = correctAnswers
+                }
+                
+                return Question(
+                    ideaId: idea.id,
+                    type: type,
+                    difficulty: difficulty,
+                    bloomCategory: bloomCategory,
+                    questionText: questionText,
+                    options: finalOptions,
+                    correctAnswers: finalCorrectAnswers,
+                    orderIndex: orderIndex
+                )
+            } catch {
+                lastError = error
+                logger.debug("GEN: attempt \(attempt) failed: \(error.localizedDescription)")
+            }
         }
-        
-        return Question(
-            ideaId: idea.id,
-            type: type,
-            difficulty: difficulty,
-            bloomCategory: bloomCategory,
-            questionText: questionText,
-            options: finalOptions,
-            correctAnswers: finalCorrectAnswers,
-            orderIndex: orderIndex
-        )
+        throw lastError ?? TestGenerationError.invalidResponse
     }
     
     // MARK: - Prompt Creation
@@ -1045,7 +1079,7 @@ class TestGenerationService {
         Return ONLY a JSON object with this structure:
         {
             "question": "The question text",
-            "options": ["Option 1", "Option 2", "Option 3", "Option 4"],  // Only for MCQ/MSQ
+            "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],  // Only for MCQ/MSQ
             "correct": [0]  // Indices of correct answers (0-based)
         }
         
@@ -1273,7 +1307,12 @@ class TestGenerationService {
             throw TestGenerationError.invalidCorrectAnswerCount
         }
         
-        return (question, options, correct)
+        let sanitizedOptions = OptionSanitizer.sanitize(options)
+        if let reason = OptionSanitizer.firstInvalidReason(in: sanitizedOptions) {
+            throw TestGenerationError.generationFailed("Invalid options (\(reason))")
+        }
+        
+        return (question, sanitizedOptions, correct)
     }
     
     private func analyzeMistakePatterns(_ mistakes: [QuestionResponse]) -> [BloomCategory: Int] {

@@ -87,7 +87,7 @@ JSON schema:
 "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|HowWield|Critique",
 "difficulty": "Easy|Medium|Hard",
 "question": "string",
-"options": ["A","B","C","D"],
+"options": ["First option text", "Second option text", "Third option text", "Fourth option text"],
 "correct": [0]
 }
 ]
@@ -115,7 +115,7 @@ Output Format:
 Return ONLY a JSON object with this structure:
 {
     "question": "The question text",
-    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],  // Only for MCQ/MSQ
+    "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],  // Only for MCQ/MSQ
     "correct": [0]  // Indices of correct answers (0-based)
 }
 
@@ -232,7 +232,7 @@ Output Format:
 Return ONLY a JSON object with this structure:
 {
     "question": "The new question text",
-    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],  // Only for MCQ
+    "options": ["First option text", "Second option text", "Third option text", "Fourth option text"],  // Only for MCQ
     "correct": [0]  // Index of correct answer (0-based)
 }
 
