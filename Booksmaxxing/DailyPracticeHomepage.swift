@@ -40,6 +40,7 @@ struct DailyPracticeHomepage: View {
     @State private var showingExperiments: Bool = false
     @State private var experimentsPreset: ThemePreset = .system
     @State private var showingDeleteAlert: Bool = false
+    @State private var showingProfile: Bool = false
     @State private var pendingScrollTask: Task<Void, Never>? = nil
     @AppStorage(DevPreferenceKeys.showPreviousQuestionButton) private var showPreviousQuestionButton: Bool = false
     
@@ -145,6 +146,7 @@ struct DailyPracticeHomepage: View {
                             }
                         }
                         Button("Book Selection Lab") { showingBookSelectionLab = true }
+                        Button("Profile") { showingProfile = true }
                         Button("Reset add-book tooltip") {
                             UserDefaults.standard.set(false, forKey: BookSelectionEducationKeys.addBookTipAcknowledged)
                         }
@@ -230,6 +232,9 @@ struct DailyPracticeHomepage: View {
                     .sheet(isPresented: $showingExperiments) {
                         ThemeLabView(preset: $experimentsPreset)
                             .environmentObject(themeManager)
+                    }
+                    .sheet(isPresented: $showingProfile) {
+                        ProfileView(authManager: authManager)
                     }
                 }
             }

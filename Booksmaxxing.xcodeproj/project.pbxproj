@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		955D21662ECC3ECC009189F4 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 955D21652ECC3ECC009189F4 /* FirebaseAnalytics */; };
 		955D21682ECC3ECC009189F4 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 955D21672ECC3ECC009189F4 /* FirebaseCrashlytics */; };
+		955D216A2ECC3ECC009189F4 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 955D21692ECC3ECC009189F4 /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +73,7 @@
 			files = (
 				955D21662ECC3ECC009189F4 /* FirebaseAnalytics in Frameworks */,
 				955D21682ECC3ECC009189F4 /* FirebaseCrashlytics in Frameworks */,
+				955D216A2ECC3ECC009189F4 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -134,6 +136,7 @@
 			packageProductDependencies = (
 				955D21652ECC3ECC009189F4 /* FirebaseAnalytics */,
 				955D21672ECC3ECC009189F4 /* FirebaseCrashlytics */,
+				955D21692ECC3ECC009189F4 /* FirebaseFirestore */,
 			);
 			productName = Booksmaxxing;
 			productReference = 9501EA662E2949EA00E66525 /* Booksmaxxing.app */;
@@ -416,7 +419,7 @@
 				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Booksmaxxing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_ASSET_PATHS = "\"Booksmaxxing/Preview Content\"";
 				DEVELOPMENT_TEAM = 289MX5ASRJ;
 				ENABLE_PREVIEWS = YES;
@@ -461,7 +464,7 @@
 				CODE_SIGN_ENTITLEMENTS = Booksmaxxing/Booksmaxxing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_ASSET_PATHS = "\"Booksmaxxing/Preview Content\"";
 				DEVELOPMENT_TEAM = 289MX5ASRJ;
 				ENABLE_PREVIEWS = YES;
@@ -646,6 +649,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 955D21642ECC3ECC009189F4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseCrashlytics;
+		};
+		955D21692ECC3ECC009189F4 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 955D21642ECC3ECC009189F4 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

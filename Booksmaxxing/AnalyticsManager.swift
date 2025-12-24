@@ -15,6 +15,9 @@ enum BMEvent {
     )
     case starterLibrarySeeded(bookCount: Int)
     case starterLibrarySeedingFailed(reason: String)
+    case onboardingStep(step: String)
+    case emailSubmitted(method: EmailCaptureMethod)
+    case emailSkipped
 }
 
 enum BookSource: String {
@@ -38,6 +41,11 @@ enum QuestionDifficultyMetric: String {
     case easy
     case medium
     case hard
+}
+
+enum EmailCaptureMethod: String {
+    case appleShare
+    case manual
 }
 
 final class AnalyticsManager {
@@ -106,6 +114,12 @@ final class AnalyticsManager {
             return ("starter_library_seeded", ["book_count": bookCount])
         case let .starterLibrarySeedingFailed(reason):
             return ("starter_library_seed_failed", ["reason": reason])
+        case let .onboardingStep(step):
+            return ("onboarding_step", ["step": step])
+        case let .emailSubmitted(method):
+            return ("email_submitted", ["method": method.rawValue])
+        case .emailSkipped:
+            return ("email_skipped", nil)
         }
     }
 
@@ -117,7 +131,7 @@ final class AnalyticsManager {
             incrementCounter(forKey: Keys.booksAdded)
         case .sessionCompleted:
             incrementCounter(forKey: Keys.totalSessionsCompleted)
-        case .sessionStarted, .questionAnswered, .starterLibrarySeeded, .starterLibrarySeedingFailed:
+        case .sessionStarted, .questionAnswered, .starterLibrarySeeded, .starterLibrarySeedingFailed, .onboardingStep, .emailSubmitted, .emailSkipped:
             break
         }
     }

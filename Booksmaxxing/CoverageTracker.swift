@@ -60,12 +60,10 @@ final class IdeaCoverage {
     }
     
     func updateCoverage() {
-        // Coverage base is 8 BloomCategory types (80%)
-        // Each correctly answered type = 10% (capped at 80%)
-        let totalCategories = 8
-        let uniqueCategoriesCovered = Set(coveredCategories).count
-        let base = min(uniqueCategoriesCovered, totalCategories)
-        var pct = Double(base) * 10.0 // 80% max
+        // Coverage base is now total correct answers up to 8 (80%)
+        let maxSlots = 8
+        let correctForCoverage = min(totalQuestionsCorrect, maxSlots)
+        var pct = Double(correctForCoverage) * 10.0 // 80% max
         if spacedFollowUpPassedAt != nil { pct += 20.0 }
         coveragePercentage = min(100.0, pct)
         
@@ -76,10 +74,11 @@ final class IdeaCoverage {
             currentAccuracy = 0.0
         }
         
-        // "isFullyCovered" now reflects whether spaced follow-up was passed as well (100%)
-        isFullyCovered = (uniqueCategoriesCovered >= totalCategories) && (spacedFollowUpPassedAt != nil)
-        // coveredDate marks when all 8 categories were first completed (not full coverage)
-        if uniqueCategoriesCovered >= totalCategories && coveredDate == nil { coveredDate = Date() }
+        // "isFullyCovered" now reflects whether we have 8 correct answers and the spaced follow-up was passed
+        let hasEightCorrect = totalQuestionsCorrect >= maxSlots
+        isFullyCovered = hasEightCorrect && (spacedFollowUpPassedAt != nil)
+        // coveredDate marks when the learner first reached 8 correct answers
+        if hasEightCorrect && coveredDate == nil { coveredDate = Date() }
     }
     
     /// Record a question attempt with BloomCategory tracking
@@ -253,8 +252,8 @@ final class CoverageService {
             )
         }
         
-        // Initialize FSRS when 8 categories are covered (base) if not already present
-        if Set(coverage.coveredCategories).count >= 8 && coverage.reviewStateData == nil {
+        // Initialize FSRS when 8 total correct answers are logged (base) if not already present
+        if coverage.totalQuestionsCorrect >= 8 && coverage.reviewStateData == nil {
             let reviewState = FSRSScheduler.initializeReviewState(for: getIdea(ideaId: ideaId))
             coverage.reviewStateData = try? JSONEncoder().encode(reviewState)
         }
