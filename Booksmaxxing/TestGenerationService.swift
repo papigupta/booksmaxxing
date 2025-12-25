@@ -937,12 +937,21 @@ class TestGenerationService {
         }
         // Minimal handling for Reframe Q6: no LLM, just a simple invite
         if type == .openEnded && bloomCategory == .reframe {
+            let prompts = [
+                "Draft a tweet about '\(idea.title)' without using hashtags. Keep it under 280 characters.",
+                "Explain '\(idea.title)' to a smart 5-year-old. Use simple words only.",
+                "How would you explain '\(idea.title)' to an elderly relative who has zero context about this field?",
+                "Don't just define it. Describe '\(idea.title)' using a metaphor or analogy from real life (e.g., 'It's like...').",
+                "You're at a loud bar. Explain '\(idea.title)' to a friend simply enough that it would fit on the back of a coaster.",
+                "Write a note to your future self explaining '\(idea.title)' so you don't forget why it matters."
+            ]
+            let questionText = prompts.randomElement() ?? "In your own words, explain '\(idea.title)' as if you were telling a friend."
             return Question(
                 ideaId: idea.id,
                 type: type,
                 difficulty: difficulty,
                 bloomCategory: bloomCategory,
-                questionText: "In your own words, explain '\(idea.title)' as if you were telling a friend.",
+                questionText: questionText,
                 options: nil,
                 correctAnswers: nil,
                 orderIndex: orderIndex
