@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Foundation
 #if os(iOS)
 import UIKit
 #endif
@@ -56,6 +57,7 @@ struct TestView: View {
     @State private var currentFeedback: QuestionFeedback?
     @State private var isEvaluatingQuestion = false
     @State private var questionEvaluations: [UUID: QuestionEvaluation] = [:]
+    @State private var isKeyboardVisible = false
 
     // BCal tracking state
     @State private var trackingStart: Date? = nil
@@ -247,6 +249,14 @@ struct TestView: View {
                 lastSelectedIndex[q.id] = newIndex
                 markActivity()
             }
+            #if canImport(UIKit)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                isKeyboardVisible = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                isKeyboardVisible = false
+            }
+            #endif
             .fullScreenCover(isPresented: Binding(
                 get: { shouldShowResults },
                 set: { if !$0 { evaluationResult = nil } }
@@ -288,6 +298,7 @@ struct TestView: View {
             }
         }
         .background(theme.background.ignoresSafeArea())
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
     
     // MARK: - Helper Methods
@@ -415,10 +426,10 @@ struct TestView: View {
                     let feedback = self.makeFeedback(from: evaluation, question: question)
                     self.questionEvaluations[question.id] = evaluation
                     self.currentFeedback = feedback
-                    // Present full-screen feedback view
-                    self.showingFeedback = true
                     self.isEvaluatingQuestion = false
                     self.triggerAnswerHaptic(isCorrect: feedback.isCorrect)
+                    // Present full-screen feedback view once layout is stable
+                    self.presentFeedback()
                 }
 
                 await fetchWhyIfNeeded(for: question, baseEvaluation: evaluation)
@@ -832,6 +843,44 @@ extension TestView {
         lastActivityAt = Date()
         if internalIdleActive { internalIdleActive = false }
     }
+
+    @MainActor
+    private func presentFeedback() {
+        guard currentFeedback != nil else { return }
+        #if canImport(UIKit)
+        if isKeyboardVisible {
+            dismissKeyboard()
+            Task { @MainActor in
+                await waitForKeyboardToHide(timeoutNanoseconds: 300_000_000)
+                showingFeedback = true
+            }
+            return
+        }
+        #endif
+        showingFeedback = true
+    }
+
+    #if canImport(UIKit)
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
+    private func waitForKeyboardToHide(timeoutNanoseconds: UInt64) async {
+        if !isKeyboardVisible { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                for await _ in NotificationCenter.default.notifications(named: UIResponder.keyboardDidHideNotification) {
+                    break
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+            }
+            await group.next()
+            group.cancelAll()
+        }
+    }
+    #endif
 
     // MARK: - App Lifecycle Observers (extra safety for external distractions)
     private func registerLifecycleObservers() {
@@ -1394,12 +1443,19 @@ struct FeedbackFullScreen: View {
     }
 
     private func styledFeedbackText(_ text: String, theme: ThemeTokens) -> some View {
-        Text(text)
-            .font(DS.Typography.body)
-            .foregroundColor(theme.onSurface.opacity(0.85))
-            .lineSpacing(feedbackLineSpacing)
-            .tracking(feedbackTracking)
+        Text(feedbackAttributedText(text, theme: theme))
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func feedbackAttributedText(_ text: String, theme: ThemeTokens) -> AttributedString {
+        var container = AttributeContainer()
+        container.font = DS.Typography.body
+        container.foregroundColor = theme.onSurface.opacity(0.85)
+        container.kern = Double(feedbackTracking)
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = feedbackLineSpacing
+        container.paragraphStyle = paragraphStyle
+        return AttributedString(text, attributes: container)
     }
 
     private func trimmed(_ text: String?) -> String? {
