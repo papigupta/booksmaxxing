@@ -364,11 +364,19 @@ class TestGenerationService {
                 guard !item.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                     throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) empty question")
                 }
+                var sanitizedOptions: [String]? = nil
+                var sanitizedCorrect: [Int]? = nil
                 if item.type == "MCQ" {
                     guard let options = item.options, let correct = item.correct, options.count == 4, correct.count == 1 else {
                         throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) MCQ shape invalid")
                     }
-                    let normalized = options.map { norm($0) }
+                    let sanitized = OptionSanitizer.sanitize(options)
+                    if let reason = OptionSanitizer.firstInvalidReason(in: sanitized) {
+                        throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) invalid options after sanitization: \(reason)")
+                    }
+                    sanitizedOptions = sanitized
+                    sanitizedCorrect = correct
+                    let normalized = sanitized.map { norm($0) }
                     if Set(normalized).count != 4 { throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) duplicate options") }
                     if normalized.contains(where: { disallowed.contains($0) }) { throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) disallowed option") }
                     if !(0...3).contains(correct[0]) { throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) correct index out of range") }
@@ -380,8 +388,8 @@ class TestGenerationService {
                 guard let bloom = BloomCategory(rawValue: item.bloom), let difficulty = QuestionDifficulty(rawValue: item.difficulty) else {
                     throw TestGenerationError.generationFailed("UNIFIED: Slot \(i) unknown enums")
                 }
-                var options: [String]? = item.options
-                var correct: [Int]? = item.correct
+                var options: [String]? = sanitizedOptions ?? item.options
+                var correct: [Int]? = sanitizedCorrect ?? item.correct
                 if type != .openEnded, let opts = options, let corr = correct {
                     let (shuffled, newIdx) = self.randomizeOptions(opts, correctIndices: corr)
                     let normalized = await self.normalizeOptionLengthsIfNeeded(options: shuffled, correctIndex: newIdx.first ?? 0, difficulty: difficulty, contextQuestion: item.question)
@@ -428,6 +436,8 @@ class TestGenerationService {
 
             Provide exactly 4 parallel, succinct options with ONE correct answer.
 
+            Do NOT prefix options with letters or numbers (no "A.", "1)", etc.).
+
             No "all/none of the above".
 
             Output ONLY JSON matching the schema.
@@ -445,8 +455,8 @@ class TestGenerationService {
             "bloom": "Recall|Apply|WhyImportant|WhenUse|Contrast|HowWield|Critique",
             "difficulty": "Easy|Medium|Hard",
             "question": "string",
-            "options": ["A","B","C","D"],
-            "correct": [0]
+            "options": ["Option text 1", "Option text 2", "Option text 3", "Option text 4"],
+            "correct": [0..3]
             }
             ]
             }
