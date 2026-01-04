@@ -14,6 +14,7 @@ struct DailyPracticeHomepage: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var currentLessonNumber: Int = 0
     @State private var selectedLesson: GeneratedLesson? = nil
@@ -176,18 +177,27 @@ struct DailyPracticeHomepage: View {
                     .onAppear {
                         scheduleScrollIfNeeded(proxy: proxy, animated: false)
                         Task { await themeManager.activateTheme(for: book) }
-                        if !didInitialLoad {
-                            Task {
+                        Task {
+                            if !didInitialLoad || practiceMilestones.isEmpty {
                                 isLoading = true
                                 await loadPracticeData()
-                                await prefetchCurrentLessonIfNeeded()
                                 didInitialLoad = true
                                 isLoading = false
                             }
+                            await prefetchCurrentLessonIfNeeded()
                         }
                     }
                     .onChange(of: refreshID) { _, _ in
                         Task { await loadPracticeData() }
+                    }
+                    .onChange(of: scenePhase) { _, phase in
+                        guard phase == .active else { return }
+                        Task {
+                            if practiceMilestones.isEmpty && !isLoading {
+                                await loadPracticeData()
+                            }
+                            await prefetchCurrentLessonIfNeeded()
+                        }
                     }
                     .onChange(of: book.id) { _, _ in
                         resetForNewBook()

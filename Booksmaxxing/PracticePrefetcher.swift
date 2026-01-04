@@ -14,18 +14,33 @@ final class PracticePrefetcher {
     }
 
     // Public API: Prefetch lesson N for a book.
-    func prefetchLesson(book: Book, lessonNumber: Int) {
-        print("PREFETCH: Request to prefetch lesson \(lessonNumber) for book: \(book.title)")
-        // Guard valid lesson number
-        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
-        guard lessonNumber > 0, lessonNumber <= sortedIdeas.count else { return }
+    func prefetchLesson(book: Book, lessonNumber: Int, fallbackIdea: Idea? = nil) {
+        Task(priority: .userInitiated) { @MainActor in
+            print("PREFETCH: Request to prefetch lesson \(lessonNumber) for book: \(book.title)")
+            // Guard valid lesson number
+            let sortedIdeas = resolveSortedIdeas(for: book)
+            let primaryIdea: Idea?
+            if !sortedIdeas.isEmpty {
+                guard lessonNumber > 0, lessonNumber <= sortedIdeas.count else {
+                    print("PREFETCH: Invalid lesson \(lessonNumber) (ideas=\(sortedIdeas.count)); skipping")
+                    return
+                }
+                primaryIdea = sortedIdeas[lessonNumber - 1]
+            } else if lessonNumber == 1, let fallbackIdea {
+                primaryIdea = fallbackIdea
+                print("PREFETCH: Using fallback idea \(fallbackIdea.id) for lesson 1")
+            } else {
+                print("PREFETCH: No ideas available for lesson \(lessonNumber); skipping")
+                return
+            }
 
-        let primaryIdea = sortedIdeas[lessonNumber - 1]
-        let ideaId = primaryIdea.id
-        let bookId = book.id.uuidString
-        let bookTitle = book.title
-
-        Task { @MainActor in
+            guard let primaryIdea = primaryIdea else {
+                print("PREFETCH: Missing primary idea for lesson \(lessonNumber); skipping")
+                return
+            }
+            let ideaId = primaryIdea.id
+            let bookId = book.id.uuidString
+            let bookTitle = book.title
             let cutoff = Date().addingTimeInterval(-Self.staleInterval)
 
             // Remove stale "generating"/"error" sessions so they don't permanently block prefetch.
@@ -166,14 +181,17 @@ final class PracticePrefetcher {
 
     // Phase A prewarm: generate and persist only the initial 8 questions for lesson N (no session, no reviews)
     func prewarmInitialQuestions(book: Book, lessonNumber: Int) {
-        print("PREFETCH: Prewarm request for initial questions of lesson \(lessonNumber) for book: \(book.title)")
-        let sortedIdeas = (book.ideas ?? []).sortedByNumericId()
-        guard lessonNumber > 0, lessonNumber <= sortedIdeas.count else { return }
+        Task(priority: .userInitiated) { @MainActor in
+            print("PREFETCH: Prewarm request for initial questions of lesson \(lessonNumber) for book: \(book.title)")
+            let sortedIdeas = resolveSortedIdeas(for: book)
+            guard lessonNumber > 0, lessonNumber <= sortedIdeas.count else {
+                print("PREFETCH: Invalid prewarm lesson \(lessonNumber) (ideas=\(sortedIdeas.count)); skipping")
+                return
+            }
 
-        let targetIdea = sortedIdeas[lessonNumber - 1]
-        let ideaId = targetIdea.id
+            let targetIdea = sortedIdeas[lessonNumber - 1]
+            let ideaId = targetIdea.id
 
-        Task { @MainActor in
             // If an initial test already exists with >=8 questions, skip
             let descriptor = FetchDescriptor<Test>(
                 predicate: #Predicate<Test> { t in t.ideaId == ideaId && t.testType == "initial" },
@@ -238,5 +256,27 @@ final class PracticePrefetcher {
             try? modelContext.save()
             print("PREFETCH: Purged \(purged) stale sessions for idea \(ideaId)")
         }
+    }
+
+    @MainActor
+    private func resolveSortedIdeas(for book: Book) -> [Idea] {
+        let localIdeas = (book.ideas ?? []).sortedByNumericId()
+        if !localIdeas.isEmpty {
+            return localIdeas
+        }
+
+        let bookUUID = book.id
+        let descriptor = FetchDescriptor<Book>(
+            predicate: #Predicate<Book> { $0.id == bookUUID }
+        )
+        if let refreshedBook = try? modelContext.fetch(descriptor).first {
+            let fetchedIdeas = (refreshedBook.ideas ?? []).sortedByNumericId()
+            if !fetchedIdeas.isEmpty {
+                print("PREFETCH: Loaded \(fetchedIdeas.count) ideas from modelContext for book \(book.title)")
+                return fetchedIdeas
+            }
+        }
+
+        return []
     }
 }

@@ -15,6 +15,7 @@ class IdeaExtractionViewModel: ObservableObject {
     private var currentTask: Task<Void, Never>?
     private var currentBookTitle: String = ""
     private var metadata: BookMetadata?
+    private var didPrefetchLesson1 = false
     private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "IdeaExtraction")
     
     init(openAIService: OpenAIService, bookService: BookService) {
@@ -39,15 +40,27 @@ class IdeaExtractionViewModel: ObservableObject {
         self.extractedIdeas = sortedIdeas
         print("DEBUG: Updated extractedIdeas from \(source) with \(sortedIdeas.count) ideas in order: \(sortedIdeas.map { $0.id })")
     }
-    
+
+    @MainActor
+    private func triggerLesson1Prefetch(book: Book, ideas: [Idea], reason: String) {
+        guard !didPrefetchLesson1 else { return }
+        let sortedIdeas = ideas.sortedByNumericId()
+        guard !sortedIdeas.isEmpty else { return }
+        didPrefetchLesson1 = true
+        let prefetcher = PracticePrefetcher(modelContext: bookService.modelContextRef, openAIService: openAIService)
+        prefetcher.prefetchLesson(book: book, lessonNumber: 1, fallbackIdea: sortedIdeas.first)
+        print("DEBUG: Prefetch for Lesson 1 triggered from IdeaExtractionViewModel (\(reason))")
+    }
+
     func loadOrExtractIdeas(from input: String, metadata incomingMetadata: BookMetadata? = nil) async {
         guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             errorMessage = "Book input is empty"
             return
         }
-        
+
         // Cancel any existing task
         currentTask?.cancel()
+        didPrefetchLesson1 = false
 
         isLoading = true
         errorMessage = nil
@@ -98,10 +111,12 @@ class IdeaExtractionViewModel: ObservableObject {
                                 // Set book info from existing book
                                 self.bookInfo = BookInfo(title: existingBook.title, author: existingBook.author)
                                 self.currentBook = existingBook
+                                self.triggerLesson1Prefetch(
+                                    book: existingBook,
+                                    ideas: (existingBook.ideas ?? []),
+                                    reason: "exact match"
+                                )
                             }
-                            // Prefetch Lesson 1 for existing book path (no save happening)
-                            let prefetcher = PracticePrefetcher(modelContext: self.bookService.modelContextRef, openAIService: self.openAIService)
-                            prefetcher.prefetchLesson(book: existingBook, lessonNumber: 1)
                             return
                         }
                     }
@@ -155,10 +170,12 @@ class IdeaExtractionViewModel: ObservableObject {
                                 self.isLoading = false
                                 self.errorMessage = nil
                                 self.currentBook = existingBook
+                                self.triggerLesson1Prefetch(
+                                    book: existingBook,
+                                    ideas: (existingBook.ideas ?? []),
+                                    reason: "corrected title match"
+                                )
                             }
-                            // Prefetch Lesson 1 for corrected-title existing book path
-                            let prefetcher = PracticePrefetcher(modelContext: self.bookService.modelContextRef, openAIService: self.openAIService)
-                            prefetcher.prefetchLesson(book: existingBook, lessonNumber: 1)
                             return
                         }
                     }
@@ -246,12 +263,13 @@ class IdeaExtractionViewModel: ObservableObject {
                 await MainActor.run {
                     self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")
                     self.currentBook = book
+                    self.triggerLesson1Prefetch(
+                        book: book,
+                        ideas: parsedIdeas,
+                        reason: "fresh extraction"
+                    )
                 }
                 print("DEBUG: Successfully saved ideas to database")
-                // Backend trigger: prefetch Lesson 1 immediately after ideas are saved
-                let prefetcher = PracticePrefetcher(modelContext: self.bookService.modelContextRef, openAIService: self.openAIService)
-                prefetcher.prefetchLesson(book: book, lessonNumber: 1)
-                print("DEBUG: Prefetch for Lesson 1 triggered from IdeaExtractionViewModel after save")
                 // After updating title/author, force-refresh Google Books metadata to improve cover accuracy
                 if book.googleBooksId == nil {
                     Task { await self.bookService.fetchAndUpdateBookMetadata(for: book, force: true) }

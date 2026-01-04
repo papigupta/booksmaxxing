@@ -376,7 +376,7 @@ struct DailyPracticeTooltip: View {
             }
 
             // 0) Check for any existing session (ready/generating/error) to honor prefetch state
-            if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
+            if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, bookId: book.id.uuidString, type: "lesson_practice") {
                 if let existingTest = existingSession.test,
                    (existingTest.questions ?? []).count >= 8,
                    existingSession.status == PracticeSessionStatus.ready {
@@ -408,7 +408,7 @@ struct DailyPracticeTooltip: View {
                             var attempts = 0
                             while attempts < 40 {
                                 try await Task.sleep(nanoseconds: 1_000_000_000)
-                                if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
+                                if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, bookId: book.id.uuidString, type: "lesson_practice") {
                                     if refreshed.status == PracticeSessionStatus.ready,
                                        let readyTest = refreshed.test,
                                        (readyTest.questions ?? []).count >= 8 {
@@ -440,7 +440,7 @@ struct DailyPracticeTooltip: View {
                 }
 
                 // 1) Try to reuse an existing practice session (persisted mixed test)
-                if let existingSession = try await fetchExistingSession(for: primaryIdea.id, type: "lesson_practice"),
+                if let existingSession = try await fetchExistingSession(for: primaryIdea.id, bookId: book.id.uuidString, type: "lesson_practice"),
                    let existingTest = existingSession.test,
                    (existingTest.questions ?? []).count >= 8 {
                     print("DEBUG: Reusing existing practice session with \((existingTest.questions ?? []).count) questions")
@@ -1029,7 +1029,7 @@ struct DailyPracticeTooltip: View {
                 throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(currentLesson.lessonNumber)"])
             }
             // Invalidate existing session if present
-            if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, type: "lesson_practice") {
+            if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, bookId: book.id.uuidString, type: "lesson_practice") {
                 await MainActor.run {
                     self.modelContext.delete(existingSession)
                     try? self.modelContext.save()
@@ -1061,11 +1061,11 @@ struct DailyPracticeTooltip: View {
     }
 
     // MARK: - Session Helpers
-    private func fetchExistingSession(for ideaId: String, type: String) async throws -> PracticeSession? {
+    private func fetchExistingSession(for ideaId: String, bookId: String, type: String) async throws -> PracticeSession? {
         try await MainActor.run {
             let descriptor = FetchDescriptor<PracticeSession>(
                 predicate: #Predicate { s in
-                    s.ideaId == ideaId && s.type == type
+                    s.ideaId == ideaId && s.bookId == bookId && s.type == type
                 },
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )
@@ -1074,11 +1074,11 @@ struct DailyPracticeTooltip: View {
         }
     }
 
-    private func fetchSessionAnyStatus(for ideaId: String, type: String) async throws -> PracticeSession? {
+    private func fetchSessionAnyStatus(for ideaId: String, bookId: String, type: String) async throws -> PracticeSession? {
         try await MainActor.run {
             let descriptor = FetchDescriptor<PracticeSession>(
                 predicate: #Predicate { s in
-                    s.ideaId == ideaId && s.type == type
+                    s.ideaId == ideaId && s.bookId == bookId && s.type == type
                 },
                 sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
             )
