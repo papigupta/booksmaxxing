@@ -1194,12 +1194,10 @@ struct FeedbackFullScreen: View {
         if !feedback.isOpenEnded {
             return feedback.isCorrect ? .mcqCorrect : .mcqIncorrect
         }
-        switch scoreRatio {
-        case ..<0.40: return .oeqBad
-        case ..<0.70: return .oeqOkay
-        case ..<0.90: return .oeqGood
-        default: return .oeqGreat
+        if feedback.isCorrect {
+            return scoreRatio >= 0.90 ? .oeqGreat : .oeqGood
         }
+        return scoreRatio >= 0.40 ? .oeqOkay : .oeqBad
     }
 
     private var heroCopy: String {
