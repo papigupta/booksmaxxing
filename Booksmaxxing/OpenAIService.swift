@@ -91,21 +91,144 @@ class OpenAIService {
             .prefix(1000) // Limit length
             .description
     }
-    
-    private func validateAPIResponse(_ data: Data) throws -> ChatResponse {
+
+    private func supportsSamplingParameters(model: String) -> Bool {
+        if model.hasPrefix("gpt-5.2") { return true }
+        if model.hasPrefix("gpt-5") { return false }
+        return true
+    }
+
+    private func defaultReasoning(for model: String) -> ResponsesReasoning? {
+        guard model.hasPrefix("gpt-5") else { return nil }
+        if model.hasPrefix("gpt-5-mini") || model.hasPrefix("gpt-5-nano") {
+            return ResponsesReasoning(effort: "minimal")
+        }
+        return ResponsesReasoning(effort: "none")
+    }
+
+    private func defaultTextConfig(for model: String) -> ResponsesTextConfig? {
+        guard model.hasPrefix("gpt-5") else { return nil }
+        return ResponsesTextConfig(verbosity: "medium")
+    }
+
+    private func makeInputItem(role: String, text: String) -> ResponsesInputItem {
+        ResponsesInputItem(
+            role: role,
+            content: [ResponsesInputContent(type: "input_text", text: text)]
+        )
+    }
+
+    private func buildResponsesRequest(
+        model: String,
+        input: [ResponsesInputItem],
+        temperature: Double,
+        maxOutputTokens: Int,
+        topP: Double?
+    ) -> ResponsesRequest {
+        let includeSampling = supportsSamplingParameters(model: model)
+        return ResponsesRequest(
+            model: model,
+            input: input,
+            reasoning: defaultReasoning(for: model),
+            text: defaultTextConfig(for: model),
+            max_output_tokens: maxOutputTokens,
+            temperature: includeSampling ? temperature : nil,
+            top_p: includeSampling ? topP : nil
+        )
+    }
+
+    private func extractResponseText(_ response: ResponsesResponse) -> String? {
+        if let direct = response.output_text?.trimmingCharacters(in: .whitespacesAndNewlines), !direct.isEmpty {
+            return direct
+        }
+
+        let parts = (response.output ?? []).flatMap { item in
+            (item.content ?? []).compactMap { content -> String? in
+                guard let text = content.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+                return text
+            }
+        }
+        let joined = parts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    }
+
+    private func extractResponseTextFromRawJSON(_ data: Data) -> String? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        if let direct = root["output_text"] as? String {
+            let trimmed = direct.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        guard let output = root["output"] as? [[String: Any]] else { return nil }
+        var parts: [String] = []
+        for item in output {
+            guard let content = item["content"] as? [[String: Any]] else { continue }
+            for block in content {
+                if let text = block["text"] as? String {
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty { parts.append(trimmed) }
+                    continue
+                }
+                if let textObject = block["text"] as? [String: Any], let value = textObject["value"] as? String {
+                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty { parts.append(trimmed) }
+                }
+            }
+        }
+        let joined = parts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    }
+
+    private func parseOpenAIErrorMessage(_ data: Data) -> String? {
+        guard let envelope = try? JSONDecoder().decode(OpenAIErrorEnvelope.self, from: data) else { return nil }
+        return envelope.error.message
+    }
+
+    private func performResponsesRequest(_ requestBody: ResponsesRequest) async throws -> String {
+        guard let url = URL(string: "\(baseURL)/responses") else {
+            throw OpenAIServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw OpenAIServiceError.networkError(error)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenAIServiceError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let detail = parseOpenAIErrorMessage(data) ?? "No error details"
+            logger.error("OpenAI responses API failed (\(httpResponse.statusCode, privacy: .public)): \(detail, privacy: .public)")
+            throw OpenAIServiceError.invalidResponse
+        }
+
         guard !data.isEmpty else {
             throw OpenAIServiceError.noResponse
         }
-        
+
         do {
-            let response = try JSONDecoder().decode(ChatResponse.self, from: data)
-            guard !response.choices.isEmpty else {
-                throw OpenAIServiceError.noResponse
+            let decoded = try JSONDecoder().decode(ResponsesResponse.self, from: data)
+            if let text = extractResponseText(decoded) {
+                return text
             }
-            return response
         } catch {
-            throw OpenAIServiceError.decodingError(error)
+            logger.debug("Primary Responses decode failed; attempting raw JSON text extraction")
         }
+
+        if let fallbackText = extractResponseTextFromRawJSON(data) {
+            return fallbackText
+        }
+
+        throw OpenAIServiceError.noResponse
     }
     
     private func validateBookInfoResponse(_ response: BookInfo) -> Bool {
@@ -199,40 +322,16 @@ class OpenAIService {
         Extract and correct book title and determine author from: "\(input)"
         """
         
-        let requestBody = ChatRequest(
-            model: "gpt-4.1-mini",
-            messages: [
-                Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: userPrompt)
-            ],
-            max_tokens: 200,
-            temperature: 0.1,
-            top_p: nil
-        )
-        
-        guard let url = URL(string: "\(baseURL)/chat/completions") else {
-            throw OpenAIServiceError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
-        
         logger.debug("Making OpenAI API request for book info extraction: '\(input)'")
-        
-        let (data, response) = try await session.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw OpenAIServiceError.invalidResponse
-        }
-        
-        let chatResponse = try validateAPIResponse(data)
-        
-        guard let content = chatResponse.choices.first?.message.content else {
-            throw OpenAIServiceError.noResponse
-        }
+
+        let content = try await performChat(
+            systemPrompt: systemPrompt,
+            userPrompt: userPrompt,
+            model: "gpt-5-mini",
+            temperature: 0.1,
+            maxTokens: 200,
+            topP: nil
+        )
         
         // Extract JSON from response
         let jsonString = extractJSONFromResponse(content)
@@ -338,62 +437,21 @@ class OpenAIService {
             Return a **JSON array of strings** (no objects, no extra text).
         """
 
-        
-        let requestBody = ChatRequest(
-            model: "gpt-4.1",
-            messages: [
-                Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: prompt)
-            ],
-            max_tokens: 2000,
-            temperature: 0.1,
-            top_p: nil
-        )
-        
-        guard let url = URL(string: "\(baseURL)/chat/completions") else {
-            throw OpenAIServiceError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
-        
         logger.debug("Making OpenAI API request for idea extraction: '\(text)'")
-        
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            logger.error("Network error during API request: \(String(describing: error))")
-            throw OpenAIServiceError.networkError(error)
-        }
-        
-        // Check HTTP response
-        guard let httpResponse = response as? HTTPURLResponse else {
-            logger.error("Invalid HTTP response")
-            throw OpenAIServiceError.invalidResponse
-        }
 
-        logger.debug("HTTP response status: \(httpResponse.statusCode, privacy: .public)")
-
-        guard httpResponse.statusCode == 200 else {
-            logger.error("HTTP error status: \(httpResponse.statusCode, privacy: .public)")
-            throw OpenAIServiceError.invalidResponse
-        }
-        
-        let chatResponse: ChatResponse
+        let content: String
         do {
-            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
+            content = try await performChat(
+                systemPrompt: systemPrompt,
+                userPrompt: prompt,
+                model: "gpt-5.2",
+                temperature: 0.1,
+                maxTokens: 2000,
+                topP: nil
+            )
         } catch {
-            logger.error("Failed to decode chat response: \(String(describing: error))")
-            throw OpenAIServiceError.decodingError(error)
-        }
-        
-        guard let content = chatResponse.choices.first?.message.content else {
-            logger.error("No content in chat response")
-            throw OpenAIServiceError.noResponse
+            logger.error("Failed during idea extraction request: \(String(describing: error))")
+            throw error
         }
         
         #if DEBUG
@@ -445,6 +503,46 @@ class OpenAIService {
                 let result = try await operation()
                 self.logger.debug("API call successful on attempt \(attempt)")
                 return result
+            } catch let error as OpenAIServiceError {
+                lastError = error
+                self.logger.debug("Attempt \(attempt) failed with OpenAIServiceError: \(String(describing: error))")
+
+                switch error {
+                case .invalidURL, .invalidResponse, .invalidData, .decodingError:
+                    // These errors are deterministic and should fail fast.
+                    throw error
+                case .networkError(let underlying):
+                    let nsError = underlying as NSError
+                    let isNetworkError = nsError.domain == NSURLErrorDomain && (
+                        nsError.code == NSURLErrorTimedOut ||
+                        nsError.code == NSURLErrorCannotFindHost ||
+                        nsError.code == NSURLErrorCannotConnectToHost ||
+                        nsError.code == NSURLErrorNetworkConnectionLost ||
+                        nsError.code == NSURLErrorNotConnectedToInternet ||
+                        nsError.code == NSURLErrorDNSLookupFailed
+                    )
+
+                    if attempt < maxAttempts {
+                        let baseDelay = isNetworkError ? 4.0 : 3.0
+                        let exponentialDelay = baseDelay * pow(2.0, Double(attempt - 1)) // True exponential: 4s, 8s, 16s, 32s
+                        let jitter = Double.random(in: 0.5...1.5) // Add jitter to prevent thundering herd
+                        let delay = exponentialDelay * jitter
+                        self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
+                        try await sleepHandler(UInt64(delay * 1_000_000_000))
+                    } else {
+                        self.logger.error("Max attempts reached, failing with error: \(String(describing: error))")
+                    }
+                case .noResponse:
+                    if attempt < maxAttempts {
+                        let exponentialDelay = 3.0 * pow(2.0, Double(attempt - 1)) // 3s, 6s, 12s, 24s
+                        let jitter = Double.random(in: 0.5...1.5)
+                        let delay = exponentialDelay * jitter
+                        self.logger.debug("Retrying in \(String(format: "%.1f", delay)) seconds (attempt \(attempt + 1)/\(maxAttempts))…")
+                        try await sleepHandler(UInt64(delay * 1_000_000_000))
+                    } else {
+                        self.logger.error("Max attempts reached, failing with error: \(String(describing: error))")
+                    }
+                }
             } catch let error as NSError {
                 lastError = error
                 self.logger.debug("Attempt \(attempt) failed with error: \(error.localizedDescription)")
@@ -504,51 +602,15 @@ class OpenAIService {
         Create a single, engaging prompt that will help the user think deeply about this idea.
         """
         
-        let requestBody = ChatRequest(
-            model: "gpt-4.1",
-            messages: [
-                Message(role: "system", content: systemPrompt),
-                Message(role: "user", content: userPrompt)
-            ],
-            max_tokens: 500,
+        let content = try await performChat(
+            systemPrompt: systemPrompt,
+            userPrompt: userPrompt,
+            model: "gpt-5.2",
             temperature: 0.7,
-            top_p: nil
+            maxTokens: 500,
+            topP: nil
         )
-        
-        guard let url = URL(string: "\(baseURL)/chat/completions") else {
-            throw OpenAIServiceError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        request.httpBody = try JSONEncoder().encode(requestBody)
-        
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            logger.error("Network error in performComplete: \(String(describing: error))")
-            throw OpenAIServiceError.networkError(error)
-        }
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw OpenAIServiceError.invalidResponse
-        }
-        
-        let chatResponse: ChatResponse
-        do {
-            chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
-        } catch {
-            throw OpenAIServiceError.decodingError(error)
-        }
-        
-        guard let content = chatResponse.choices.first?.message.content else {
-            throw OpenAIServiceError.noResponse
-        }
-        
+
         return content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
@@ -668,45 +730,14 @@ class OpenAIService {
         maxTokens: Int,
         topP: Double?
     ) async throws -> String {
-        let requestBody = ChatRequest(
+        let requestBody = buildResponsesRequest(
             model: model,
-            messages: [
-                Message(role: "user", content: prompt)
-            ],
-            max_tokens: maxTokens,
+            input: [makeInputItem(role: "user", text: prompt)],
             temperature: temperature,
-            top_p: topP
+            maxOutputTokens: maxTokens,
+            topP: topP
         )
-        
-        guard let url = URL(string: "\(baseURL)/chat/completions") else {
-            throw OpenAIServiceError.invalidURL
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
-        
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            logger.error("Network error in performComplete: \(String(describing: error))")
-            throw OpenAIServiceError.networkError(error)
-        }
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw OpenAIServiceError.invalidResponse
-        }
-        
-        let chatResponse = try validateAPIResponse(data)
-        
-        guard let content = chatResponse.choices.first?.message.content else {
-            throw OpenAIServiceError.noResponse
-        }
-        
-        return content
+        return try await performResponsesRequest(requestBody)
     }
 
     // MARK: - General Chat Method (with system + user messages)
@@ -717,43 +748,19 @@ class OpenAIService {
     }
 
     private func performChat(systemPrompt: String?, userPrompt: String, model: String, temperature: Double, maxTokens: Int, topP: Double?) async throws -> String {
-        var messages: [Message] = []
-        if let system = systemPrompt { messages.append(Message(role: "system", content: system)) }
-        messages.append(Message(role: "user", content: userPrompt))
+        var input: [ResponsesInputItem] = []
+        if let systemPrompt, !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            input.append(makeInputItem(role: "system", text: systemPrompt))
+        }
+        input.append(makeInputItem(role: "user", text: userPrompt))
 
-        let requestBody = ChatRequest(
+        let requestBody = buildResponsesRequest(
             model: model,
-            messages: messages,
-            max_tokens: maxTokens,
+            input: input,
             temperature: temperature,
-            top_p: topP
+            maxOutputTokens: maxTokens,
+            topP: topP
         )
-
-        guard let url = URL(string: "\(baseURL)/chat/completions") else {
-            throw OpenAIServiceError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
-
-        let (data, response): (Data, URLResponse)
-        do { (data, response) = try await session.data(for: request) }
-        catch {
-            logger.error("Network error in performChat: \(String(describing: error))")
-            throw OpenAIServiceError.networkError(error)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw OpenAIServiceError.invalidResponse
-        }
-
-        let chatResponse = try validateAPIResponse(data)
-        guard let content = chatResponse.choices.first?.message.content else {
-            throw OpenAIServiceError.noResponse
-        }
-        return content
+        return try await performResponsesRequest(requestBody)
     }
 }
