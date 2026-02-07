@@ -517,12 +517,7 @@ struct DailyPracticeHomepage: View {
     }
 
     private func handleLessonSelection(_ milestone: PracticeMilestone, proxy: ScrollViewProxy) {
-        if milestone.isCurrent || milestone.isCompleted {
-            handleMilestoneTap(milestone: milestone, proxy: proxy)
-        } else if let idea = milestone.idea {
-            selectedIdea = idea
-            showingIdeaResponses = true
-        }
+        handleMilestoneTap(milestone: milestone, proxy: proxy)
     }
 
     private func lessonMetrics(for idea: Idea, bookId: String) -> LessonMetrics {
@@ -572,11 +567,6 @@ struct DailyPracticeHomepage: View {
         let bookId = book.id.uuidString
         guard let lessonInfo = lessonStorage.getLessonInfo(bookId: bookId, lessonNumber: milestone.id, book: book) else {
             print("ERROR: Could not get lesson info for lesson \(milestone.id)")
-            return
-        }
-
-        guard lessonInfo.isUnlocked else {
-            print("DEBUG: Lesson \(milestone.id) is not unlocked")
             return
         }
 
@@ -680,8 +670,8 @@ struct DailyPracticeHomepage: View {
         Task {
             await loadPracticeData()
             print("DEBUG: ✅ Reloaded practice data - should now show lesson \(lesson.lessonNumber + 1) as current")
-            // Prefetch next lesson in background (lessonNumber + 1)
-            await prefetchLesson(number: lesson.lessonNumber + 1)
+            // Keep prefetch aligned to the recommended path, not the just-completed lesson number.
+            await prefetchCurrentLessonIfNeeded()
         }
     }
     
@@ -778,7 +768,7 @@ struct DailyPracticeHomepage: View {
         
         // If all idea lessons completed, append all review-only lessons and choose current properly
         let totalIdeas = (book.ideas ?? []).count
-        let allIdeasCompleted = lessonInfos.last.map { $0.isCompleted } ?? false
+        let allIdeasCompleted = !lessonInfos.isEmpty && lessonInfos.allSatisfy { $0.isCompleted }
         if allIdeasCompleted {
             // Fetch all review-only StoredLesson rows for this book
             let descriptor = FetchDescriptor<StoredLesson>(

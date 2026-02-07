@@ -46,12 +46,29 @@ final class PracticePrefetcher {
             // Remove stale "generating"/"error" sessions so they don't permanently block prefetch.
             purgeStaleSessions(ideaId: ideaId, bookId: bookId, cutoff: cutoff)
 
+            // Keep review selection in sync with what's currently due for this book.
+            let curveballService = CurveballService(modelContext: modelContext)
+            curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
+            let spacedService = SpacedFollowUpService(modelContext: modelContext)
+            spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
+            let manager = ReviewQueueManager(modelContext: modelContext)
+            let result = manager.getDailyReviewItems(bookId: bookId, bookTitle: bookTitle)
+            let (mcqItemsRaw, openEndedItemsRaw): ([ReviewQueueItem], [ReviewQueueItem]) = (result.mcqs, result.openEnded)
+            let allReviewItems = mcqItemsRaw + openEndedItemsRaw
+            let expectedReviewItemIds = Set(allReviewItems.map { $0.id })
+
             let start = Date()
             // If a session already exists and is ready or actively generating, no-op.
             if let existing = try? await fetchLatestSession(ideaId: ideaId, bookId: bookId, type: "lesson_practice") {
                 if existing.status == "ready" {
-                    print("PREFETCH: Existing session for idea \(ideaId) is READY. Skipping.")
-                    return
+                    let existingReviewIds = reviewItemIds(for: existing)
+                    if existingReviewIds == expectedReviewItemIds {
+                        print("PREFETCH: Existing session for idea \(ideaId) is READY. Skipping.")
+                        return
+                    }
+                    print("PREFETCH: READY session for idea \(ideaId) is stale (review mismatch); regenerating.")
+                    modelContext.delete(existing)
+                    try? modelContext.save()
                 } else if existing.status == "generating", existing.updatedAt >= cutoff {
                     print("PREFETCH: Existing session for idea \(ideaId) still GENERATING. Skipping.")
                     return
@@ -89,21 +106,6 @@ final class PracticePrefetcher {
                 // Generate fresh 8 questions for the primary idea
                 print("PREFETCH: Generating fresh questions for idea \(ideaId) …")
                 let freshTest = try await testGen.generateTest(for: targetIdea, testType: "initial")
-
-                // Ensure curveballs and spacedfollowups are queued for this specific book
-                let curveballService = CurveballService(modelContext: modelContext)
-                curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
-                let spacedService = SpacedFollowUpService(modelContext: modelContext)
-                spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: bookTitle)
-
-                // Pull review items (max 3 MCQ + 1 OEQ) and generate review questions
-                let manager = ReviewQueueManager(modelContext: modelContext)
-                let result = manager.getDailyReviewItems(
-                    bookId: bookId,
-                    bookTitle: book.title
-                )
-                let (mcqItemsRaw, openEndedItemsRaw): ([ReviewQueueItem], [ReviewQueueItem]) = (result.mcqs, result.openEnded)
-                let allReviewItems = mcqItemsRaw + openEndedItemsRaw
                 print("PREFETCH: Review queue items selected: \(allReviewItems.count)")
 
                 let freshQuestions = freshTest.orderedQuestions
@@ -166,6 +168,7 @@ final class PracticePrefetcher {
                 session.test = mixedTest
                 session.status = "ready"
                 session.updatedAt = Date()
+                session.setLessonPracticeReviewItemIds(Array(expectedReviewItemIds))
                 try? modelContext.save()
                 let elapsed = Date().timeIntervalSince(start)
                 print("PREFETCH: Session READY for idea \(ideaId) with \(clonedQuestions.count) questions in \(String(format: "%.2f", elapsed))s")
@@ -256,6 +259,14 @@ final class PracticePrefetcher {
             try? modelContext.save()
             print("PREFETCH: Purged \(purged) stale sessions for idea \(ideaId)")
         }
+    }
+
+    private func reviewItemIds(for session: PracticeSession) -> Set<UUID> {
+        if let configured = session.lessonPracticeReviewItemIdSet() {
+            return configured
+        }
+        let derived = (session.test?.questions ?? []).compactMap { $0.sourceQueueItemId }
+        return Set(derived)
     }
 
     @MainActor

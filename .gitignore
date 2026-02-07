@@ -2,3 +2,8 @@ Secrets.swift
 .DS_Store
 
 Booksmaxxing/GoogleService-Info.plist
+
+# Incidental local files
+.DS_Store
+*.xcuserstate
+*.xcworkspace/xcuserdata/

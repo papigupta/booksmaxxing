@@ -422,44 +422,55 @@ struct DailyPracticeWithReviewView: View {
             curveballService.ensureCurveballsQueuedIfDue(bookId: bookId, bookTitle: book.title)
             let spacedService = SpacedFollowUpService(modelContext: modelContext)
             spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: bookId, bookTitle: book.title)
+
+            let reviewSelection = reviewQueueManager.getDailyReviewItems(
+                bookId: book.id.uuidString,
+                bookTitle: book.title,
+                mcqCap: 6,
+                openCap: 2
+            )
+            let selectedReviewItems = reviewSelection.mcqs + reviewSelection.openEnded
+            let expectedReviewItemIds = Set(selectedReviewItems.map { $0.id })
             
             // If we're attached to a numbered review-only lesson, try to reuse a persisted session first
             if selectedLesson != nil {
                 if let existing = try await fetchExistingSession(for: reviewSessionKey, type: "review_practice"),
                    let test = existing.test,
                    (test.questions ?? []).isEmpty == false {
-                    // Rehydrate state for UI
-                    await MainActor.run {
-                        self.currentIdea = createDailyPracticeIdea()
-                        self.combinedTest = test
-                        self.reviewQuestions = test.orderedQuestions
-                        // Rebuild mapping from persisted sourceQueueItemId
-                        var map: [UUID: ReviewQueueItem] = [:]
-                        for q in test.orderedQuestions {
-                            if let src = q.sourceQueueItemId {
-                                let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == src })
-                                if let item = try? modelContext.fetch(fetch).first {
-                                    map[q.id] = item
+                    let existingReviewIds = reviewItemIds(for: existing)
+                    if existingReviewIds != expectedReviewItemIds {
+                        await MainActor.run {
+                            self.modelContext.delete(existing)
+                            try? self.modelContext.save()
+                        }
+                    } else {
+                        // Rehydrate state for UI
+                        await MainActor.run {
+                            self.currentIdea = createDailyPracticeIdea()
+                            self.combinedTest = test
+                            self.reviewQuestions = test.orderedQuestions
+                            // Rebuild mapping from persisted sourceQueueItemId
+                            var map: [UUID: ReviewQueueItem] = [:]
+                            for q in test.orderedQuestions {
+                                if let src = q.sourceQueueItemId {
+                                    let fetch = FetchDescriptor<ReviewQueueItem>(predicate: #Predicate<ReviewQueueItem> { $0.id == src })
+                                    if let item = try? modelContext.fetch(fetch).first {
+                                        map[q.id] = item
+                                    }
                                 }
                             }
+                            self.reviewQuestionToQueueItem = map
+                            self.isGenerating = false
                         }
-                        self.reviewQuestionToQueueItem = map
-                        self.isGenerating = false
+                        return
                     }
-                    return
                 }
             }
             // For pure review sessions, we only need review questions
             // 1. Get review items from queue for this specific book — review-only sessions want 6 MCQ + 2 OEQ
-            let (mcqItems, openEndedItems) = reviewQueueManager.getDailyReviewItems(
-                bookId: book.id.uuidString,
-                bookTitle: book.title,
-                mcqCap: 6,
-                openCap: 2
-            )
-            reviewQueueItems = mcqItems + openEndedItems
+            reviewQueueItems = selectedReviewItems
             
-            print("🔄 REVIEW SESSION: Found \(reviewQueueItems.count) items in queue (\(mcqItems.count) MCQ, \(openEndedItems.count) Open-ended)")
+            print("🔄 REVIEW SESSION: Found \(reviewQueueItems.count) items in queue (\(reviewSelection.mcqs.count) MCQ, \(reviewSelection.openEnded.count) Open-ended)")
             
             // 2. Generate similar questions for review items
             if !reviewQueueItems.isEmpty {
@@ -555,6 +566,7 @@ struct DailyPracticeWithReviewView: View {
                             configVersion: 1
                         )
                         session.test = test
+                        session.setLessonPracticeReviewItemIds(Array(expectedReviewItemIds))
                         self.modelContext.insert(session)
                         try self.modelContext.save()
                         self.combinedTest = test
@@ -592,6 +604,14 @@ struct DailyPracticeWithReviewView: View {
             let results = try self.modelContext.fetch(descriptor)
             return results.first
         }
+    }
+
+    private func reviewItemIds(for session: PracticeSession) -> Set<UUID> {
+        if let configured = session.lessonPracticeReviewItemIdSet() {
+            return configured
+        }
+        let derived = (session.test?.questions ?? []).compactMap { $0.sourceQueueItemId }
+        return Set(derived)
     }
     
     private func getNextUnlearnedIdea() -> Idea? {
@@ -695,7 +715,9 @@ struct DailyPracticeWithReviewView: View {
             
             // Only add mistakes from fresh questions to queue
             let freshAttemptResponses = (attempt.responses ?? []).filter { response in
-                (test.questions ?? []).first { $0.id == response.questionId }?.orderIndex ?? 0 < freshQuestions.count
+                guard let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) else { return false }
+                let mappedAsReview = reviewQuestionToQueueItem[response.questionId] != nil
+                return !mappedAsReview && question.sourceQueueItemId == nil
             }
             
             // Create a fresh attempt for recording purposes
@@ -708,7 +730,9 @@ struct DailyPracticeWithReviewView: View {
             
             // Mark review items as completed if answered correctly
             let reviewResponses = (attempt.responses ?? []).filter { response in
-                (test.questions ?? []).first { $0.id == response.questionId }?.orderIndex ?? 0 >= freshQuestions.count
+                guard let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) else { return false }
+                let mappedAsReview = reviewQuestionToQueueItem[response.questionId] != nil
+                return mappedAsReview || question.sourceQueueItemId != nil
             }
             
             var completedItems: [ReviewQueueItem] = []
@@ -763,6 +787,8 @@ struct DailyPracticeWithReviewView: View {
                         }
                     )
                     if let cov = try? modelContext.fetch(covDesc).first {
+                        // Consume this queue item regardless of result; failures are re-queued when due again.
+                        item.isCompleted = true
                         if response.isCorrect {
                             cov.spacedFollowUpPassedAt = Date()
                             cov.curveballDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.curveballAfterPassDays, to: Date())

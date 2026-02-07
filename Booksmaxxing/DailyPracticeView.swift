@@ -480,29 +480,41 @@ struct DailyPracticeView: View {
 
             if let lesson = selectedLesson {
                 print("DEBUG: Generating practice test for lesson \(lesson.lessonNumber)")
-                // Proactively prewarm ONLY the initial 8 for the next lesson while user works on this lesson.
-                let next = lesson.lessonNumber + 1
-                Task {
-                    let prefetcher = PracticePrefetcher(modelContext: modelContext, openAIService: openAIService)
-                    prefetcher.prewarmInitialQuestions(book: book, lessonNumber: next)
-                    print("PREFETCH: Prewarmed initial 8 for upcoming lesson \(next) from generatePractice()")
-                }
                 
                 // Get the primary idea for this lesson
                 guard let primaryIdea = (book.ideas ?? []).first(where: { $0.id == lesson.primaryIdeaId }) else {
                     throw NSError(domain: "LessonGeneration", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not find idea for lesson \(lesson.lessonNumber)"])
                 }
 
+                let currentBookId = book.id.uuidString
+                let currentBookTitle = book.title
+
+                let curveballService = CurveballService(modelContext: modelContext)
+                curveballService.ensureCurveballsQueuedIfDue(bookId: currentBookId, bookTitle: currentBookTitle)
+                let spacedService = SpacedFollowUpService(modelContext: modelContext)
+                spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: currentBookId, bookTitle: currentBookTitle)
+                let reviewManager = ReviewQueueManager(modelContext: modelContext)
+                let reviewSelection = reviewManager.getDailyReviewItems(bookId: currentBookId, bookTitle: currentBookTitle)
+                let allReviewItems = reviewSelection.mcqs + reviewSelection.openEnded
+                let expectedReviewItemIds = Set(allReviewItems.map { $0.id })
+
                 // 0) Check for any existing session (ready/generating/error) to honor prefetch state
-                if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, bookId: book.id.uuidString, type: "lesson_practice") {
+                if let existingSession = try await fetchSessionAnyStatus(for: primaryIdea.id, bookId: currentBookId, type: "lesson_practice") {
                     if let existingTest = existingSession.test,
                        (existingTest.questions ?? []).count >= 8,
                        existingSession.status == PracticeSessionStatus.ready {
-                        print("DEBUG: Found READY session with \((existingTest.questions ?? []).count) questions")
-                        await MainActor.run {
-                            self.applyLoadedSession(test: existingTest, session: existingSession)
+                        let sessionReviewItemIds = reviewItemIds(for: existingSession)
+                        if sessionReviewItemIds == expectedReviewItemIds {
+                            print("DEBUG: Found READY session with \((existingTest.questions ?? []).count) questions")
+                            await MainActor.run {
+                                self.applyLoadedSession(test: existingTest, session: existingSession)
+                            }
+                            return
                         }
-                        return
+                        await MainActor.run {
+                            self.modelContext.delete(existingSession)
+                            try? self.modelContext.save()
+                        }
                     } else if let existingTest = existingSession.test,
                               (existingTest.questions ?? []).count >= 8,
                               (existingSession.status == PracticeSessionStatus.inProgress || existingSession.status == PracticeSessionStatus.paused) {
@@ -524,16 +536,26 @@ struct DailyPracticeView: View {
                             print("DEBUG: Found GENERATING session; waiting for readiness…")
                             // Poll for up to ~40 seconds (batching can take longer)
                             var attempts = 0
+                            var sessionWasStale = false
                             while attempts < 40 {
                                 try await Task.sleep(nanoseconds: 1_000_000_000)
-                                if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, bookId: book.id.uuidString, type: "lesson_practice") {
+                                if let refreshed = try await fetchSessionAnyStatus(for: primaryIdea.id, bookId: currentBookId, type: "lesson_practice") {
                                     if refreshed.status == PracticeSessionStatus.ready,
                                        let readyTest = refreshed.test,
                                        (readyTest.questions ?? []).count >= 8 {
-                                        await MainActor.run {
-                                            self.applyLoadedSession(test: readyTest, session: refreshed)
+                                        let refreshedReviewIds = reviewItemIds(for: refreshed)
+                                        if refreshedReviewIds == expectedReviewItemIds {
+                                            await MainActor.run {
+                                                self.applyLoadedSession(test: readyTest, session: refreshed)
+                                            }
+                                            return
                                         }
-                                        return
+                                        sessionWasStale = true
+                                        await MainActor.run {
+                                            self.modelContext.delete(refreshed)
+                                            try? self.modelContext.save()
+                                        }
+                                        break
                                     } else if refreshed.status == PracticeSessionStatus.error {
                                         let msg = String(data: refreshed.configData ?? Data(), encoding: .utf8) ?? "Failed to prepare session."
                                         await MainActor.run {
@@ -546,7 +568,11 @@ struct DailyPracticeView: View {
                                 attempts += 1
                             }
                             // Timed out; proceed to generate inline as fallback
-                            print("DEBUG: GENERATING session timed out; generating inline…")
+                            if sessionWasStale {
+                                print("DEBUG: GENERATING session completed with stale review slice; regenerating inline…")
+                            } else {
+                                print("DEBUG: GENERATING session timed out; generating inline…")
+                            }
                         }
                     } else if existingSession.status == PracticeSessionStatus.error {
                         print("DEBUG: Found ERROR session; deleting and regenerating inline")
@@ -558,14 +584,21 @@ struct DailyPracticeView: View {
                 }
 
                 // 1) Try to reuse an existing practice session (persisted mixed test)
-                if let existingSession = try await fetchExistingSession(for: primaryIdea.id, bookId: book.id.uuidString, type: "lesson_practice"),
+                if let existingSession = try await fetchExistingSession(for: primaryIdea.id, bookId: currentBookId, type: "lesson_practice"),
                    let existingTest = existingSession.test,
                    (existingTest.questions ?? []).count >= 8 {
-                    print("DEBUG: Reusing existing practice session with \((existingTest.questions ?? []).count) questions")
-                    await MainActor.run {
-                        self.applyLoadedSession(test: existingTest, session: existingSession)
+                    let sessionReviewItemIds = reviewItemIds(for: existingSession)
+                    if sessionReviewItemIds == expectedReviewItemIds {
+                        print("DEBUG: Reusing existing practice session with \((existingTest.questions ?? []).count) questions")
+                        await MainActor.run {
+                            self.applyLoadedSession(test: existingTest, session: existingSession)
+                        }
+                        return
                     }
-                    return
+                    await MainActor.run {
+                        self.modelContext.delete(existingSession)
+                        try? self.modelContext.save()
+                    }
                 }
                 
                 print("DEBUG: Generating test for idea: \(primaryIdea.title)")
@@ -575,20 +608,6 @@ struct DailyPracticeView: View {
                     for: primaryIdea,
                     testType: "initial"
                 )
-                
-                // Ensure any due curveballs and spacedfollowups are queued for this book
-                let curveballService = CurveballService(modelContext: modelContext)
-                curveballService.ensureCurveballsQueuedIfDue(bookId: book.id.uuidString, bookTitle: book.title)
-                let spacedService = SpacedFollowUpService(modelContext: modelContext)
-                spacedService.ensureSpacedFollowUpsQueuedIfDue(bookId: book.id.uuidString, bookTitle: book.title)
-
-                // Get review questions from the queue (max 3 MCQ + 1 OEQ = 4 total) for this book only
-                let reviewManager = ReviewQueueManager(modelContext: modelContext)
-                let (mcqItems, openEndedItems) = reviewManager.getDailyReviewItems(
-                    bookId: book.id.uuidString,
-                    bookTitle: book.title
-                )
-                let allReviewItems = mcqItems + openEndedItems // Already limited to 3 MCQ + 1 OEQ
                 
                 // Use orderedQuestions to preserve the fixed internal sequence (Q6/Q8 invariants)
                 let freshQuestions = freshTest.orderedQuestions
@@ -673,12 +692,13 @@ struct DailyPracticeView: View {
 
                     let session = PracticeSession(
                         ideaId: primaryIdea.id,
-                        bookId: book.id.uuidString,
+                        bookId: currentBookId,
                         type: "lesson_practice",
                         status: "ready",
                         configVersion: 1
                     )
                     session.test = test
+                    session.setLessonPracticeReviewItemIds(Array(expectedReviewItemIds))
                     self.modelContext.insert(session)
                     try self.modelContext.save()
                     persistedSession = session
@@ -813,17 +833,12 @@ struct DailyPracticeView: View {
         if let test = generatedTest, let primaryIdea = (book.ideas ?? []).first(where: { $0.id == selectedLesson?.primaryIdeaId }) {
             let reviewManager = ReviewQueueManager(modelContext: modelContext)
             
-            // Determine how many fresh questions we had (they come first in the ordered list)
-            // Fresh questions are from the primary idea
-            let freshQuestionCount = (test.questions ?? []).filter { $0.ideaId == primaryIdea.id }.count
-            
             // Only add mistakes from fresh questions to the queue
             let freshResponses = (attempt.responses ?? []).filter { response in
-                if let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) {
-                    // Check if this is a fresh question (from the primary idea)
-                    return question.ideaId == primaryIdea.id && (response.isCorrect == false)
-                }
-                return false
+                guard let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) else { return false }
+                let mappedAsReview = reviewQuestionToQueueItem[response.questionId] != nil
+                let isReviewQuestion = mappedAsReview || question.sourceQueueItemId != nil
+                return !isReviewQuestion && question.ideaId == primaryIdea.id && (response.isCorrect == false)
             }
             
             // Add mistakes directly from responses (no temp attempt to avoid SwiftData crashes)
@@ -831,10 +846,9 @@ struct DailyPracticeView: View {
             
             // Mark review questions as completed if answered correctly
             let reviewResponses = (attempt.responses ?? []).filter { response in
-                if let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) {
-                    return question.orderIndex >= freshQuestionCount
-                }
-                return false
+                guard let question = (test.questions ?? []).first(where: { $0.id == response.questionId }) else { return false }
+                let mappedAsReview = reviewQuestionToQueueItem[response.questionId] != nil
+                return mappedAsReview || question.sourceQueueItemId != nil
             }
             
             var completedItems: [ReviewQueueItem] = []
@@ -874,6 +888,8 @@ struct DailyPracticeView: View {
                         }
                     )
                     if let cov = try? modelContext.fetch(covDesc).first {
+                        // Consume this queue item regardless of result; failures are re-queued when due again.
+                        item.isCompleted = true
                         if response.isCorrect {
                             cov.spacedFollowUpPassedAt = Date()
                             cov.curveballDueDate = Calendar.current.date(byAdding: .day, value: SpacedFollowUpConfig.curveballAfterPassDays, to: Date())
@@ -1210,6 +1226,14 @@ struct DailyPracticeView: View {
             )
             return try self.modelContext.fetch(descriptor).first
         }
+    }
+
+    private func reviewItemIds(for session: PracticeSession) -> Set<UUID> {
+        if let configured = session.lessonPracticeReviewItemIdSet() {
+            return configured
+        }
+        let derived = (session.test?.questions ?? []).compactMap { $0.sourceQueueItemId }
+        return Set(derived)
     }
 }
 

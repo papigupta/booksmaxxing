@@ -20,6 +20,7 @@ final class CurveballService {
     /// This creates at most one pending curveball ReviewQueueItem per fully covered idea that is due and not already queued.
     func ensureCurveballsQueuedIfDue(bookId: String, bookTitle: String) {
         let targetBookId = bookId
+        let normalizedTitle = ReviewQueueItem.normalizeBookTitle(bookTitle)
         let descriptor = FetchDescriptor<IdeaCoverage>(
             predicate: #Predicate<IdeaCoverage> { c in
                 c.bookId == targetBookId && (c.spacedFollowUpPassedAt != nil) && (c.curveballPassed == false)
@@ -39,14 +40,15 @@ final class CurveballService {
                 guard let due = coverage.curveballDueDate, due <= now else { continue }
 
                 // Check if a pending curveball for this idea already exists
-                let targetBookTitle = bookTitle
                 let targetIdeaId = coverage.ideaId
                 let rqDescriptor = FetchDescriptor<ReviewQueueItem>(
                     predicate: #Predicate<ReviewQueueItem> { item in
-                        (item.isCompleted == false) && item.bookTitle == targetBookTitle && item.ideaId == targetIdeaId && item.isCurveball
+                        (item.isCompleted == false) && item.ideaId == targetIdeaId && item.isCurveball && (item.bookId == targetBookId || item.bookId == nil)
                     }
                 )
-                let existing = try modelContext.fetch(rqDescriptor)
+                let existing = try modelContext.fetch(rqDescriptor).filter { item in
+                    item.matchesBook(targetBookId: targetBookId, normalizedBookTitle: normalizedTitle)
+                }
                 if !existing.isEmpty { continue }
 
                 // Decide curveball spec based on mistake history

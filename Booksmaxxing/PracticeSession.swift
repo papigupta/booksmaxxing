@@ -1,6 +1,10 @@
 import Foundation
 import SwiftData
 
+struct LessonPracticeSessionConfig: Codable {
+    let reviewItemIds: [String]
+}
+
 @Model
 final class PracticeSession {
     var id: UUID = UUID()
@@ -25,5 +29,21 @@ final class PracticeSession {
         self.configData = configData
         self.createdAt = Date()
         self.updatedAt = Date()
+    }
+}
+
+extension PracticeSession {
+    func setLessonPracticeReviewItemIds(_ reviewItemIds: [UUID]) {
+        let stableIds = Set(reviewItemIds).map { $0.uuidString }.sorted()
+        let config = LessonPracticeSessionConfig(reviewItemIds: stableIds)
+        configData = try? JSONEncoder().encode(config)
+    }
+
+    func lessonPracticeReviewItemIdSet() -> Set<UUID>? {
+        guard let data = configData,
+              let config = try? JSONDecoder().decode(LessonPracticeSessionConfig.self, from: data) else {
+            return nil
+        }
+        return Set(config.reviewItemIds.compactMap(UUID.init(uuidString:)))
     }
 }
