@@ -59,15 +59,16 @@ struct BookServiceTests {
         let service = BookService(modelContext: context)
 
         let book = Book(title: "Deep Work", author: "Cal Newport")
-        let oldLastAccessed = Date().addingTimeInterval(-600)
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let oldLastAccessed = now.addingTimeInterval(-600)
         book.lastAccessed = oldLastAccessed
         context.insert(book)
         try context.save()
 
-        let updated = service.markBookAsRecentlyUsed(book, minimumInterval: 120)
+        let updated = service.markBookAsRecentlyUsed(book, minimumInterval: 120, now: now)
 
         #expect(updated == true)
-        #expect(book.lastAccessed > oldLastAccessed)
+        #expect(book.lastAccessed == now)
     }
 
     @Test
@@ -76,14 +77,56 @@ struct BookServiceTests {
         let service = BookService(modelContext: context)
 
         let book = Book(title: "Atomic Habits", author: "James Clear")
-        let recentTimestamp = Date().addingTimeInterval(-30)
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let recentTimestamp = now.addingTimeInterval(-30)
         book.lastAccessed = recentTimestamp
         context.insert(book)
         try context.save()
 
-        let updated = service.markBookAsRecentlyUsed(book, minimumInterval: 120)
+        let updated = service.markBookAsRecentlyUsed(book, minimumInterval: 120, now: now)
 
         #expect(updated == false)
         #expect(book.lastAccessed == recentTimestamp)
+    }
+
+    @Test
+    func markBookAsRecentlyUsedCorrectsFutureClockSkew() async throws {
+        let context = try makeContext()
+        let service = BookService(modelContext: context)
+
+        let book = Book(title: "The Lean Startup", author: "Eric Ries")
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        book.lastAccessed = now.addingTimeInterval(600)
+        context.insert(book)
+        try context.save()
+
+        let updated = service.markBookAsRecentlyUsed(book, minimumInterval: 120, now: now)
+
+        #expect(updated == true)
+        #expect(book.lastAccessed == now)
+    }
+
+    @Test
+    func sortedByRecentUsageUsesStableTieBreakers() {
+        let timestamp = Date(timeIntervalSince1970: 1_735_000_000)
+
+        let beta = Book(title: "beta")
+        beta.id = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        beta.createdAt = timestamp
+        beta.lastAccessed = timestamp
+        beta.bookNumber = 1
+
+        let alpha = Book(title: "Alpha")
+        alpha.id = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        alpha.createdAt = timestamp
+        alpha.lastAccessed = timestamp
+        alpha.bookNumber = 1
+
+        let sorted = BookService.sortedByRecentUsage([beta, alpha])
+        #expect(sorted.map(\.title) == ["Alpha", "beta"])
+        #expect(sorted.map(\.id.uuidString) == [
+            "00000000-0000-0000-0000-000000000001",
+            "00000000-0000-0000-0000-000000000002"
+        ])
     }
 }

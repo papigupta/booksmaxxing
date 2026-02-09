@@ -28,6 +28,9 @@ struct BookSelectionDevToolsView: View {
     }
 
     // No cap in production; allow unlimited in dev tools as well
+    private var displayBooks: [Book] {
+        BookService.sortedByRecentUsage(allBooks)
+    }
 
     var body: some View {
         NavigationStack {
@@ -123,7 +126,7 @@ struct BookSelectionDevToolsView: View {
                     .foregroundColor(DS.Colors.secondaryText)
             }
 
-            ForEach(allBooks) { book in
+            ForEach(displayBooks) { book in
                 HStack(spacing: DS.Spacing.md) {
                     VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                         Text(book.title)
@@ -161,7 +164,7 @@ struct BookSelectionDevToolsView: View {
                 Divider()
             }
 
-            if allBooks.isEmpty {
+            if displayBooks.isEmpty {
                 Text("No books yet. Add a few to try it out.")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
@@ -189,7 +192,7 @@ struct BookSelectionDevToolsView: View {
                     .foregroundColor(DS.Colors.white)
                     .cornerRadius(12)
             }
-            .disabled(allBooks.isEmpty)
+            .disabled(displayBooks.isEmpty)
         }
         .padding()
         .dsCard()
@@ -212,7 +215,7 @@ struct BookSelectionDevToolsView: View {
                 )
 
                 bookService.applyMetadata(metadata, to: book)
-                book.lastAccessed = Date()
+                _ = bookService.markBookAsRecentlyUsed(book, minimumInterval: 0)
                 try modelContext.save()
 
                 lastAddedBookId = book.id

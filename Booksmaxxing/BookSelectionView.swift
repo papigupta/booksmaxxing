@@ -49,6 +49,7 @@ struct BookSelectionView: View {
     @State private var detailBaseOpacity: Double = 1.0
     @State private var detailDragOpacityFreeze: Double? = nil
     @State private var detailsTransitionInFlight: Bool = false
+    @State private var sortedCarouselBooks: [Book] = []
     // Tap bounce animation state
     @State private var tappedCardIndex: Int? = nil
     @State private var tapScale: CGFloat = 1.0
@@ -85,8 +86,8 @@ struct BookSelectionView: View {
     }
 
     private var carouselBooks: [Book] {
-        // Unlimited carousel; rendering already windows visible neighbors
-        allBooks
+        // Use deterministic tie-breakers so equal timestamps never produce a random order.
+        sortedCarouselBooks
     }
 
     private var activeBook: Book? {
@@ -186,7 +187,14 @@ struct BookSelectionView: View {
             }
         }
         .onAppear { handleInitialAppear() }
-        .onChange(of: carouselBooks.count) { _, _ in adjustSelectionForBookChanges() }
+        .onChange(of: allBooks.count) { _, _ in
+            refreshCarouselBooks()
+            adjustSelectionForBookChanges()
+        }
+        .onChange(of: allBooks.map { $0.id }) { _, _ in
+            refreshCarouselBooks()
+            adjustSelectionForBookChanges()
+        }
         .onChange(of: selectedIndex) { _, newValue in handleSelectionChange(newValue) }
         .onChange(of: hasAcknowledgedAddBookEducation) { _, _ in
             refreshAddBookEducationVisibility(animated: true)
@@ -527,8 +535,7 @@ struct BookSelectionView: View {
             isProcessingSelection = true
             selectionStatus = "Opening book…"
 
-            book.lastAccessed = Date()
-            try? modelContext.save()
+            _ = bookService.markBookAsRecentlyUsed(book, minimumInterval: 0)
 
             navigationState.navigateToBook(book)
             selectionStatus = nil
@@ -537,6 +544,7 @@ struct BookSelectionView: View {
     }
 
     private func handleInitialAppear() {
+        refreshCarouselBooks()
         adjustSelectionForBookChanges()
         resetEntryAnimation()
 
@@ -550,6 +558,10 @@ struct BookSelectionView: View {
         }
 
         refreshAddBookEducationVisibility(animated: true)
+    }
+
+    private func refreshCarouselBooks() {
+        sortedCarouselBooks = BookService.sortedByRecentUsage(allBooks)
     }
 
     private func adjustSelectionForBookChanges() {
@@ -967,8 +979,9 @@ struct BookSelectionView: View {
                     triggerMetadataFetch: false
                 )
 
-                book.lastAccessed = Date()
                 bookService.applyMetadata(metadata, to: book)
+                _ = bookService.markBookAsRecentlyUsed(book, minimumInterval: 0)
+                try modelContext.save()
 
                 Task { await themeManager.activateTheme(for: book) }
 

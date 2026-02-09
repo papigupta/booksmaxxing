@@ -16,14 +16,15 @@ struct MainView: View {
     @State private var starterSeedErrorMessage: String?
 
     private let maxStarterSeedAttempts = 3
+    private var recentBooks: [Book] { BookService.sortedByRecentUsage(books) }
 
     private var activeBook: Book? {
         if let selectedID = navigationState.selectedBookID,
-           let book = books.first(where: { $0.id == selectedID }) {
+           let book = recentBooks.first(where: { $0.id == selectedID }) {
             return book
         }
         if let selectedTitle = navigationState.selectedBookTitle,
-           let selectedBook = books.first(where: { $0.title == selectedTitle }) {
+           let selectedBook = recentBooks.first(where: { $0.title == selectedTitle }) {
             return selectedBook
         }
         return nil
@@ -216,10 +217,10 @@ extension MainView {
         navigationState.shouldShowBookSelection = false
 
         if let savedTitle = profile.lastOpenedBookTitle,
-           let savedBook = books.first(where: { $0.title == savedTitle }) {
+           let savedBook = recentBooks.first(where: { $0.title == savedTitle }) {
             navigationState.selectedBookID = savedBook.id
             navigationState.selectedBookTitle = savedBook.title
-        } else if navigationState.selectedBookID == nil, let first = books.first {
+        } else if navigationState.selectedBookID == nil, let first = recentBooks.first {
             navigationState.selectedBookID = first.id
             navigationState.selectedBookTitle = first.title
         }

@@ -27,13 +27,34 @@ class BookService: ObservableObject {
         book.ideas = sorted
     }
 
+    /// Deterministic recent-usage ordering with stable tie-breakers.
+    nonisolated static func sortedByRecentUsage(_ books: [Book]) -> [Book] {
+        books.sorted(by: isOrderedForRecentUsage)
+    }
+
+    nonisolated static func isOrderedForRecentUsage(_ lhs: Book, _ rhs: Book) -> Bool {
+        if lhs.lastAccessed != rhs.lastAccessed { return lhs.lastAccessed > rhs.lastAccessed }
+        if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
+        if lhs.bookNumber != rhs.bookNumber { return lhs.bookNumber > rhs.bookNumber }
+
+        let titleOrder = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+        if titleOrder != .orderedSame { return titleOrder == .orderedAscending }
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+
     /// Updates a book's recency timestamp if enough time has passed since the last update.
     /// Returns true when the value was updated and persisted.
     @discardableResult
-    func markBookAsRecentlyUsed(_ book: Book, minimumInterval: TimeInterval = 120) -> Bool {
-        let now = Date()
+    func markBookAsRecentlyUsed(
+        _ book: Book,
+        minimumInterval: TimeInterval = 120,
+        now: Date = Date(),
+        futureSkewTolerance: TimeInterval = 5
+    ) -> Bool {
         let elapsed = now.timeIntervalSince(book.lastAccessed)
-        guard elapsed >= minimumInterval else { return false }
+        let shouldCorrectFutureSkew = elapsed < -abs(futureSkewTolerance)
+        let shouldUpdateByInterval = elapsed >= max(0, minimumInterval)
+        guard shouldCorrectFutureSkew || shouldUpdateByInterval else { return false }
 
         book.lastAccessed = now
         do {
