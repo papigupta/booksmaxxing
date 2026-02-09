@@ -23,6 +23,57 @@ struct Choice: Codable {
     let message: Message
 }
 
+// MARK: - Shared Responses API Models
+
+struct ResponsesReasoning: Codable {
+    let effort: String
+}
+
+struct ResponsesTextConfig: Codable {
+    let verbosity: String
+}
+
+struct ResponsesInputContent: Codable {
+    let type: String
+    let text: String
+}
+
+struct ResponsesInputItem: Codable {
+    let role: String
+    let content: [ResponsesInputContent]
+}
+
+struct ResponsesRequest: Codable {
+    let model: String
+    let input: [ResponsesInputItem]
+    let reasoning: ResponsesReasoning?
+    let text: ResponsesTextConfig?
+    let max_output_tokens: Int
+    let temperature: Double?
+    let top_p: Double?
+}
+
+struct ResponsesOutputContent: Codable {
+    let text: String?
+}
+
+struct ResponsesOutputItem: Codable {
+    let content: [ResponsesOutputContent]?
+}
+
+struct ResponsesResponse: Codable {
+    let output_text: String?
+    let output: [ResponsesOutputItem]?
+}
+
+struct OpenAIErrorEnvelope: Codable {
+    let error: OpenAIErrorDetail
+}
+
+struct OpenAIErrorDetail: Codable {
+    let message: String
+}
+
 // MARK: - Shared Error Types
 
 enum OpenAIServiceError: Error {

@@ -23,7 +23,7 @@ struct BookSelectionView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
 
-    @Query(sort: \Book.createdAt, order: .reverse)
+    @Query(sort: \Book.lastAccessed, order: .reverse)
     private var allBooks: [Book]
 
     @State private var selectedIndex: Int = 0

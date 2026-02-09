@@ -138,6 +138,7 @@ struct BookOverviewView: View {
             print("DEBUG: BookOverviewView appeared")
             // Activate theme for current book
             if let book = viewModel.currentBook {
+                markBookAsRecentlyUsed(book)
                 Task { await themeManager.activateTheme(for: book) }
             }
             // Only refresh if returning from other views and ideas might have changed
@@ -151,6 +152,7 @@ struct BookOverviewView: View {
         }
         .onChange(of: viewModel.currentBook?.id) { _, _ in
             if let book = viewModel.currentBook {
+                markBookAsRecentlyUsed(book)
                 Task { await themeManager.activateTheme(for: book) }
             }
         }
@@ -202,6 +204,11 @@ struct BookOverviewView: View {
         } catch {
             print("ERROR: Failed to delete book: \(error)")
         }
+    }
+
+    private func markBookAsRecentlyUsed(_ book: Book) {
+        let service = BookService(modelContext: modelContext)
+        _ = service.markBookAsRecentlyUsed(book)
     }
 
     // MARK: - Book Coverage View

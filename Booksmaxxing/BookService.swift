@@ -26,6 +26,24 @@ class BookService: ObservableObject {
         let sorted = (book.ideas ?? []).sorted { $0.id < $1.id }
         book.ideas = sorted
     }
+
+    /// Updates a book's recency timestamp if enough time has passed since the last update.
+    /// Returns true when the value was updated and persisted.
+    @discardableResult
+    func markBookAsRecentlyUsed(_ book: Book, minimumInterval: TimeInterval = 120) -> Bool {
+        let now = Date()
+        let elapsed = now.timeIntervalSince(book.lastAccessed)
+        guard elapsed >= minimumInterval else { return false }
+
+        book.lastAccessed = now
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            print("DEBUG: Failed to update lastAccessed for '\(book.title)': \(error)")
+            return false
+        }
+    }
     
     func findOrCreateBook(title: String, author: String? = nil, triggerMetadataFetch: Bool = true) throws -> Book {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)

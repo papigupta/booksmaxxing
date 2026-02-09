@@ -175,6 +175,7 @@ struct DailyPracticeHomepage: View {
                         isLoading = false
                     }
                     .onAppear {
+                        markCurrentBookAsRecentlyUsed()
                         scheduleScrollIfNeeded(proxy: proxy, animated: false)
                         Task { await themeManager.activateTheme(for: book) }
                         Task {
@@ -534,6 +535,11 @@ struct DailyPracticeHomepage: View {
         if !isRootExperience {
             dismiss()
         }
+    }
+
+    private func markCurrentBookAsRecentlyUsed() {
+        let service = BookService(modelContext: modelContext)
+        _ = service.markBookAsRecentlyUsed(book)
     }
     
     // MARK: - Helper Methods

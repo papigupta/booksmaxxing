@@ -52,4 +52,38 @@ struct BookServiceTests {
         #expect(all.count == 1)
         #expect(all.first?.title == "Atomic Habits")
     }
+
+    @Test
+    func markBookAsRecentlyUsedUpdatesWhenThresholdPassed() async throws {
+        let context = try makeContext()
+        let service = BookService(modelContext: context)
+
+        let book = Book(title: "Deep Work", author: "Cal Newport")
+        let oldLastAccessed = Date().addingTimeInterval(-600)
+        book.lastAccessed = oldLastAccessed
+        context.insert(book)
+        try context.save()
+
+        let updated = service.markBookAsRecentlyUsed(book, minimumInterval: 120)
+
+        #expect(updated == true)
+        #expect(book.lastAccessed > oldLastAccessed)
+    }
+
+    @Test
+    func markBookAsRecentlyUsedSkipsWhenBelowThreshold() async throws {
+        let context = try makeContext()
+        let service = BookService(modelContext: context)
+
+        let book = Book(title: "Atomic Habits", author: "James Clear")
+        let recentTimestamp = Date().addingTimeInterval(-30)
+        book.lastAccessed = recentTimestamp
+        context.insert(book)
+        try context.save()
+
+        let updated = service.markBookAsRecentlyUsed(book, minimumInterval: 120)
+
+        #expect(updated == false)
+        #expect(book.lastAccessed == recentTimestamp)
+    }
 }

@@ -10,7 +10,7 @@ struct BookSelectionDevToolsView: View {
     @EnvironmentObject private var navigationState: NavigationState
     @EnvironmentObject private var themeManager: ThemeManager
 
-    @Query(sort: \Book.createdAt, order: .reverse)
+    @Query(sort: \Book.lastAccessed, order: .reverse)
     private var allBooks: [Book]
 
     @State private var isProcessingSelection = false
@@ -62,7 +62,7 @@ struct BookSelectionDevToolsView: View {
                 .font(DS.Typography.body)
                 .foregroundColor(DS.Colors.primaryText)
 
-            Text("Use Google Books search to pick the exact cover you want. The newest book in this list will appear first in the carousel.")
+            Text("Use Google Books search to pick the exact cover you want. The most recently used book in this list will appear first in the carousel.")
                 .font(DS.Typography.caption)
                 .foregroundColor(DS.Colors.secondaryText)
         }
@@ -118,7 +118,7 @@ struct BookSelectionDevToolsView: View {
                 Text("Current book list")
                     .font(DS.Typography.subheadline)
                 Spacer()
-                Text("Newest first")
+                Text("Recently used first")
                     .font(DS.Typography.caption)
                     .foregroundColor(DS.Colors.secondaryText)
             }
@@ -136,7 +136,7 @@ struct BookSelectionDevToolsView: View {
                                 .foregroundColor(DS.Colors.secondaryText)
                                 .lineLimit(1)
                         }
-                        Text(book.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        Text(book.lastAccessed.formatted(date: .abbreviated, time: .shortened))
                             .font(DS.Typography.small)
                             .foregroundColor(DS.Colors.tertiaryText)
                     }
