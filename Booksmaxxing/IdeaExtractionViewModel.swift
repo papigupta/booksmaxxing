@@ -17,6 +17,20 @@ class IdeaExtractionViewModel: ObservableObject {
     private var metadata: BookMetadata?
     private var didPrefetchLesson1 = false
     private let logger = Logger(subsystem: "com.booksmaxxing.app", category: "IdeaExtraction")
+
+    private enum ExtractionFlowError: LocalizedError {
+        case noIdeasParsed
+        case ideasNotPersisted
+
+        var errorDescription: String? {
+            switch self {
+            case .noIdeasParsed:
+                return "We couldn't extract a usable idea list for this book. Please try again."
+            case .ideasNotPersisted:
+                return "We extracted ideas but couldn't save them. Please try again."
+            }
+        }
+    }
     
     init(openAIService: OpenAIService, bookService: BookService) {
         self.openAIService = openAIService
@@ -39,6 +53,34 @@ class IdeaExtractionViewModel: ObservableObject {
         let sortedIdeas = sortedIdeas(ideas)
         self.extractedIdeas = sortedIdeas
         print("DEBUG: Updated extractedIdeas from \(source) with \(sortedIdeas.count) ideas in order: \(sortedIdeas.map { $0.id })")
+    }
+
+    private func normalizedLookupKey(_ raw: String) -> String {
+        let collapsed = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return collapsed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    private func starterSeedFallback(for title: String, metadata: BookMetadata?) -> StarterBookSeed? {
+        guard let seeds = try? StarterLibrary.shared.books() else { return nil }
+
+        if let metadata,
+           let matchedByGoogleId = seeds.first(where: { $0.starterId == metadata.googleBooksId }) {
+            return matchedByGoogleId
+        }
+
+        let normalizedTitle = normalizedLookupKey(title)
+        guard !normalizedTitle.isEmpty else { return nil }
+
+        let candidateAuthor = normalizedLookupKey(bookInfo?.author ?? metadata?.authors.first ?? "")
+        return seeds.first { seed in
+            guard normalizedLookupKey(seed.title) == normalizedTitle else { return false }
+            if candidateAuthor.isEmpty { return true }
+            return normalizedLookupKey(seed.author) == candidateAuthor
+        }
     }
 
     @MainActor
@@ -216,7 +258,7 @@ class IdeaExtractionViewModel: ObservableObject {
             // Check if task was cancelled
             try Task.checkCancellation()
             
-            let parsedIdeas = ideas.compactMap { line -> Idea? in
+            var parsedIdeas = ideas.compactMap { line -> Idea? in
                 let parts = line.split(separator: "|", maxSplits: 2).map { $0.trimmingCharacters(in: .whitespaces) }
                 guard parts.count >= 2 else { return nil }
 
@@ -242,17 +284,57 @@ class IdeaExtractionViewModel: ObservableObject {
                 let correctedBookTitle = bookInfo?.title ?? currentBookTitle
                 return Idea(id: id, title: ideaTitle, description: description, bookTitle: correctedBookTitle, depthTarget: depthTarget, masteryLevel: 0, lastPracticed: nil, currentLevel: nil, importance: importance)
             }
+
+            if parsedIdeas.isEmpty, let starterSeed = starterSeedFallback(for: title, metadata: metadata ?? self.metadata) {
+                let fallbackTitle = {
+                    let corrected = (bookInfo?.title ?? currentBookTitle).trimmingCharacters(in: .whitespacesAndNewlines)
+                    return corrected.isEmpty ? starterSeed.title : corrected
+                }()
+                parsedIdeas = starterSeed.ideas.map { $0.makeIdea(for: fallbackTitle) }
+                if bookInfo == nil {
+                    bookInfo = BookInfo(title: fallbackTitle, author: starterSeed.author)
+                }
+                if self.metadata == nil {
+                    self.metadata = starterSeed.metadata()
+                }
+                print("DEBUG: Applied starter library fallback with \(parsedIdeas.count) ideas")
+            }
+
+            guard !parsedIdeas.isEmpty else {
+                throw ExtractionFlowError.noIdeasParsed
+            }
             
             print("DEBUG: Parsed \(parsedIdeas.count) ideas")
             
             // Save to database with author information
             do {
-                // Use the original input title to find the initial book and update it
-                let book = try bookService.updateBookDetails(
-                    oldTitle: originalInput ?? title,  // Use the original input title if available
-                    newTitle: currentBookTitle,  // Update to the corrected title
-                    author: bookInfo?.author
-                )
+                let resolvedTitle: String = {
+                    let trimmedCurrent = currentBookTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedCurrent.isEmpty { return trimmedCurrent }
+                    return (bookInfo?.title ?? title).trimmingCharacters(in: .whitespacesAndNewlines)
+                }()
+
+                let book: Book
+                if let existing = currentBook {
+                    // Prefer the known book reference to avoid title-match drift creating a second record.
+                    if !resolvedTitle.isEmpty {
+                        existing.title = resolvedTitle
+                    }
+                    if let author = bookInfo?.author?.trimmingCharacters(in: .whitespacesAndNewlines), !author.isEmpty {
+                        existing.author = author
+                    }
+                    existing.lastAccessed = Date()
+                    try bookService.modelContextRef.save()
+                    book = existing
+                } else {
+                    // Fallback for flows that don't have a current book reference.
+                    book = try bookService.updateBookDetails(
+                        oldTitle: originalInput ?? title,
+                        newTitle: resolvedTitle,
+                        author: bookInfo?.author
+                    )
+                }
+
                 if let metadata = metadata ?? self.metadata {
                     self.bookService.applyMetadata(metadata, to: book)
                 }
@@ -263,6 +345,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 await MainActor.run {
                     self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction")
                     self.currentBook = book
+                    self.currentBookTitle = book.title
                     self.triggerLesson1Prefetch(
                         book: book,
                         ideas: parsedIdeas,
@@ -276,10 +359,7 @@ class IdeaExtractionViewModel: ObservableObject {
                 }
             } catch {
                 print("DEBUG: Error saving ideas: \(error)")
-                // Even if saving fails, show the ideas to the user
-                await MainActor.run {
-                    self.updateExtractedIdeas(parsedIdeas, source: "fresh extraction (save failed)")
-                }
+                throw ExtractionFlowError.ideasNotPersisted
             }
             
             await MainActor.run {
@@ -290,6 +370,23 @@ class IdeaExtractionViewModel: ObservableObject {
         } catch is CancellationError {
             print("DEBUG: Idea extraction was cancelled")
             // Don't update UI state if cancelled
+        } catch let flowError as ExtractionFlowError {
+            print("DEBUG: Idea extraction flow failed: \(flowError.localizedDescription)")
+            await MainActor.run {
+                self.errorMessage = flowError.errorDescription
+                self.isLoading = false
+
+                // If we already have persisted ideas for this book, prefer showing them.
+                do {
+                    if let existingBook = try self.bookService.getBook(withTitle: self.currentBookTitle),
+                       !(existingBook.ideas ?? []).isEmpty {
+                        self.updateExtractedIdeas((existingBook.ideas ?? []), source: "flow-error fallback")
+                        self.errorMessage = nil
+                    }
+                } catch {
+                    print("DEBUG: Failed to load existing ideas after flow error: \(error)")
+                }
+            }
         } catch {
             print("DEBUG: Idea extraction failed with error: \(error)")
             await MainActor.run {

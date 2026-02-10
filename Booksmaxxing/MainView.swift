@@ -135,6 +135,14 @@ extension MainView {
             let currentVersion = StarterLibrary.currentVersion
             guard profile.starterLibraryVersion < currentVersion else { return }
 
+            // Avoid auto-seeding starter books for returning users who already completed onboarding.
+            if profile.hasCompletedInitialBookSelection {
+                profile.starterLibraryVersion = currentVersion
+                profile.updatedAt = Date.now
+                try modelContext.save()
+                return
+            }
+
             // If books already exist with ideas, assume seeding happened previously even if the profile flag wasn't set
             let hasExistingLibrary = books.contains { ($0.ideas ?? []).isEmpty == false }
             if hasExistingLibrary {

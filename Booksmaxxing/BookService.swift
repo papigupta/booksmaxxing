@@ -1,6 +1,59 @@
 import Foundation
 import SwiftData
 
+struct BookResetFailure: Identifiable, Equatable {
+    let bookID: UUID
+    let title: String
+    let reason: String
+
+    var id: UUID { bookID }
+}
+
+struct BookDataResetReport: Equatable {
+    let requestedBookCount: Int
+    let deletedBookCount: Int
+    let failedBooks: [BookResetFailure]
+    let residualEntityCounts: [String: Int]
+
+    var isSuccessful: Bool {
+        failedBooks.isEmpty && residualEntityCounts.isEmpty
+    }
+}
+
+enum BookDataResetError: LocalizedError {
+    case partialFailure(BookDataResetReport)
+    case verificationFailed(BookDataResetReport)
+
+    var errorDescription: String? {
+        switch self {
+        case .partialFailure(let report):
+            if report.failedBooks.isEmpty {
+                return "Book reset did not fully complete."
+            }
+            let failedTitles = report.failedBooks.map(\.title).joined(separator: ", ")
+            return "Deleted \(report.deletedBookCount) of \(report.requestedBookCount) books. Failed: \(failedTitles)."
+        case .verificationFailed(let report):
+            if report.residualEntityCounts.isEmpty {
+                return "Book reset verification failed."
+            }
+            let details = report.residualEntityCounts
+                .sorted { lhs, rhs in lhs.key < rhs.key }
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: ", ")
+            return "Book reset left residual data: \(details)."
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .partialFailure:
+            return "Retry the reset and review logs for problematic books."
+        case .verificationFailed:
+            return "Retry the reset. If it persists, inspect residual entity types in logs."
+        }
+    }
+}
+
 @MainActor
 class BookService: ObservableObject {
     private let modelContext: ModelContext
@@ -25,6 +78,22 @@ class BookService: ObservableObject {
     private func sortIdeasById(_ book: Book) {
         let sorted = (book.ideas ?? []).sorted { $0.id < $1.id }
         book.ideas = sorted
+    }
+
+    /// Canonical title key used for deterministic matching.
+    private func normalizedTitleKey(_ raw: String) -> String {
+        let collapsed = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return collapsed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    private func exactTitleMatches(_ title: String, in books: [Book]) -> [Book] {
+        let key = normalizedTitleKey(title)
+        guard !key.isEmpty else { return [] }
+        return books.filter { normalizedTitleKey($0.title) == key }
     }
 
     /// Deterministic recent-usage ordering with stable tie-breakers.
@@ -69,17 +138,12 @@ class BookService: ObservableObject {
     func findOrCreateBook(title: String, author: String? = nil, triggerMetadataFetch: Bool = true) throws -> Book {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         print("DEBUG: Looking for book with title: '\(normalizedTitle)'")
-        
-        let descriptor = FetchDescriptor<Book>(
-            predicate: #Predicate<Book> { book in
-                book.title.localizedStandardContains(normalizedTitle)
-            }
-        )
-        
-        let existingBooks = try modelContext.fetch(descriptor)
-        print("DEBUG: Found \(existingBooks.count) existing books")
-        
-        if let existingBook = existingBooks.first {
+
+        let existingBooks = try modelContext.fetch(FetchDescriptor<Book>())
+        let exactMatches = exactTitleMatches(normalizedTitle, in: existingBooks)
+        print("DEBUG: Found \(exactMatches.count) exact title matches")
+
+        if let existingBook = BookService.sortedByRecentUsage(exactMatches).first {
             print("DEBUG: Using existing book: '\(existingBook.title)' with \((existingBook.ideas ?? []).count) ideas")
             existingBook.lastAccessed = Date()
             try modelContext.save()
@@ -215,41 +279,32 @@ class BookService: ObservableObject {
     func getBook(withTitle title: String) throws -> Book? {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         print("DEBUG: Getting book with title: '\(normalizedTitle)'")
-        
-        let descriptor = FetchDescriptor<Book>(
-            predicate: #Predicate<Book> { book in
-                book.title.localizedStandardContains(normalizedTitle)
-            }
-        )
-        
-        let books = try modelContext.fetch(descriptor)
-        print("DEBUG: Found \(books.count) books matching title")
-        
-        if let book = books.first {
+
+        let books = try modelContext.fetch(FetchDescriptor<Book>())
+        let exactMatches = exactTitleMatches(normalizedTitle, in: books)
+        print("DEBUG: Found \(exactMatches.count) exact title matches")
+
+        if let book = BookService.sortedByRecentUsage(exactMatches).first {
             print("DEBUG: Retrieved book: '\(book.title)' with \((book.ideas ?? []).count) ideas")
             // CRITICAL: Sort ideas by ID to maintain consistent order
             sortIdeasById(book)
             print("DEBUG: Ideas sorted by ID: \(((book.ideas ?? []).map { $0.id }))")
+            return book
         } else {
             print("DEBUG: No book found with title: '\(normalizedTitle)'")
         }
-        
-        return books.first
+
+        return nil
     }
     
     func updateBookAuthor(title: String, author: String) throws {
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         print("DEBUG: Updating author for book: '\(normalizedTitle)' to '\(author)'")
-        
-        let descriptor = FetchDescriptor<Book>(
-            predicate: #Predicate<Book> { book in
-                book.title.localizedStandardContains(normalizedTitle)
-            }
-        )
-        
-        let books = try modelContext.fetch(descriptor)
-        
-        if let book = books.first {
+
+        let books = try modelContext.fetch(FetchDescriptor<Book>())
+        let exactMatches = exactTitleMatches(normalizedTitle, in: books)
+
+        if let book = BookService.sortedByRecentUsage(exactMatches).first {
             book.author = author
             try modelContext.save()
             print("DEBUG: Successfully updated book author in database")
@@ -263,17 +318,11 @@ class BookService: ObservableObject {
         let normalizedNewTitle = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         
         print("DEBUG: Updating book from '\(normalizedOldTitle)' to '\(normalizedNewTitle)' with author '\(author ?? "nil")'")
-        
-        // First check if a book with the old title exists
-        let descriptor = FetchDescriptor<Book>(
-            predicate: #Predicate<Book> { book in
-                book.title.localizedStandardContains(normalizedOldTitle)
-            }
-        )
-        
-        let books = try modelContext.fetch(descriptor)
-        
-        if let book = books.first {
+
+        let books = try modelContext.fetch(FetchDescriptor<Book>())
+        let exactMatches = exactTitleMatches(normalizedOldTitle, in: books)
+
+        if let book = BookService.sortedByRecentUsage(exactMatches).first {
             // Update the existing book
             book.title = normalizedNewTitle
             if let author = author {
@@ -435,7 +484,7 @@ class BookService: ObservableObject {
     /// - Book-specific theme
     /// - Legacy mastery records (IdeaMastery)
     /// - The book itself (cascades ideas, primers, tests, attempts, responses, progress, test progress)
-    func deleteBookAndAllData(book: Book) throws {
+    func deleteBookAndAllData(book: Book, refreshAnalytics: Bool = true) throws {
         let bookId = book.id.uuidString
         let bookTitle = book.title
         let normalizedBookTitle = ReviewQueueItem.normalizeBookTitle(bookTitle)
@@ -588,7 +637,112 @@ class BookService: ObservableObject {
         modelContext.delete(book)
         try modelContext.save()
         print("⚠️ DELETION: Completed deletion for book '" + bookTitle + "'")
+        if refreshAnalytics {
+            UserAnalyticsService.shared.refreshBookStats()
+        }
+    }
+
+    /// Deletes all book-scoped data while preserving user/account records.
+    /// This operation is intentionally strict:
+    /// - It continues deleting other books even if one deletion fails.
+    /// - It verifies that all book-scoped entities are empty at the end.
+    func resetAllBookData() throws -> BookDataResetReport {
+        let snapshot = try modelContext.fetch(FetchDescriptor<Book>())
+        let booksToDelete = BookService.sortedByRecentUsage(snapshot)
+        var failedBooks: [BookResetFailure] = []
+        var deletedCount = 0
+
+        for book in booksToDelete {
+            do {
+                try deleteBookAndAllData(book: book, refreshAnalytics: false)
+                deletedCount += 1
+            } catch {
+                failedBooks.append(
+                    BookResetFailure(
+                        bookID: book.id,
+                        title: book.title,
+                        reason: error.localizedDescription
+                    )
+                )
+                print("⚠️ DELETION: Bulk reset failed for '\(book.title)' (\(book.id)): \(error)")
+            }
+        }
+
+        let residualCounts = try collectResidualBookEntityCounts()
+        let report = BookDataResetReport(
+            requestedBookCount: booksToDelete.count,
+            deletedBookCount: deletedCount,
+            failedBooks: failedBooks,
+            residualEntityCounts: residualCounts
+        )
+
+        // Keep analytics in sync even on partial failures.
         UserAnalyticsService.shared.refreshBookStats()
+
+        if !failedBooks.isEmpty {
+            throw BookDataResetError.partialFailure(report)
+        }
+        if !residualCounts.isEmpty {
+            throw BookDataResetError.verificationFailed(report)
+        }
+
+        return report
+    }
+
+    private func collectResidualBookEntityCounts() throws -> [String: Int] {
+        var counts: [String: Int] = [:]
+
+        let books = try modelContext.fetch(FetchDescriptor<Book>())
+        if !books.isEmpty { counts["Book"] = books.count }
+
+        let ideas = try modelContext.fetch(FetchDescriptor<Idea>())
+        if !ideas.isEmpty { counts["Idea"] = ideas.count }
+
+        let progress = try modelContext.fetch(FetchDescriptor<Progress>())
+        if !progress.isEmpty { counts["Progress"] = progress.count }
+
+        let primers = try modelContext.fetch(FetchDescriptor<Primer>())
+        if !primers.isEmpty { counts["Primer"] = primers.count }
+
+        let primerLinks = try modelContext.fetch(FetchDescriptor<PrimerLinkItem>())
+        if !primerLinks.isEmpty { counts["PrimerLinkItem"] = primerLinks.count }
+
+        let tests = try modelContext.fetch(FetchDescriptor<Test>())
+        if !tests.isEmpty { counts["Test"] = tests.count }
+
+        let questions = try modelContext.fetch(FetchDescriptor<Question>())
+        if !questions.isEmpty { counts["Question"] = questions.count }
+
+        let attempts = try modelContext.fetch(FetchDescriptor<TestAttempt>())
+        if !attempts.isEmpty { counts["TestAttempt"] = attempts.count }
+
+        let responses = try modelContext.fetch(FetchDescriptor<QuestionResponse>())
+        if !responses.isEmpty { counts["QuestionResponse"] = responses.count }
+
+        let testProgress = try modelContext.fetch(FetchDescriptor<TestProgress>())
+        if !testProgress.isEmpty { counts["TestProgress"] = testProgress.count }
+
+        let sessions = try modelContext.fetch(FetchDescriptor<PracticeSession>())
+        if !sessions.isEmpty { counts["PracticeSession"] = sessions.count }
+
+        let lessons = try modelContext.fetch(FetchDescriptor<StoredLesson>())
+        if !lessons.isEmpty { counts["StoredLesson"] = lessons.count }
+
+        let queue = try modelContext.fetch(FetchDescriptor<ReviewQueueItem>())
+        if !queue.isEmpty { counts["ReviewQueueItem"] = queue.count }
+
+        let coverage = try modelContext.fetch(FetchDescriptor<IdeaCoverage>())
+        if !coverage.isEmpty { counts["IdeaCoverage"] = coverage.count }
+
+        let themes = try modelContext.fetch(FetchDescriptor<BookTheme>())
+        if !themes.isEmpty { counts["BookTheme"] = themes.count }
+
+        // Legacy model may be absent from the active container in some environments.
+        if let mastery = try? modelContext.fetch(FetchDescriptor<IdeaMastery>()), !mastery.isEmpty {
+            counts["IdeaMastery"] = mastery.count
+        }
+
+        return counts
     }
     
     // MARK: - Relationship Validation and Cleanup

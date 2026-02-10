@@ -203,6 +203,19 @@ struct BookSelectionView: View {
             themeUpdateTask?.cancel()
             extractionTask?.cancel()
         }
+        .alert(
+            "Couldn't Add Book",
+            isPresented: Binding(
+                get: { selectionError != nil && !isAddOverlayActive && !showExtractionLoader },
+                set: { presented in
+                    if !presented { selectionError = nil }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) { selectionError = nil }
+        } message: {
+            Text(selectionError ?? "Please try again.")
+        }
     }
 
     private var backgroundGradient: some View {
@@ -1012,7 +1025,14 @@ struct BookSelectionView: View {
                 extractionTask = Task(priority: .userInitiated) {
                     await extractionViewModel.loadOrExtractIdeas(from: metadata.title, metadata: metadata)
                     await MainActor.run {
-                        navigationState.navigateToBook(book)
+                        let resolvedBook = extractionViewModel.currentBook ?? book
+                        let ideaCount = (resolvedBook.ideas ?? []).count
+                        if ideaCount > 0 {
+                            navigationState.navigateToBook(resolvedBook)
+                        } else {
+                            selectionError = extractionViewModel.errorMessage
+                                ?? "We couldn't extract ideas for this book. Please try again."
+                        }
                         selectionStatus = nil
                         isProcessingSelection = false
                         withAnimation(.easeOut(duration: 0.20)) { showExtractionLoader = false }

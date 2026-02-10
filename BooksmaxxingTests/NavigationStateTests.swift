@@ -1,5 +1,6 @@
 import Testing
 @testable import Booksmaxxing
+import Foundation
 
 @MainActor
 struct NavigationStateTests {

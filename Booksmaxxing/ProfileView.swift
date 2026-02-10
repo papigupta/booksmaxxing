@@ -13,6 +13,10 @@ struct ProfileView: View {
 #if DEBUG
     @State private var showAnalyticsDashboard = false
 #endif
+    @State private var showHardResetBooksConfirmation = false
+    @State private var isHardResettingBooks = false
+    @State private var hardResetBooksMessage: String?
+    @State private var hardResetBooksErrorMessage: String?
 
     let authManager: AuthManager
 
@@ -68,6 +72,31 @@ struct ProfileView: View {
                         Button("Reset onboarding flow") {
                             resetOnboardingFlow(for: profile)
                         }
+                        Button(role: .destructive) {
+                            showHardResetBooksConfirmation = true
+                        } label: {
+                            if isHardResettingBooks {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                    Text("Resetting book data…")
+                                }
+                            } else {
+                                Text("Hard reset book data")
+                            }
+                        }
+                        .disabled(isHardResettingBooks)
+
+                        if let hardResetBooksMessage {
+                            Text(hardResetBooksMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let hardResetBooksErrorMessage {
+                            Text(hardResetBooksErrorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
                     }
                 }
 #if DEBUG
@@ -97,6 +126,14 @@ struct ProfileView: View {
             AdminAnalyticsDashboardView()
         }
 #endif
+        .alert("Hard reset book data?", isPresented: $showHardResetBooksConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                hardResetBookData()
+            }
+        } message: {
+            Text("This deletes all books and book-linked progress, while keeping account and profile data unchanged.")
+        }
     }
 }
 
@@ -179,6 +216,37 @@ private extension ProfileView {
         profile.updatedAt = Date.now
         persistProfileChange(profile: profile, successMessage: "Book selection will reopen.")
         navigationState.navigateToBookSelection()
+    }
+
+    func hardResetBookData() {
+        hardResetBooksMessage = nil
+        hardResetBooksErrorMessage = nil
+        isHardResettingBooks = true
+
+        Task { @MainActor in
+            defer { isHardResettingBooks = false }
+
+            let service = BookService(modelContext: modelContext)
+            do {
+                let report = try service.resetAllBookData()
+                hardResetBooksMessage = "Deleted \(report.deletedBookCount) books. Book data reset is complete."
+                navigationState.navigateToBookSelection()
+            } catch let resetError as BookDataResetError {
+                switch resetError {
+                case .partialFailure(let report):
+                    let failedTitles = report.failedBooks.map(\.title).joined(separator: ", ")
+                    hardResetBooksErrorMessage = "Reset partially completed (\(report.deletedBookCount)/\(report.requestedBookCount) books). Failed: \(failedTitles)."
+                case .verificationFailed(let report):
+                    let residual = report.residualEntityCounts
+                        .sorted { lhs, rhs in lhs.key < rhs.key }
+                        .map { "\($0.key)=\($0.value)" }
+                        .joined(separator: ", ")
+                    hardResetBooksErrorMessage = "Reset verification failed: \(residual)."
+                }
+            } catch {
+                hardResetBooksErrorMessage = "Book reset failed: \(error.localizedDescription)"
+            }
+        }
     }
 
     func persistProfileChange(profile: UserProfile, successMessage: String) {
